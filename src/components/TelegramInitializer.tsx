@@ -1,7 +1,7 @@
+import { useEffect, useState } from "react";
+import LoadingSpinner from "./LoadingSpinner";
+import { supabase } from "@/integrations/supabase/client";
 
-import { useEffect } from "react";
-
-// Define the window Telegram WebApp interface
 declare global {
   interface Window {
     Telegram: {
@@ -33,7 +33,70 @@ declare global {
 }
 
 const TelegramInitializer = () => {
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
+    async function init() {
+      // Check if running in Telegram WebApp environment
+      const isTelegramWebApp = window.Telegram && window.Telegram.WebApp;
+
+      let telegramUserId = "12345678"; // fallback for dev
+      let telegramUserName = "DevUser";
+
+      if (isTelegramWebApp && window.Telegram.WebApp.initDataUnsafe.user) {
+        const { id, first_name, last_name, username } = window.Telegram.WebApp.initDataUnsafe.user;
+        telegramUserId = id.toString();
+        telegramUserName = username || first_name;
+        console.log("Telegram user:", { id, first_name, last_name, username });
+      }
+      localStorage.setItem("telegramUserId", telegramUserId);
+      localStorage.setItem("telegramUserName", telegramUserName);
+
+      // Check for referral
+      const urlParams = new URLSearchParams(window.location.search);
+      const referrerId = urlParams.get("ref");
+
+      if (referrerId) {
+        console.log("User referred by:", referrerId);
+        localStorage.setItem("referrer", referrerId);
+
+        // In a real app, this would make a backend call to record the referral
+      }
+
+      // Now check/create in Supabase
+      const { data: user, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", telegramUserId)
+        .maybeSingle();
+
+      if (!user) {
+        // Create new user with basic info
+        await supabase.from("users").insert({
+          id: telegramUserId,
+          username: telegramUserName,
+          firstname: window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || "",
+          lastname: window.Telegram?.WebApp?.initDataUnsafe?.user?.last_name || "",
+          languagecode: window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code || "",
+          last_seen_at: new Date().toISOString(),
+        });
+      } else {
+        // If user hasn't logged in for 30+ days, zero out balance (client-side check)
+        const lastSeen = user.last_seen_at ? new Date(user.last_seen_at) : null;
+        if (lastSeen && (Date.now() - lastSeen.getTime()) > 30 * 24 * 60 * 60 * 1000) {
+          await supabase.from("users").update({
+            balance: 0,
+            last_seen_at: new Date().toISOString(),
+          }).eq("id", telegramUserId);
+        } else {
+          // Always update last_seen_at to now
+          await supabase.from("users").update({ last_seen_at: new Date().toISOString() }).eq("id", telegramUserId);
+        }
+      }
+      setLoading(false);
+    }
+
+    init();
     // Check if running in Telegram WebApp environment
     const isTelegramWebApp = window.Telegram && window.Telegram.WebApp;
     
@@ -80,7 +143,12 @@ const TelegramInitializer = () => {
     }
   }, []);
 
-  return null; // This component doesn't render anything
+  if (loading) {
+    // Loading spinner on first Telegram open
+    return <LoadingSpinner text="Connecting your Telegram account..." />;
+  }
+
+  return null;
 };
 
 export default TelegramInitializer;

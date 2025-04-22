@@ -18,6 +18,7 @@ export type Database = {
           ismining: boolean | null
           ispremium: boolean | null
           languagecode: string | null
+          last_seen_at: string | null
           lastname: string | null
           links: string | null
           minerate: number | null
@@ -33,6 +34,7 @@ export type Database = {
           ismining?: boolean | null
           ispremium?: boolean | null
           languagecode?: string | null
+          last_seen_at?: string | null
           lastname?: string | null
           links?: string | null
           minerate?: number | null
@@ -48,6 +50,7 @@ export type Database = {
           ismining?: boolean | null
           ispremium?: boolean | null
           languagecode?: string | null
+          last_seen_at?: string | null
           lastname?: string | null
           links?: string | null
           minerate?: number | null
