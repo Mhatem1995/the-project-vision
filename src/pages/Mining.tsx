@@ -1,8 +1,7 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Telegram } from "lucide-react";
+import { Send } from "lucide-react"; // Correct import for Telegram-like icon
 import BoostPurchaseDialog from "@/components/BoostPurchaseDialog";
 import BalanceCard from "@/components/mining/BalanceCard";
 import MiningProgress from "@/components/mining/MiningProgress";
@@ -56,7 +55,7 @@ const Mining = () => {
             onClick={handleConnectWallet}
             className="w-full max-w-md"
           >
-            <Telegram className="mr-2 h-4 w-4" />
+            <Send className="mr-2 h-4 w-4" /> {/* Changed from Telegram to Send */}
             Connect Telegram Wallet
           </Button>
 
@@ -91,4 +90,3 @@ const Mining = () => {
 };
 
 export default Mining;
-
