@@ -1,12 +1,12 @@
-
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Zap } from "lucide-react";
-import { BoostPurchaseDialog } from "@/components/BoostPurchaseDialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import BoostPurchaseDialog from "@/components/BoostPurchaseDialog";
+import { supabase } from "@/integrations/supabase/client";
 
 const Mining = () => {
   const { toast } = useToast();
@@ -16,6 +16,7 @@ const Mining = () => {
   const [progress, setProgress] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [boostDialogOpen, setBoostDialogOpen] = useState<boolean>(false);
+  const [activeBoost, setActiveBoost] = useState<any>(null);
 
   const miningDuration = 8 * 60 * 60; // 8 hours in seconds
 
@@ -75,6 +76,36 @@ const Mining = () => {
     };
   }, [timeRemaining]);
 
+  // Add effect: load active boost for the user
+  useEffect(() => {
+    async function fetchActiveBoost() {
+      const userId = localStorage.getItem("telegramUserId");
+      if (!userId) return;
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("mining_boosts")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("status", "confirmed")
+        .gt("expires_at", now)
+        .order("expires_at", { ascending: false })
+        .maybeSingle();
+      if (data) {
+        setActiveBoost(data);
+      } else {
+        setActiveBoost(null);
+      }
+    }
+
+    fetchActiveBoost();
+    // track on show of dialog too!
+  }, []);
+
+  // Incorporate boost multiplier if active
+  const effectiveMiningRate = activeBoost
+    ? miningRate * activeBoost.multiplier
+    : miningRate;
+
   const formatTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -85,7 +116,7 @@ const Mining = () => {
 
   const handleCollect = () => {
     // Update balance
-    const newBalance = balance + miningRate;
+    const newBalance = balance + effectiveMiningRate;
     setBalance(newBalance);
     localStorage.setItem("kfcBalance", newBalance.toString());
     
@@ -97,7 +128,7 @@ const Mining = () => {
     // Show success toast
     toast({
       title: "KFC Collected!",
-      description: `You earned ${miningRate} KFC coins!`,
+      description: `You earned ${effectiveMiningRate} KFC coins!`,
     });
   };
 
@@ -133,6 +164,11 @@ const Mining = () => {
             </Tooltip>
             <h2 className="text-xl font-semibold mb-2">Your Balance</h2>
             <p className="text-4xl font-bold">{balance.toFixed(2)} KFC</p>
+            {activeBoost && (
+              <div className="mt-3 text-green-600 text-xs font-semibold">
+                🔥 {activeBoost.multiplier}x BOOST ACTIVE • ends {new Date(activeBoost.expires_at).toLocaleString()}
+              </div>
+            )}
           </div>
           
           <div className="w-full max-w-md">
