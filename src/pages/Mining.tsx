@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+
+import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,28 @@ const Mining = () => {
   const [activeBoost, setActiveBoost] = useState<any>(null);
 
   const miningDuration = 8 * 60 * 60; // 8 hours in seconds
+
+  // Add fetchActiveBoost function
+  const fetchActiveBoost = useCallback(async () => {
+    const userId = localStorage.getItem("telegramUserId");
+    if (!userId) return;
+    
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("mining_boosts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "confirmed")
+      .gt("expires_at", now)
+      .order("expires_at", { ascending: false })
+      .maybeSingle();
+      
+    if (data) {
+      setActiveBoost(data);
+    } else {
+      setActiveBoost(null);
+    }
+  }, []);
 
   useEffect(() => {
     // Simulate loading user data
@@ -52,6 +75,7 @@ const Mining = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Handle timer
   useEffect(() => {
     let interval: number | null = null;
     
@@ -76,30 +100,24 @@ const Mining = () => {
     };
   }, [timeRemaining]);
 
-  // Add effect: load active boost for the user
+  // Fetch active boost on load and periodically
   useEffect(() => {
-    async function fetchActiveBoost() {
-      const userId = localStorage.getItem("telegramUserId");
-      if (!userId) return;
-      const now = new Date().toISOString();
-      const { data, error } = await supabase
-        .from("mining_boosts")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("status", "confirmed")
-        .gt("expires_at", now)
-        .order("expires_at", { ascending: false })
-        .maybeSingle();
-      if (data) {
-        setActiveBoost(data);
-      } else {
-        setActiveBoost(null);
-      }
-    }
-
     fetchActiveBoost();
-    // track on show of dialog too!
-  }, []);
+    
+    // Refresh active boost status every 30 seconds
+    const boostInterval = setInterval(fetchActiveBoost, 30000);
+    
+    return () => {
+      clearInterval(boostInterval);
+    };
+  }, [fetchActiveBoost]);
+
+  // Listen for boost dialog close events to refresh boosts
+  useEffect(() => {
+    if (!boostDialogOpen) {
+      fetchActiveBoost();
+    }
+  }, [boostDialogOpen, fetchActiveBoost]);
 
   // Incorporate boost multiplier if active
   const effectiveMiningRate = activeBoost

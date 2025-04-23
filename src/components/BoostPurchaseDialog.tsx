@@ -5,13 +5,13 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Zap } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import BoostPaymentVerificationDialog from "./BoostPaymentVerificationDialog";
+import { useToast } from "@/hooks/use-toast";
 
 const tonWallet = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
 const boostOptions = [
@@ -34,13 +34,29 @@ interface BoostPurchaseDialogProps {
 export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchaseDialogProps) {
   const [pendingBoost, setPendingBoost] = useState<any>(null);
   const [verifyDialog, setVerifyDialog] = useState(false);
+  const { toast } = useToast();
 
   const handlePurchase = async (option: BoostOption) => {
     // Get logged-in user ID
     const userId = localStorage.getItem("telegramUserId");
     if (!userId) {
-      alert("User not found in localStorage.");
+      toast({
+        title: "Error",
+        description: "User not found. Please refresh the page.",
+        variant: "destructive"
+      });
       return;
+    }
+
+    // Copy wallet address to clipboard
+    try {
+      await navigator.clipboard.writeText(tonWallet);
+      toast({
+        title: "TON Wallet copied",
+        description: `Send ${option.price} TON to activate your ${option.multiplier}x boost`,
+      });
+    } catch (err) {
+      console.error("Failed to copy wallet address", err);
     }
 
     // Create boost record (pending)
@@ -55,7 +71,11 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     ]).select().maybeSingle();
 
     if (error || !data) {
-      alert("Failed to create boost (Supabase issue)");
+      toast({
+        title: "Error",
+        description: "Failed to create boost record",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -99,7 +119,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
             ))}
           </div>
           <div className="text-xs text-muted-foreground mt-2 text-center">
-            Send payment to: <span className="font-mono">{tonWallet}</span>
+            Send payment to: <span className="font-mono break-all">{tonWallet}</span>
           </div>
         </DialogContent>
       </Dialog>
