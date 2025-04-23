@@ -2,12 +2,15 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Telegram } from "lucide-react";
 import BoostPurchaseDialog from "@/components/BoostPurchaseDialog";
 import BalanceCard from "@/components/mining/BalanceCard";
 import MiningProgress from "@/components/mining/MiningProgress";
 import { useMining } from "@/hooks/useMining";
+import { useToast } from "@/hooks/use-toast";
 
 const Mining = () => {
+  const { toast } = useToast();
   const [boostDialogOpen, setBoostDialogOpen] = useState<boolean>(false);
   const {
     balance,
@@ -17,6 +20,21 @@ const Mining = () => {
     activeBoost,
     handleCollect,
   } = useMining();
+
+  const handleConnectWallet = () => {
+    if (!window.Telegram?.WebApp) {
+      toast({
+        title: "Error",
+        description: "Please open this app in Telegram",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Telegram Wallet deep link
+    const walletUrl = "ton://connect/";
+    window.Telegram.WebApp.openLink(walletUrl);
+  };
 
   return (
     <div className="flex flex-col items-center justify-center space-y-8">
@@ -33,6 +51,15 @@ const Mining = () => {
         </div>
       ) : (
         <>
+          <Button 
+            variant="outline" 
+            onClick={handleConnectWallet}
+            className="w-full max-w-md"
+          >
+            <Telegram className="mr-2 h-4 w-4" />
+            Connect Telegram Wallet
+          </Button>
+
           <BalanceCard
             balance={balance}
             activeBoost={activeBoost}
@@ -64,3 +91,4 @@ const Mining = () => {
 };
 
 export default Mining;
+
