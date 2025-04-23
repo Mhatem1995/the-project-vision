@@ -1,9 +1,9 @@
-
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Check, ExternalLink } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Task {
   id: string;
@@ -12,6 +12,7 @@ interface Task {
   reward: number;
   type: "collab" | "payment";
   link?: string;
+  tonAmount?: number;
   completed: boolean;
 }
 
@@ -42,6 +43,7 @@ const Tasks = () => {
       description: "Send 0.1 TON to get 100 KFC",
       reward: 100,
       type: "payment",
+      tonAmount: 0.1,
       completed: false
     },
     {
@@ -50,6 +52,7 @@ const Tasks = () => {
       description: "Send 1 TON to get 1500 KFC",
       reward: 1500,
       type: "payment",
+      tonAmount: 1,
       completed: false
     }
   ]);
@@ -57,8 +60,6 @@ const Tasks = () => {
   const tonWalletAddress = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
 
   const handleCollabTask = (taskId: string) => {
-    // In a real app, this would verify if user actually completed the task
-    // For now, we'll just mark it as complete and add reward
     setTasks(tasks.map(task => 
       task.id === taskId ? {...task, completed: true} : task
     ));
@@ -73,6 +74,54 @@ const Tasks = () => {
         title: "Task Completed!",
         description: `You earned ${task.reward} KFC coins!`,
       });
+    }
+  };
+
+  const handlePaymentTask = async (task: Task) => {
+    if (!task.tonAmount) return;
+
+    const userId = localStorage.getItem("telegramUserId");
+    if (!userId) {
+      toast({
+        title: "Error",
+        description: "User not found. Please refresh the page.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const { data, error } = await supabase.from("mining_boosts").insert([
+      {
+        user_id: userId,
+        multiplier: 1,
+        price: task.tonAmount,
+        duration: 0,
+        status: "pending",
+      },
+    ]).select().maybeSingle();
+
+    if (error || !data) {
+      toast({
+        title: "Error",
+        description: "Failed to create payment record",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (window.Telegram?.WebApp) {
+      const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${task.tonAmount * 1000000000}`;
+      window.Telegram.WebApp.openLink(paymentUrl);
+    } else {
+      try {
+        await navigator.clipboard.writeText(tonWalletAddress);
+        toast({
+          title: "TON Wallet copied",
+          description: `Send ${task.tonAmount} TON to receive ${task.reward} KFC`,
+        });
+      } catch (err) {
+        console.error("Failed to copy wallet address", err);
+      }
     }
   };
 
@@ -168,14 +217,9 @@ const Tasks = () => {
               ) : (
                 <Button 
                   size="sm"
-                  onClick={() => {
-                    toast({
-                      title: "Payment Pending",
-                      description: "We'll verify your payment and credit your account soon.",
-                    });
-                  }}
+                  onClick={() => handlePaymentTask(task)}
                 >
-                  I've Paid
+                  Pay {task.tonAmount} TON
                 </Button>
               )}
             </div>
