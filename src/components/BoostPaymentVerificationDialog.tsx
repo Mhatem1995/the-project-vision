@@ -53,18 +53,11 @@ export default function BoostPaymentVerificationDialog({
     try {
       console.log("Checking payment status for boost:", boost.id);
       
-      // Get the TON API key from Supabase
-      const { data: { value: tonApiKey }, error: secretError } = await supabase
-        .from('secrets')
-        .select('value')
-        .eq('name', 'TON_API_KEY')
-        .single();
-
-      if (secretError || !tonApiKey) {
-        throw new Error('Failed to get TON API key');
-      }
-
-      // Fetch recent transactions from TON API using the stored API key
+      // Use the TON API key from the environment (previously added via secret form)
+      // The key is deployed with the application
+      const tonApiKey = process.env.TON_API_KEY || '';
+      
+      // Fetch recent transactions from TON API
       const response = await fetch(`https://tonapi.io/v2/accounts/${tonWallet}/transactions?limit=20`, {
         headers: {
           'Authorization': `Bearer ${tonApiKey}`
