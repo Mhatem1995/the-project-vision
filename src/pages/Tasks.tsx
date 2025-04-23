@@ -188,21 +188,6 @@ const Tasks = () => {
         </TabsContent>
         
         <TabsContent value="payment" className="space-y-4 mt-4">
-          <div className="bg-card p-4 rounded-md shadow-sm mb-6">
-            <h3 className="font-medium mb-2">TON Wallet Address</h3>
-            <div className="flex items-center">
-              <p className="text-sm bg-muted p-2 rounded-md mr-2 flex-1 truncate font-mono">
-                {tonWalletAddress}
-              </p>
-              <Button variant="outline" size="sm" onClick={() => copyToClipboard(tonWalletAddress)}>
-                Copy
-              </Button>
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              Send TON to this address and confirm below to receive KFC
-            </p>
-          </div>
-          
           {tasks.filter(task => task.type === "payment").map(task => (
             <div key={task.id} className="bg-card p-4 rounded-md shadow-sm flex items-start justify-between">
               <div>
