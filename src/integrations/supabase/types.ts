@@ -9,6 +9,27 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      daily_tasks: {
+        Row: {
+          completed_at: string
+          id: string
+          task_type: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          task_type: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          task_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mining_boosts: {
         Row: {
           created_at: string
@@ -109,7 +130,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_do_daily_task: {
+        Args: { p_user_id: string; p_task_type: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

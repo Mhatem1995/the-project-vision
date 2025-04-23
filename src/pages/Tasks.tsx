@@ -1,8 +1,9 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Check, ExternalLink } from "lucide-react";
+import { Check, ExternalLink, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Task {
@@ -14,6 +15,7 @@ interface Task {
   link?: string;
   tonAmount?: number;
   completed: boolean;
+  isDaily?: boolean;
 }
 
 const Tasks = () => {
@@ -54,10 +56,36 @@ const Tasks = () => {
       type: "payment",
       tonAmount: 1,
       completed: false
+    },
+    {
+      id: "5",
+      title: "Daily TON Task",
+      description: "Send 10 TON to get 10000 KFC (Resets every 24 hours)",
+      reward: 10000,
+      type: "payment",
+      tonAmount: 10,
+      completed: false,
+      isDaily: true
     }
   ]);
+  
+  const [dailyTaskAvailable, setDailyTaskAvailable] = useState(true);
 
-  const tonWalletAddress = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
+  useEffect(() => {
+    checkDailyTaskStatus();
+  }, []);
+
+  const checkDailyTaskStatus = async () => {
+    const userId = localStorage.getItem("telegramUserId");
+    if (!userId) return;
+
+    const { data, error } = await supabase.rpc('can_do_daily_task', {
+      p_user_id: userId,
+      p_task_type: 'daily_ton_payment'
+    });
+
+    setDailyTaskAvailable(!!data);
+  };
 
   const handleCollabTask = (taskId: string) => {
     setTasks(tasks.map(task => 
@@ -90,6 +118,16 @@ const Tasks = () => {
       return;
     }
 
+    // For daily tasks, check availability first
+    if (task.isDaily && !dailyTaskAvailable) {
+      toast({
+        title: "Daily Task Unavailable",
+        description: "This task can only be completed once every 24 hours.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const { data, error } = await supabase.from("mining_boosts").insert([
       {
         user_id: userId,
@@ -112,34 +150,70 @@ const Tasks = () => {
     if (window.Telegram?.WebApp) {
       const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${task.tonAmount * 1000000000}`;
       window.Telegram.WebApp.openLink(paymentUrl);
-    } else {
-      try {
-        await navigator.clipboard.writeText(tonWalletAddress);
-        toast({
-          title: "TON Wallet copied",
-          description: `Send ${task.tonAmount} TON to receive ${task.reward} KFC`,
-        });
-      } catch (err) {
-        console.error("Failed to copy wallet address", err);
+
+      // If it's a daily task, record the completion
+      if (task.isDaily) {
+        await supabase.from("daily_tasks").insert([
+          {
+            user_id: userId,
+            task_type: "daily_ton_payment"
+          }
+        ]);
+        setDailyTaskAvailable(false);
+        checkDailyTaskStatus();
       }
     }
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({
-        title: "Address Copied!",
-        description: "TON wallet address copied to clipboard.",
-      });
-    } catch (err) {
-      toast({
-        title: "Failed to copy",
-        description: "Please copy the address manually.",
-        variant: "destructive",
-      });
-    }
-  };
+  const renderTask = (task: Task) => (
+    <div key={task.id} className="bg-card p-4 rounded-md shadow-sm flex items-start justify-between">
+      <div>
+        <h3 className="font-medium">{task.title}</h3>
+        <p className="text-sm text-muted-foreground">{task.description}</p>
+        <p className="text-sm font-semibold mt-1">Reward: {task.reward} KFC</p>
+      </div>
+      {task.completed ? (
+        <div className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 rounded-full p-1 h-8 w-8 flex items-center justify-center">
+          <Check className="h-4 w-4" />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {task.type === "collab" ? (
+            <>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => task.link && window.open(task.link, '_blank')}
+              >
+                Open <ExternalLink className="ml-2 h-4 w-4" />
+              </Button>
+              <Button 
+                size="sm"
+                onClick={() => handleCollabTask(task.id)}
+              >
+                Confirm
+              </Button>
+            </>
+          ) : (
+            <Button 
+              size="sm"
+              onClick={() => handlePaymentTask(task)}
+              disabled={task.isDaily && !dailyTaskAvailable}
+            >
+              {task.isDaily && !dailyTaskAvailable ? (
+                <>
+                  <Clock className="mr-2 h-4 w-4" />
+                  Cooldown
+                </>
+              ) : (
+                `Pay ${task.tonAmount} TON`
+              )}
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex flex-col space-y-6">
@@ -155,60 +229,11 @@ const Tasks = () => {
         </TabsList>
         
         <TabsContent value="collab" className="space-y-4 mt-4">
-          {tasks.filter(task => task.type === "collab").map(task => (
-            <div key={task.id} className="bg-card p-4 rounded-md shadow-sm flex items-start justify-between">
-              <div>
-                <h3 className="font-medium">{task.title}</h3>
-                <p className="text-sm text-muted-foreground">{task.description}</p>
-                <p className="text-sm font-semibold mt-1">Reward: {task.reward} KFC</p>
-              </div>
-              {task.completed ? (
-                <div className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 rounded-full p-1 h-8 w-8 flex items-center justify-center">
-                  <Check className="h-4 w-4" />
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => task.link && window.open(task.link, '_blank')}
-                  >
-                    Open <ExternalLink className="ml-2 h-4 w-4" />
-                  </Button>
-                  <Button 
-                    size="sm"
-                    onClick={() => handleCollabTask(task.id)}
-                  >
-                    Confirm
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
+          {tasks.filter(task => task.type === "collab").map(renderTask)}
         </TabsContent>
         
         <TabsContent value="payment" className="space-y-4 mt-4">
-          {tasks.filter(task => task.type === "payment").map(task => (
-            <div key={task.id} className="bg-card p-4 rounded-md shadow-sm flex items-start justify-between">
-              <div>
-                <h3 className="font-medium">{task.title}</h3>
-                <p className="text-sm text-muted-foreground">{task.description}</p>
-                <p className="text-sm font-semibold mt-1">Reward: {task.reward} KFC</p>
-              </div>
-              {task.completed ? (
-                <div className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 rounded-full p-1 h-8 w-8 flex items-center justify-center">
-                  <Check className="h-4 w-4" />
-                </div>
-              ) : (
-                <Button 
-                  size="sm"
-                  onClick={() => handlePaymentTask(task)}
-                >
-                  Pay {task.tonAmount} TON
-                </Button>
-              )}
-            </div>
-          ))}
+          {tasks.filter(task => task.type === "payment").map(renderTask)}
         </TabsContent>
       </Tabs>
     </div>
