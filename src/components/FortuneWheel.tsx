@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Wheel } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -97,15 +99,23 @@ const FortuneWheel: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center space-y-4">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button 
+            className="rounded-full h-12 w-12 p-0 absolute top-3 right-3"
+            variant="outline"
+            onClick={spinWheel} 
+            disabled={spinning || cookies < 1}
+          >
+            <Wheel className="h-6 w-6 text-primary" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Spin Fortune Wheel (1 Cookie)</p>
+        </TooltipContent>
+      </Tooltip>
       <h2 className="text-2xl font-bold">Fortune Wheel</h2>
       <p>Fortune Cookies: {cookies}</p>
-      <Button 
-        onClick={spinWheel} 
-        disabled={spinning || cookies < 1}
-        className="w-full max-w-md"
-      >
-        {spinning ? "Spinning..." : "Spin Wheel (1 Cookie)"}
-      </Button>
     </div>
   );
 };
