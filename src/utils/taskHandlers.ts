@@ -77,6 +77,14 @@ export const handlePaymentTask = async (
     const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${task.tonAmount * 1000000000}`;
     window.Telegram.WebApp.openLink(paymentUrl);
 
+    // Special handling for fortune cookie task
+    if (task.id === "6") {
+      await supabase.rpc('add_fortune_cookies', { 
+        p_user_id: userId, 
+        p_cookie_count: 10 
+      });
+    }
+
     if (task.isDaily) {
       await supabase.from("daily_tasks").insert([
         {

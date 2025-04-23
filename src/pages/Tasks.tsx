@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -55,6 +54,16 @@ const Tasks = () => {
       tonAmount: 10,
       completed: false,
       isDaily: true
+    },
+    {
+      id: "6",
+      title: "Fortune Cookies Pack",
+      description: "Buy 10 Fortune Cookies for 5 TON",
+      reward: 10,
+      type: "payment",
+      tonAmount: 5,
+      completed: false,
+      isDaily: false
     }
   ]);
   

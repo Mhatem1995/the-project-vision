@@ -79,6 +79,7 @@ export type Database = {
           balance: number | null
           daily: Json | null
           firstname: string | null
+          fortune_cookies: number | null
           id: string
           ismining: boolean | null
           ispremium: boolean | null
@@ -95,6 +96,7 @@ export type Database = {
           balance?: number | null
           daily?: Json | null
           firstname?: string | null
+          fortune_cookies?: number | null
           id?: string
           ismining?: boolean | null
           ispremium?: boolean | null
@@ -111,6 +113,7 @@ export type Database = {
           balance?: number | null
           daily?: Json | null
           firstname?: string | null
+          fortune_cookies?: number | null
           id?: string
           ismining?: boolean | null
           ispremium?: boolean | null
@@ -122,6 +125,30 @@ export type Database = {
           miningstartedtime?: string | null
           referrals?: Json | null
           username?: string | null
+        }
+        Relationships: []
+      }
+      wheel_spins: {
+        Row: {
+          created_at: string
+          id: string
+          prize_amount: number
+          prize_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          prize_amount: number
+          prize_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          prize_amount?: number
+          prize_type?: string
+          user_id?: string
         }
         Relationships: []
       }

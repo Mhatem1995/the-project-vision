@@ -1,10 +1,12 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send } from "lucide-react"; // Correct import for Telegram-like icon
+import { Send } from "lucide-react";
 import BoostPurchaseDialog from "@/components/BoostPurchaseDialog";
 import BalanceCard from "@/components/mining/BalanceCard";
 import MiningProgress from "@/components/mining/MiningProgress";
+import FortuneWheel from "@/components/FortuneWheel";
 import { useMining } from "@/hooks/useMining";
 import { useToast } from "@/hooks/use-toast";
 
@@ -30,7 +32,6 @@ const Mining = () => {
       return;
     }
 
-    // Telegram Wallet deep link
     const walletUrl = "ton://connect/";
     window.Telegram.WebApp.openLink(walletUrl);
   };
@@ -55,7 +56,7 @@ const Mining = () => {
             onClick={handleConnectWallet}
             className="w-full max-w-md"
           >
-            <Send className="mr-2 h-4 w-4" /> {/* Changed from Telegram to Send */}
+            <Send className="mr-2 h-4 w-4" />
             Connect Telegram Wallet
           </Button>
 
@@ -70,6 +71,8 @@ const Mining = () => {
             timeRemaining={timeRemaining}
           />
           
+          <FortuneWheel />
+
           <Button 
             className="w-full max-w-md" 
             size="lg"
