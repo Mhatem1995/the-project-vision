@@ -1,10 +1,11 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Check, ExternalLink, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+const tonWalletAddress = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
 
 interface Task {
   id: string;
@@ -118,7 +119,6 @@ const Tasks = () => {
       return;
     }
 
-    // For daily tasks, check availability first
     if (task.isDaily && !dailyTaskAvailable) {
       toast({
         title: "Daily Task Unavailable",
@@ -151,7 +151,6 @@ const Tasks = () => {
       const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${task.tonAmount * 1000000000}`;
       window.Telegram.WebApp.openLink(paymentUrl);
 
-      // If it's a daily task, record the completion
       if (task.isDaily) {
         await supabase.from("daily_tasks").insert([
           {
