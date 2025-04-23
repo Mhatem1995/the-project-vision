@@ -36,11 +36,8 @@ export default function BoostPaymentVerificationDialog({
 
     if (open && boost && !verified && !verifying) {
       setVerifying(true);
-      // Start polling for payment verification
       interval = window.setInterval(checkPaymentStatus, 10000); // Check every 10 seconds
-      
-      // Initial check
-      checkPaymentStatus();
+      checkPaymentStatus(); // Initial check
     }
 
     return () => {
@@ -56,10 +53,21 @@ export default function BoostPaymentVerificationDialog({
     try {
       console.log("Checking payment status for boost:", boost.id);
       
-      // Fetch recent transactions to the target wallet from TON API
+      // Get the TON API key from Supabase
+      const { data: { value: tonApiKey }, error: secretError } = await supabase
+        .from('secrets')
+        .select('value')
+        .eq('name', 'TON_API_KEY')
+        .single();
+
+      if (secretError || !tonApiKey) {
+        throw new Error('Failed to get TON API key');
+      }
+
+      // Fetch recent transactions from TON API using the stored API key
       const response = await fetch(`https://tonapi.io/v2/accounts/${tonWallet}/transactions?limit=20`, {
         headers: {
-          'Authorization': 'Bearer YOUR_TONAPI_KEY' // You would need to get an API key from TON API
+          'Authorization': `Bearer ${tonApiKey}`
         }
       });
       
