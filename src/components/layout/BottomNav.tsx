@@ -1,5 +1,5 @@
 
-import { Home, ListTodo, Users } from "lucide-react";
+import { Home, ListTodo, Users, Award } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 const BottomNav = () => {
@@ -15,6 +15,11 @@ const BottomNav = () => {
       icon: ListTodo,
       label: "Tasks",
       path: "/tasks"
+    },
+    {
+      icon: Award,
+      label: "Leaderboard",
+      path: "/leaderboard"
     },
     {
       icon: Users,
