@@ -157,6 +157,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_fortune_cookies: {
+        Args: { p_user_id: string; p_cookie_count: number }
+        Returns: undefined
+      }
       can_do_daily_task: {
         Args: { p_user_id: string; p_task_type: string }
         Returns: boolean

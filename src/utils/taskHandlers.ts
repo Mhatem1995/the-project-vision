@@ -79,10 +79,18 @@ export const handlePaymentTask = async (
 
     // Special handling for fortune cookie task
     if (task.id === "6") {
-      await supabase.rpc('add_fortune_cookies', { 
+      const { error: cookieError } = await supabase.rpc('add_fortune_cookies', { 
         p_user_id: userId, 
         p_cookie_count: 10 
       });
+
+      if (cookieError) {
+        toast({
+          title: "Error",
+          description: "Failed to add fortune cookies",
+          variant: "destructive"
+        });
+      }
     }
 
     if (task.isDaily) {
