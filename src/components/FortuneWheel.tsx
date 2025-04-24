@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { CirclePlay } from "lucide-react";  // Changed from Wheel to CirclePlay
+import { CirclePlay } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -37,18 +37,18 @@ const FortuneWheel: React.FC = () => {
   }, []);
 
   const spinWheel = async () => {
-    if (spinning || cookies < 1) return;
+    if (spinning) return;  // Only check for spinning, removed cookies check
 
     setSpinning(true);
     const userId = localStorage.getItem("telegramUserId");
     const prize = selectPrize();
 
     try {
-      // Deduct fortune cookie
-      await supabase
-        .from('users')
-        .update({ fortune_cookies: cookies - 1 })
-        .eq('id', userId);
+      // Temporarily comment out cookie deduction
+      // await supabase
+      //   .from('users')
+      //   .update({ fortune_cookies: cookies - 1 })
+      //   .eq('id', userId);
 
       // Log wheel spin
       await supabase.from('wheel_spins').insert({
@@ -71,7 +71,8 @@ const FortuneWheel: React.FC = () => {
           : `Congratulations! You won ${prize.amount} TON!`
       });
 
-      setCookies(cookies - 1);
+      // Temporarily comment out cookie reduction
+      // setCookies(cookies - 1);
     } catch (error) {
       toast({
         title: "Error",
@@ -105,13 +106,13 @@ const FortuneWheel: React.FC = () => {
             className="rounded-full h-12 w-12 p-0 absolute top-3 right-3"
             variant="outline"
             onClick={spinWheel} 
-            disabled={spinning || cookies < 1}
+            disabled={spinning}  // Removed cookies check from disabled state
           >
-            <CirclePlay className="h-6 w-6 text-primary" />  {/* Changed from Wheel to CirclePlay */}
+            <CirclePlay className="h-6 w-6 text-primary" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Spin Fortune Wheel (1 Cookie)</p>
+          <p>Test Fortune Wheel (Free)</p>  {/* Updated tooltip text */}
         </TooltipContent>
       </Tooltip>
       <h2 className="text-2xl font-bold">Fortune Wheel</h2>
@@ -121,3 +122,4 @@ const FortuneWheel: React.FC = () => {
 };
 
 export default FortuneWheel;
+
