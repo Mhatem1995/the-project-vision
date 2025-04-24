@@ -165,6 +165,10 @@ export type Database = {
         Args: { p_user_id: string; p_task_type: string }
         Returns: boolean
       }
+      can_free_wheel_spin: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

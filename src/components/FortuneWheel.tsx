@@ -17,47 +17,76 @@ const PRIZES = [
 const FortuneWheel: React.FC = () => {
   const [cookies, setCookies] = useState(0);
   const [spinning, setSpinning] = useState(false);
+  const [freePinAvailable, setFreePinAvailable] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchCookies = async () => {
+    const fetchInitialData = async () => {
       const userId = localStorage.getItem("telegramUserId");
       if (!userId) return;
 
-      const { data, error } = await supabase
+      // Fetch cookies
+      const { data: userData } = await supabase
         .from('users')
         .select('fortune_cookies')
         .eq('id', userId)
         .single();
 
-      if (data) setCookies(data.fortune_cookies || 0);
+      if (userData) setCookies(userData.fortune_cookies || 0);
+
+      // Check if free spin is available
+      const { data: canSpin } = await supabase.rpc('can_free_wheel_spin', {
+        p_user_id: userId
+      });
+
+      setFreePinAvailable(!!canSpin);
     };
 
-    fetchCookies();
+    fetchInitialData();
   }, []);
 
   const spinWheel = async () => {
-    if (spinning) return;  // Only check for spinning, removed cookies check
+    if (spinning) return;
+    if (!freePinAvailable && cookies < 1) {
+      toast({
+        title: "Not enough cookies",
+        description: "You need 1 cookie to spin the wheel",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setSpinning(true);
     const userId = localStorage.getItem("telegramUserId");
     const prize = selectPrize();
 
     try {
-      // Temporarily comment out cookie deduction
-      // await supabase
-      //   .from('users')
-      //   .update({ fortune_cookies: cookies - 1 })
-      //   .eq('id', userId);
+      // If using a cookie (not a free spin)
+      if (!freePinAvailable) {
+        await supabase
+          .from('users')
+          .update({ fortune_cookies: cookies - 1 })
+          .eq('id', userId);
+      } else {
+        // Log the free spin usage
+        await supabase
+          .from('daily_tasks')
+          .insert({
+            user_id: userId,
+            task_type: 'free_wheel_spin'
+          });
+      }
 
       // Log wheel spin
-      await supabase.from('wheel_spins').insert({
-        user_id: userId,
-        prize_type: prize.type,
-        prize_amount: prize.amount
-      });
+      await supabase
+        .from('wheel_spins')
+        .insert({
+          user_id: userId,
+          prize_type: prize.type,
+          prize_amount: prize.amount
+        });
 
-      // Update balance if KFC prize
+      // Update KFC balance if won
       if (prize.type === 'KFC') {
         const balance = parseFloat(localStorage.getItem("kfcBalance") || "0");
         const newBalance = balance + prize.amount;
@@ -71,8 +100,11 @@ const FortuneWheel: React.FC = () => {
           : `Congratulations! You won ${prize.amount} TON!`
       });
 
-      // Temporarily comment out cookie reduction
-      // setCookies(cookies - 1);
+      // Update states
+      if (!freePinAvailable) {
+        setCookies(cookies - 1);
+      }
+      setFreePinAvailable(false);
     } catch (error) {
       toast({
         title: "Error",
@@ -106,20 +138,20 @@ const FortuneWheel: React.FC = () => {
             className="rounded-full h-12 w-12 p-0 absolute top-3 right-3"
             variant="outline"
             onClick={spinWheel} 
-            disabled={spinning}  // Removed cookies check from disabled state
+            disabled={spinning || (!freePinAvailable && cookies < 1)}
           >
             <CirclePlay className="h-6 w-6 text-primary" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Test Fortune Wheel (Free)</p>  {/* Updated tooltip text */}
+          <p>{freePinAvailable ? "Free Spin Available!" : "Spin Fortune Wheel (1 Cookie)"}</p>
         </TooltipContent>
       </Tooltip>
       <h2 className="text-2xl font-bold">Fortune Wheel</h2>
+      <p className="text-sm text-muted-foreground">One free spin every 24 hours!</p>
       <p>Fortune Cookies: {cookies}</p>
     </div>
   );
 };
 
 export default FortuneWheel;
-
