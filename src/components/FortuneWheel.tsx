@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Wheel } from "lucide-react";
+import { CirclePlay } from "lucide-react";  // Changed from Wheel to CirclePlay
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -107,7 +107,7 @@ const FortuneWheel: React.FC = () => {
             onClick={spinWheel} 
             disabled={spinning || cookies < 1}
           >
-            <Wheel className="h-6 w-6 text-primary" />
+            <CirclePlay className="h-6 w-6 text-primary" />  {/* Changed from Wheel to CirclePlay */}
           </Button>
         </TooltipTrigger>
         <TooltipContent>
