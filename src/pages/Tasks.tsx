@@ -48,8 +48,8 @@ const Tasks = () => {
     {
       id: "5",
       title: "Daily TON Task",
-      description: "Send 10 TON to get 10000 KFC (Resets every 24 hours)",
-      reward: 10000,
+      description: "Send 10 TON to get 30000 KFC (Resets every 24 hours)",
+      reward: 30000,
       type: "payment",
       tonAmount: 10,
       completed: false,

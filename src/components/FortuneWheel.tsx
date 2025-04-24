@@ -10,7 +10,7 @@ const PRIZES = [
   { type: 'KFC', amount: 1, probability: 0.4, color: '#FF6B6B' },
   { type: 'KFC', amount: 10, probability: 0.3, color: '#4ECDC4' },
   { type: 'KFC', amount: 50, probability: 0.2, color: '#45B7D1' },
-  { type: 'KFC', amount: 500, probability: 0.09, color: '#96CEB4' },
+  { type: 'TON', amount: 100, probability: 0.09, color: '#96CEB4' },
   { type: 'TON', amount: 10, probability: 0.01, color: '#FFEEAD' }
 ];
 
@@ -44,6 +44,16 @@ const FortuneWheel: React.FC = () => {
 
     fetchInitialData();
   }, []);
+
+  const JackpotBanner = () => {
+    return (
+      <div className="animate-bounce text-center mb-4">
+        <span className="inline-block bg-gradient-to-r from-primary to-purple-600 text-white px-4 py-2 rounded-full font-bold shadow-lg">
+          🎯 Win up to 100 TON! 🎯
+        </span>
+      </div>
+    );
+  };
 
   const selectPrize = () => {
     const randomNumber = Math.random();
@@ -137,18 +147,17 @@ const FortuneWheel: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold">Fortune Wheel</h2>
-          <p className="text-sm text-muted-foreground">One free spin every 24 hours!</p>
+          <p className="text-sm text-muted-foreground">Three free spins every 24 hours!</p>
           <p className="text-lg font-semibold mt-2">Fortune Cookies: {cookies}</p>
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button 
-              className="rounded-full h-12 w-12"
-              variant="outline"
+              className="rounded-full h-12 w-12 bg-gradient-to-r from-primary to-purple-600 hover:opacity-90"
               onClick={spinWheel} 
               disabled={spinning || (!freePinAvailable && cookies < 1)}
             >
-              <CirclePlay className="h-6 w-6 text-primary" />
+              <CirclePlay className="h-6 w-6 text-white" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -156,6 +165,8 @@ const FortuneWheel: React.FC = () => {
           </TooltipContent>
         </Tooltip>
       </div>
+
+      <JackpotBanner />
 
       <div className="relative w-64 h-64 mx-auto">
         <div 
