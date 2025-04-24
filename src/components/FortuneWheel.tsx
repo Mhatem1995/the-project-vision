@@ -1,31 +1,32 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CirclePlay } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import WheelSegment from './wheel/WheelSegment';
 
 const PRIZES = [
-  { type: 'KFC', amount: 1, probability: 0.4 },
-  { type: 'KFC', amount: 10, probability: 0.3 },
-  { type: 'KFC', amount: 50, probability: 0.2 },
-  { type: 'KFC', amount: 500, probability: 0.09 },
-  { type: 'TON', amount: 10, probability: 0.01 }
+  { type: 'KFC', amount: 1, probability: 0.4, color: '#FF6B6B' },
+  { type: 'KFC', amount: 10, probability: 0.3, color: '#4ECDC4' },
+  { type: 'KFC', amount: 50, probability: 0.2, color: '#45B7D1' },
+  { type: 'KFC', amount: 500, probability: 0.09, color: '#96CEB4' },
+  { type: 'TON', amount: 10, probability: 0.01, color: '#FFEEAD' }
 ];
 
 const FortuneWheel: React.FC = () => {
   const [cookies, setCookies] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [freePinAvailable, setFreePinAvailable] = useState(false);
+  const [rotationDegrees, setRotationDegrees] = useState(0);
   const { toast } = useToast();
+  const wheelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchInitialData = async () => {
       const userId = localStorage.getItem("telegramUserId");
       if (!userId) return;
 
-      // Fetch cookies
       const { data: userData } = await supabase
         .from('users')
         .select('fortune_cookies')
@@ -34,7 +35,6 @@ const FortuneWheel: React.FC = () => {
 
       if (userData) setCookies(userData.fortune_cookies || 0);
 
-      // Check if free spin is available
       const { data: canSpin } = await supabase.rpc('can_free_wheel_spin', {
         p_user_id: userId
       });
@@ -44,6 +44,20 @@ const FortuneWheel: React.FC = () => {
 
     fetchInitialData();
   }, []);
+
+  const selectPrize = () => {
+    const randomNumber = Math.random();
+    let cumulativeProbability = 0;
+
+    for (const prize of PRIZES) {
+      cumulativeProbability += prize.probability;
+      if (randomNumber <= cumulativeProbability) {
+        return prize;
+      }
+    }
+
+    return PRIZES[0]; // Default to smallest prize
+  };
 
   const spinWheel = async () => {
     if (spinning) return;
@@ -60,15 +74,19 @@ const FortuneWheel: React.FC = () => {
     const userId = localStorage.getItem("telegramUserId");
     const prize = selectPrize();
 
+    const rotations = 5 + Math.floor(Math.random() * 3);
+    const prizeIndex = PRIZES.findIndex(p => p.type === prize.type && p.amount === prize.amount);
+    const targetDegree = rotations * 360 + (360 / PRIZES.length) * prizeIndex;
+    
+    setRotationDegrees(targetDegree);
+
     try {
-      // If using a cookie (not a free spin)
       if (!freePinAvailable) {
         await supabase
           .from('users')
           .update({ fortune_cookies: cookies - 1 })
           .eq('id', userId);
       } else {
-        // Log the free spin usage
         await supabase
           .from('daily_tasks')
           .insert({
@@ -77,7 +95,6 @@ const FortuneWheel: React.FC = () => {
           });
       }
 
-      // Log wheel spin
       await supabase
         .from('wheel_spins')
         .insert({
@@ -86,70 +103,80 @@ const FortuneWheel: React.FC = () => {
           prize_amount: prize.amount
         });
 
-      // Update KFC balance if won
       if (prize.type === 'KFC') {
         const balance = parseFloat(localStorage.getItem("kfcBalance") || "0");
         const newBalance = balance + prize.amount;
         localStorage.setItem("kfcBalance", newBalance.toString());
       }
 
-      toast({
-        title: "Fortune Wheel Spin",
-        description: prize.type === 'KFC' 
-          ? `You won ${prize.amount} KFC!` 
-          : `Congratulations! You won ${prize.amount} TON!`
-      });
-
-      // Update states
-      if (!freePinAvailable) {
-        setCookies(cookies - 1);
-      }
-      setFreePinAvailable(false);
+      setTimeout(() => {
+        setSpinning(false);
+        toast({
+          title: "Fortune Wheel Spin",
+          description: prize.type === 'KFC' 
+            ? `You won ${prize.amount} KFC!` 
+            : `Congratulations! You won ${prize.amount} TON!`
+        });
+        if (!freePinAvailable) {
+          setCookies(cookies - 1);
+        }
+        setFreePinAvailable(false);
+      }, 5000);
     } catch (error) {
+      setSpinning(false);
       toast({
         title: "Error",
         description: "Something went wrong with the spin",
         variant: "destructive"
       });
-    } finally {
-      setSpinning(false);
     }
-  };
-
-  const selectPrize = () => {
-    const randomNumber = Math.random();
-    let cumulativeProbability = 0;
-
-    for (const prize of PRIZES) {
-      cumulativeProbability += prize.probability;
-      if (randomNumber <= cumulativeProbability) {
-        return prize;
-      }
-    }
-
-    return PRIZES[0]; // Default to smallest prize
   };
 
   return (
-    <div className="flex flex-col items-center space-y-4">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button 
-            className="rounded-full h-12 w-12 p-0 absolute top-3 right-3"
-            variant="outline"
-            onClick={spinWheel} 
-            disabled={spinning || (!freePinAvailable && cookies < 1)}
-          >
-            <CirclePlay className="h-6 w-6 text-primary" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{freePinAvailable ? "Free Spin Available!" : "Spin Fortune Wheel (1 Cookie)"}</p>
-        </TooltipContent>
-      </Tooltip>
-      <h2 className="text-2xl font-bold">Fortune Wheel</h2>
-      <p className="text-sm text-muted-foreground">One free spin every 24 hours!</p>
-      <p>Fortune Cookies: {cookies}</p>
+    <div className="relative bg-card p-6 rounded-lg shadow-lg w-full max-w-md mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold">Fortune Wheel</h2>
+          <p className="text-sm text-muted-foreground">One free spin every 24 hours!</p>
+          <p className="text-lg font-semibold mt-2">Fortune Cookies: {cookies}</p>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              className="rounded-full h-12 w-12"
+              variant="outline"
+              onClick={spinWheel} 
+              disabled={spinning || (!freePinAvailable && cookies < 1)}
+            >
+              <CirclePlay className="h-6 w-6 text-primary" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{freePinAvailable ? "Free Spin Available!" : "Spin Fortune Wheel (1 Cookie)"}</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
+      <div className="relative w-64 h-64 mx-auto">
+        <div 
+          ref={wheelRef}
+          className="absolute w-full h-full transition-transform duration-[5000ms] ease-out"
+          style={{ 
+            transform: `rotate(${rotationDegrees}deg)`,
+            transformOrigin: 'center center',
+          }}
+        >
+          {PRIZES.map((prize, index) => (
+            <WheelSegment
+              key={`${prize.type}-${prize.amount}`}
+              rotate={(360 / PRIZES.length) * index}
+              prize={prize}
+              color={prize.color}
+            />
+          ))}
+        </div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 w-0 h-0 border-x-8 border-x-transparent border-b-[16px] border-b-primary z-10" />
+      </div>
     </div>
   );
 };
