@@ -28,6 +28,9 @@ declare global {
         sendData: (data: string) => void;
         openLink: (url: string) => void;
         showAlert: (message: string) => void;
+        showConfirm: (message: string, callback: (confirmed: boolean) => void) => void;
+        isExpanded: boolean;
+        platform: string;
       };
     };
   }
@@ -38,8 +41,20 @@ const TelegramInitializer = () => {
 
   useEffect(() => {
     async function init() {
-      // Check if running in Telegram WebApp environment
-      const isTelegramWebApp = window.Telegram && window.Telegram.WebApp;
+      // More robust check if running in Telegram WebApp environment
+      const isTelegramWebApp = Boolean(
+        window.Telegram && 
+        window.Telegram.WebApp && 
+        typeof window.Telegram.WebApp.initData === 'string'
+      );
+      
+      if (isTelegramWebApp) {
+        console.log("Running inside Telegram WebApp environment");
+        localStorage.setItem("inTelegramWebApp", "true");
+      } else {
+        console.log("Not running inside Telegram WebApp environment");
+        localStorage.setItem("inTelegramWebApp", "false");
+      }
 
       let telegramUserId = null;
       let telegramUserName = null;
@@ -131,6 +146,11 @@ const TelegramInitializer = () => {
       if (isTelegramWebApp) {
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
+        
+        // Add platform info to localStorage for debugging
+        if (window.Telegram.WebApp.platform) {
+          localStorage.setItem("telegramPlatform", window.Telegram.WebApp.platform);
+        }
       }
 
       setLoading(false);

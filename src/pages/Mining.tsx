@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet } from "lucide-react";
+import { AlertCircle, Wallet } from "lucide-react";
 import BoostPurchaseDialog from "@/components/BoostPurchaseDialog";
 import BalanceCard from "@/components/mining/BalanceCard";
 import MiningProgress from "@/components/mining/MiningProgress";
@@ -25,16 +25,21 @@ const Mining = () => {
     handleCollect,
   } = useMining();
 
-  // Check if inside Telegram WebApp
+  // Check if inside Telegram WebApp with more robust check
   const isInTelegram = typeof window !== 'undefined' && 
-                      window.Telegram && 
-                      window.Telegram.WebApp;
+                      localStorage.getItem('inTelegramWebApp') === 'true';
 
   useEffect(() => {
     // Check if we already have a saved wallet address
     const savedAddress = localStorage.getItem("tonWalletAddress");
     if (savedAddress) {
       setWalletAddress(savedAddress);
+    }
+    
+    // Check the current platform for debugging
+    const platform = localStorage.getItem("telegramPlatform");
+    if (platform) {
+      console.log("Telegram platform:", platform);
     }
   }, []);
 
@@ -55,29 +60,52 @@ const Mining = () => {
       // For TON Connect 2.0 inside Telegram Mini Apps
       const walletUrl = "ton://transfer/";
       
-      // Open TON wallet app
-      window.Telegram.WebApp.openLink(walletUrl);
-      
-      // Since we can't get a direct response when opening an external app,
-      // we'll ask the user to input their wallet address manually after connecting
-      setTimeout(() => {
-        // This timeout gives users time to go to wallet and come back
+      // Check if Telegram WebApp object is available
+      if (window.Telegram?.WebApp) {
+        // We're definitely inside Telegram, open the TON wallet
+        window.Telegram.WebApp.openLink(walletUrl);
+        
+        // Since we can't get a direct response when opening an external app,
+        // we'll ask the user to confirm they connected their wallet
+        setTimeout(() => {
+          // This timeout gives users time to go to wallet and come back
+          if (window.Telegram?.WebApp?.showConfirm) {
+            window.Telegram.WebApp.showConfirm(
+              "Did you connect your wallet? If yes, press OK to continue.",
+              (confirmed) => {
+                if (confirmed) {
+                  // User confirmed wallet connection
+                  const userId = localStorage.getItem("telegramUserId");
+                  if (userId) {
+                    updateUserWalletInDatabase(userId);
+                  }
+                }
+              }
+            );
+          } else {
+            toast({
+              title: "Wallet Requested",
+              description: "Please check if your wallet opened. If not, please try again.",
+            });
+            
+            // For demo purposes, let's save a placeholder or use saved address
+            const userId = localStorage.getItem("telegramUserId");
+            if (userId) {
+              updateUserWalletInDatabase(userId);
+            }
+          }
+          
+          setIsConnecting(false);
+        }, 2000);
+      } else {
+        // This shouldn't happen if isInTelegram is true, but just in case
         toast({
-          title: "Wallet Requested",
-          description: "Please check if your wallet opened. If not, please try again.",
+          title: "Error",
+          description: "Telegram WebApp is not available",
+          variant: "destructive",
         });
-        
-        // For demo purposes, let's save a placeholder or use saved address
-        const userId = localStorage.getItem("telegramUserId");
-        
-        if (userId) {
-          // In a real app, this would verify wallet ownership with signatures
-          // For now, we'll just simulate wallet connection by saving to database
-          updateUserWalletInDatabase(userId);
-        }
-        
         setIsConnecting(false);
-      }, 2000);
+      }
     } catch (error) {
       console.error("Wallet connection error:", error);
       toast({
@@ -124,6 +152,13 @@ const Mining = () => {
         <h1 className="text-3xl font-bold mb-2">KFC Mining</h1>
         <p className="text-muted-foreground">Mine KFC tokens every 8 hours</p>
       </div>
+      
+      {!isInTelegram && (
+        <div className="bg-amber-100 border-amber-300 border p-4 rounded-md flex items-center w-full max-w-md text-amber-800">
+          <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
+          <p className="text-sm">For best experience, please open this app in Telegram.</p>
+        </div>
+      )}
       
       {isLoading ? (
         <div className="w-full space-y-4">
