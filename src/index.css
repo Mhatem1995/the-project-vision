@@ -4,63 +4,29 @@
 
 @layer base {
   :root {
-    --background: 18 54% 96%; /* Soft leather-like beige */
-    --foreground: 10 50% 20%; /* Deep rust brown */
-
-    --card: 18 54% 96%;
-    --card-foreground: 10 50% 20%;
-
-    --popover: 18 54% 96%;
-    --popover-foreground: 10 50% 20%;
-
-    --primary: 10 80% 45%; /* Terracotta red */
+    --background: 240 10% 3.9%; /* Deep dark background */
+    --foreground: 0 0% 98%;
+    --card: 240 5% 10%; /* Slightly lighter for card */
+    --card-foreground: 0 0% 98%;
+    --primary: 270 60% 60%; /* Modern purple */
     --primary-foreground: 0 0% 100%;
-
-    --secondary: 30 60% 75%; /* Warm ochre */
-    --secondary-foreground: 10 50% 20%;
-
-    --muted: 30 40% 90%; /* Light sand */
-    --muted-foreground: 10 30% 40%;
-
-    --accent: 15 70% 60%; /* Warm brick red */
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 18 30% 80%; /* Soft leather border */
-    --input: 18 30% 80%;
-    --ring: 10 50% 45%;
-
-    --radius: 0.75rem;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --border: 240 3.7% 15.9%;
   }
+}
 
-  .dark {
-    --background: 10 50% 20%; /* Dark rust brown */
-    --foreground: 18 54% 96%; /* Soft leather-like beige */
-
-    --card: 10 50% 20%;
-    --card-foreground: 18 54% 96%;
-
-    --popover: 10 50% 20%;
-    --popover-foreground: 18 54% 96%;
-
-    --primary: 18 80% 60%; /* Brighter terracotta for dark mode */
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 30 40% 40%; /* Darker ochre */
-    --secondary-foreground: 18 54% 96%;
-
-    --muted: 10 30% 30%; /* Dark muted tone */
-    --muted-foreground: 18 54% 80%;
-
-    --accent: 15 70% 50%; /* Deep brick red */
-    --accent-foreground: 0 0% 100%;
-
-    --border: 18 30% 40%;
-    --input: 18 30% 40%;
-    --ring: 18 80% 60%;
-  }
+body {
+  background: linear-gradient(135deg, 
+    hsl(240, 10%, 3.9%) 0%, 
+    hsl(240, 5%, 10%) 50%, 
+    hsl(240, 7%, 7%) 100%
+  );
+  min-height: 100vh;
+  color: hsl(var(--foreground));
 }
 
 @layer base {

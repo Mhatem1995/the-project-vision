@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -49,7 +50,7 @@ const FortuneWheel: React.FC = () => {
     return (
       <div className="animate-bounce text-center mb-4">
         <span className="inline-block bg-gradient-to-r from-primary to-purple-600 text-white px-4 py-2 rounded-full font-bold shadow-lg">
-          🎯 Win up to 100 TON! 🎯
+          🎯 Spin to Win 100 TON! Biggest Prize Ever! 🎯
         </span>
       </div>
     );
