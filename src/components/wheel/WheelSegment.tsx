@@ -14,20 +14,23 @@ const WheelSegment: React.FC<WheelSegmentProps> = ({ rotate, prize, color }) => 
       className="absolute w-full h-full"
       style={{ 
         transform: `rotate(${rotate}deg)`,
-        clipPath: 'polygon(50% 50%, 100% 0, 100% 33%, 50% 50%)',
+        clipPath: 'polygon(50% 50%, 50% 0, 100% 0, 100% 50%, 50% 50%)', // Updated for circle slice
+        transformOrigin: 'center',
       }}
     >
       <div 
         className={cn(
           "absolute w-full h-full flex items-center justify-center",
-          "bg-gradient-to-r from-opacity-80 to-opacity-100 shadow-inner"
+          "bg-gradient-to-r from-opacity-80 to-opacity-100 shadow-inner",
+          "border-r-2 border-gray-800" // Adding a border to separate segments
         )}
         style={{ backgroundColor: color }}
       >
         <span 
-          className="absolute text-white font-bold text-sm transform -rotate-[60deg] translate-x-20 drop-shadow-lg"
+          className="absolute text-white font-bold text-sm drop-shadow-lg"
           style={{ 
-            textShadow: '2px 2px 4px rgba(0,0,0,0.3)',
+            transform: 'rotate(-90deg) translateY(-80px)',
+            textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
             fontFamily: 'system-ui'
           }}
         >

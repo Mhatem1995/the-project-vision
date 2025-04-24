@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -71,4 +72,32 @@ body::before {
 
 .wheel-spin {
   animation: spin 5s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+}
+
+/* Wheel style enhancements */
+.fortune-wheel-segment {
+  transform-origin: center;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.fortune-wheel {
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.wheel-center-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background-color: white;
+  border-radius: 50%;
+  z-index: 10;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
 }

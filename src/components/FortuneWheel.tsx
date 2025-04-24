@@ -20,6 +20,7 @@ const FortuneWheel: React.FC = () => {
   const [spinning, setSpinning] = useState(false);
   const [freePinAvailable, setFreePinAvailable] = useState(false);
   const [rotationDegrees, setRotationDegrees] = useState(0);
+  const [freeSpinsRemaining, setFreeSpinsRemaining] = useState(0);
   const { toast } = useToast();
   const wheelRef = useRef<HTMLDivElement>(null);
 
@@ -41,6 +42,16 @@ const FortuneWheel: React.FC = () => {
       });
 
       setFreePinAvailable(!!canSpin);
+      
+      // Count remaining free spins
+      const { count } = await supabase
+        .from('daily_tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('task_type', 'free_wheel_spin')
+        .gte('completed_at', new Date(new Date().setHours(0,0,0,0)).toISOString());
+      
+      setFreeSpinsRemaining(count !== null ? 3 - count : 3);
     };
 
     fetchInitialData();
@@ -104,6 +115,9 @@ const FortuneWheel: React.FC = () => {
             user_id: userId,
             task_type: 'free_wheel_spin'
           });
+          
+        // Update remaining free spins count
+        setFreeSpinsRemaining(prev => Math.max(0, prev - 1));
       }
 
       await supabase
@@ -131,7 +145,13 @@ const FortuneWheel: React.FC = () => {
         if (!freePinAvailable) {
           setCookies(cookies - 1);
         }
-        setFreePinAvailable(false);
+        
+        // Check if there are any free spins left
+        supabase.rpc('can_free_wheel_spin', {
+          p_user_id: userId
+        }).then(({ data }) => {
+          setFreePinAvailable(!!data);
+        });
       }, 5000);
     } catch (error) {
       setSpinning(false);
@@ -148,8 +168,11 @@ const FortuneWheel: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold">Fortune Wheel</h2>
-          <p className="text-sm text-muted-foreground">Three free spins every 24 hours!</p>
+          <p className="text-sm text-muted-foreground">3 free spins every 24 hours!</p>
           <p className="text-lg font-semibold mt-2">Fortune Cookies: {cookies}</p>
+          {freeSpinsRemaining > 0 && (
+            <p className="text-sm text-green-400">Free spins today: {freeSpinsRemaining}</p>
+          )}
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -170,9 +193,15 @@ const FortuneWheel: React.FC = () => {
       <JackpotBanner />
 
       <div className="relative w-64 h-64 mx-auto">
+        {/* Outer circle wheel border */}
+        <div className="absolute w-full h-full rounded-full border-4 border-gray-800 bg-gray-900 z-0"></div>
+        
+        {/* Center dot */}
+        <div className="absolute left-1/2 top-1/2 w-4 h-4 bg-white rounded-full -translate-x-1/2 -translate-y-1/2 z-20"></div>
+        
         <div 
           ref={wheelRef}
-          className="absolute w-full h-full transition-transform duration-[5000ms] ease-out"
+          className="absolute w-full h-full transition-transform duration-[5000ms] ease-out rounded-full overflow-hidden"
           style={{ 
             transform: `rotate(${rotationDegrees}deg)`,
             transformOrigin: 'center center',
