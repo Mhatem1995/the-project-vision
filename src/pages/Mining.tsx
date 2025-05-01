@@ -25,14 +25,17 @@ const Mining = () => {
     handleCollect,
   } = useMining();
 
-  // Check if inside Telegram WebApp with more robust check
+  // Check if inside Telegram WebApp with strict check
   const isInTelegram = typeof window !== 'undefined' && 
                       localStorage.getItem('inTelegramWebApp') === 'true';
 
   useEffect(() => {
+    console.log("Mining page: Checking if in Telegram:", isInTelegram);
+    
     // Check if we already have a saved wallet address
     const savedAddress = localStorage.getItem("tonWalletAddress");
     if (savedAddress) {
+      console.log("Found saved wallet address:", savedAddress);
       setWalletAddress(savedAddress);
     }
     
@@ -41,27 +44,20 @@ const Mining = () => {
     if (platform) {
       console.log("Telegram platform:", platform);
     }
-  }, []);
+  }, [isInTelegram]);
 
   const handleConnectWallet = async () => {
+    console.log("Connect wallet clicked, inTelegram:", isInTelegram);
     setIsConnecting(true);
-
-    if (!isInTelegram) {
-      toast({
-        title: "Error",
-        description: "Please open this app in Telegram",
-        variant: "destructive",
-      });
-      setIsConnecting(false);
-      return;
-    }
 
     try {
       // For TON Connect 2.0 inside Telegram Mini Apps
       const walletUrl = "ton://transfer/";
       
-      // Check if Telegram WebApp object is available
+      // Double-check if Telegram WebApp object is available
       if (window.Telegram?.WebApp) {
+        console.log("Telegram WebApp available, opening wallet");
+        
         // We're definitely inside Telegram, open the TON wallet
         window.Telegram.WebApp.openLink(walletUrl);
         
@@ -75,14 +71,23 @@ const Mining = () => {
               (confirmed) => {
                 if (confirmed) {
                   // User confirmed wallet connection
+                  console.log("User confirmed wallet connection");
                   const userId = localStorage.getItem("telegramUserId");
                   if (userId) {
                     updateUserWalletInDatabase(userId);
                   }
+                } else {
+                  console.log("User denied wallet connection");
+                  toast({
+                    title: "Wallet Connection Cancelled",
+                    description: "You can try again later when you're ready.",
+                  });
                 }
+                setIsConnecting(false);
               }
             );
           } else {
+            console.log("showConfirm not available, using fallback");
             toast({
               title: "Wallet Requested",
               description: "Please check if your wallet opened. If not, please try again.",
@@ -93,16 +98,16 @@ const Mining = () => {
             if (userId) {
               updateUserWalletInDatabase(userId);
             }
+            
+            setIsConnecting(false);
           }
-          
-          setIsConnecting(false);
         }, 2000);
       } else {
-        // This shouldn't happen if isInTelegram is true, but just in case
+        console.error("Not in Telegram WebApp environment");
         toast({
           title: "Error",
-          description: "Telegram WebApp is not available",
-          variant: "destructive",
+          description: "Please open this app in Telegram",
+          variant: "destructive"
         });
         setIsConnecting(false);
       }
@@ -111,7 +116,7 @@ const Mining = () => {
       toast({
         title: "Connection Failed",
         description: "There was an error connecting to your wallet. Please try again.",
-        variant: "destructive",
+        variant: "destructive"
       });
       setIsConnecting(false);
     }
@@ -121,6 +126,9 @@ const Mining = () => {
     // For demo, generate a simulated wallet address
     // In real app, this would come from TON Connect
     const simulatedAddress = `EQ${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+    
+    console.log("Updating wallet address in database for user:", userId);
+    console.log("Simulated wallet address:", simulatedAddress);
     
     setWalletAddress(simulatedAddress);
     localStorage.setItem("tonWalletAddress", simulatedAddress);
@@ -136,7 +144,7 @@ const Mining = () => {
       toast({
         title: "Update Failed",
         description: "Could not save wallet address to your profile",
-        variant: "destructive",
+        variant: "destructive"
       });
     } else {
       toast({
@@ -172,11 +180,11 @@ const Mining = () => {
             <Button 
               variant="outline" 
               onClick={handleConnectWallet}
-              disabled={isConnecting}
+              disabled={isConnecting || !isInTelegram}
               className="w-full max-w-md"
             >
               <Wallet className="mr-2 h-4 w-4" />
-              {isConnecting ? 'Connecting...' : 'Connect Telegram Wallet'}
+              {isConnecting ? 'Connecting...' : isInTelegram ? 'Connect Telegram Wallet' : 'Open in Telegram to Connect Wallet'}
             </Button>
           ) : (
             <div className="w-full max-w-md bg-card p-4 rounded-lg border border-border">

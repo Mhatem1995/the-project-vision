@@ -41,16 +41,26 @@ const TelegramInitializer = () => {
 
   useEffect(() => {
     async function init() {
-      // More robust check if running in Telegram WebApp environment
+      console.log("TelegramInitializer: Starting initialization");
+      
+      // Strict check for Telegram WebApp environment
       const isTelegramWebApp = Boolean(
+        typeof window !== 'undefined' &&
         window.Telegram && 
         window.Telegram.WebApp && 
-        typeof window.Telegram.WebApp.initData === 'string'
+        window.Telegram.WebApp.initData && 
+        window.Telegram.WebApp.initData.length > 0
       );
       
       if (isTelegramWebApp) {
         console.log("Running inside Telegram WebApp environment");
         localStorage.setItem("inTelegramWebApp", "true");
+        
+        // Log platform info for debugging
+        if (window.Telegram.WebApp.platform) {
+          console.log("Telegram platform:", window.Telegram.WebApp.platform);
+          localStorage.setItem("telegramPlatform", window.Telegram.WebApp.platform);
+        }
       } else {
         console.log("Not running inside Telegram WebApp environment");
         localStorage.setItem("inTelegramWebApp", "false");
@@ -65,7 +75,7 @@ const TelegramInitializer = () => {
         telegramUserName = username || first_name;
         console.log("Telegram user detected:", { id, first_name, last_name, username });
       } else {
-        console.log("Not running inside Telegram WebApp or no user data");
+        console.log("No Telegram user data found");
         // For development only
         if (process.env.NODE_ENV === "development") {
           telegramUserId = "12345678";
@@ -144,13 +154,9 @@ const TelegramInitializer = () => {
 
       // Initialize Telegram WebApp if available
       if (isTelegramWebApp) {
+        console.log("Initializing Telegram WebApp");
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
-        
-        // Add platform info to localStorage for debugging
-        if (window.Telegram.WebApp.platform) {
-          localStorage.setItem("telegramPlatform", window.Telegram.WebApp.platform);
-        }
       }
 
       setLoading(false);

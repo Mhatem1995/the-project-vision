@@ -54,53 +54,89 @@ export const handlePaymentTask = async (
     return;
   }
 
-  const { data, error } = await supabase.from("mining_boosts").insert([
-    {
-      user_id: userId,
-      multiplier: 1,
-      price: task.tonAmount,
-      duration: 0,
-      status: "pending",
-    },
-  ]).select().maybeSingle();
+  try {
+    console.log("Creating payment record for task:", task.id, "user:", userId);
+    
+    const { data, error } = await supabase.from("mining_boosts").insert([
+      {
+        user_id: userId,
+        multiplier: 1,
+        price: task.tonAmount,
+        duration: 0,
+        status: "pending",
+      },
+    ]).select().maybeSingle();
 
-  if (error || !data) {
+    if (error) {
+      console.error("Error creating payment record:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create payment record: " + error.message,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!data) {
+      toast({
+        title: "Error",
+        description: "Failed to create payment record - no data returned",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if running in Telegram WebApp
+    const isInTelegram = typeof window !== 'undefined' && 
+                        localStorage.getItem('inTelegramWebApp') === 'true' &&
+                        window.Telegram?.WebApp;
+
+    if (isInTelegram) {
+      console.log("Opening TON payment in Telegram");
+      const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${task.tonAmount * 1000000000}`;
+      window.Telegram.WebApp.openLink(paymentUrl);
+
+      // Special handling for fortune cookie task
+      if (task.id === "6") {
+        console.log("Adding fortune cookies for user:", userId);
+        const { error: cookieError } = await supabase.rpc('add_fortune_cookies', { 
+          p_user_id: userId, 
+          p_cookie_count: 10 
+        });
+
+        if (cookieError) {
+          console.error("Failed to add fortune cookies:", cookieError);
+          toast({
+            title: "Error",
+            description: "Failed to add fortune cookies",
+            variant: "destructive"
+          });
+        }
+      }
+
+      if (task.isDaily) {
+        console.log("Logging daily task completion");
+        await supabase.from("daily_tasks").insert([
+          {
+            user_id: userId,
+            task_type: "daily_ton_payment"
+          }
+        ]);
+        onDailyTaskComplete?.();
+      }
+    } else {
+      toast({
+        title: "Error",
+        description: "Please open this app in Telegram to make payments",
+        variant: "destructive"
+      });
+    }
+  } catch (err) {
+    console.error("Error in handlePaymentTask:", err);
     toast({
       title: "Error",
-      description: "Failed to create payment record",
+      description: "An unexpected error occurred",
       variant: "destructive"
     });
-    return;
-  }
-
-  if (window.Telegram?.WebApp) {
-    const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${task.tonAmount * 1000000000}`;
-    window.Telegram.WebApp.openLink(paymentUrl);
-
-    // Special handling for fortune cookie task
-    if (task.id === "6") {
-      const { error: cookieError } = await supabase.rpc('add_fortune_cookies', { 
-        p_user_id: userId, 
-        p_cookie_count: 10 
-      });
-
-      if (cookieError) {
-        toast({
-          title: "Error",
-          description: "Failed to add fortune cookies",
-          variant: "destructive"
-        });
-      }
-    }
-
-    if (task.isDaily) {
-      await supabase.from("daily_tasks").insert([
-        {
-          user_id: userId,
-          task_type: "daily_ton_payment"
-        }
-      ]);
-      onDailyTaskComplete?.();
-    }
   }
 };
