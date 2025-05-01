@@ -98,9 +98,9 @@ export const handlePaymentTask = async (
       return;
     }
 
-    // Check if running in Telegram WebApp
+    // Get Telegram WebApp detection for apps running in Telegram
     const isInTelegram = typeof window !== 'undefined' && 
-                        window.Telegram?.WebApp !== undefined;
+                        Boolean(window.Telegram?.WebApp?.initData);
 
     if (isInTelegram) {
       console.log("Opening TON payment in Telegram");

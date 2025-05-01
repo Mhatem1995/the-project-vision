@@ -43,11 +43,12 @@ const TelegramInitializer = () => {
     async function init() {
       console.log("TelegramInitializer: Starting initialization");
       
-      // Improved Telegram WebApp detection
+      // More robust Telegram WebApp detection - check multiple properties
       const isTelegramWebApp = Boolean(
         typeof window !== 'undefined' &&
         window.Telegram && 
-        window.Telegram.WebApp
+        window.Telegram.WebApp &&
+        window.Telegram.WebApp.initData
       );
       
       if (isTelegramWebApp) {

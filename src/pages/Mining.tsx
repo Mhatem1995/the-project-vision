@@ -25,9 +25,9 @@ const Mining = () => {
     handleCollect,
   } = useMining();
 
-  // Check if inside Telegram WebApp
+  // Better Telegram WebApp detection
   const isInTelegram = typeof window !== 'undefined' && 
-                      window.Telegram?.WebApp !== undefined;
+                       Boolean(window.Telegram?.WebApp?.initData);
 
   useEffect(() => {
     console.log("Mining page: Checking if in Telegram:", isInTelegram);
@@ -39,9 +39,14 @@ const Mining = () => {
       setWalletAddress(savedAddress);
     }
     
-    // Check the current platform for debugging
+    // Debug information to help troubleshoot
     if (window.Telegram?.WebApp?.platform) {
       console.log("Telegram platform:", window.Telegram.WebApp.platform);
+    }
+    
+    if (window.Telegram?.WebApp) {
+      console.log("Telegram WebApp available:", Boolean(window.Telegram.WebApp));
+      console.log("Init data available:", Boolean(window.Telegram.WebApp.initData));
     }
   }, [isInTelegram]);
 
@@ -201,11 +206,11 @@ const Mining = () => {
             <Button 
               variant="default" 
               onClick={handleConnectWallet}
-              disabled={isConnecting || !isInTelegram}
+              disabled={isConnecting}
               className="w-full max-w-md"
             >
               <Wallet className="mr-2 h-4 w-4" />
-              {isConnecting ? 'Connecting...' : isInTelegram ? 'Connect Telegram Wallet' : 'Open in Telegram to Connect Wallet'}
+              {isConnecting ? 'Connecting...' : 'Connect Telegram Wallet'}
             </Button>
           ) : (
             <div className="w-full max-w-md bg-card p-4 rounded-lg border border-border">
