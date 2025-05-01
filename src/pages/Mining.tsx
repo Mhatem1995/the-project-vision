@@ -25,11 +25,9 @@ const Mining = () => {
     handleCollect,
   } = useMining();
 
-  // Check if inside Telegram WebApp with strict check
+  // Check if inside Telegram WebApp
   const isInTelegram = typeof window !== 'undefined' && 
-                      window.Telegram?.WebApp &&
-                      window.Telegram.WebApp.initData && 
-                      window.Telegram.WebApp.initData.length > 0;
+                      window.Telegram?.WebApp !== undefined;
 
   useEffect(() => {
     console.log("Mining page: Checking if in Telegram:", isInTelegram);
@@ -144,26 +142,38 @@ const Mining = () => {
     setWalletAddress(simulatedAddress);
     localStorage.setItem("tonWalletAddress", simulatedAddress);
     
-    // Update user in database with wallet address
-    const { error } = await supabase
-      .from("users")
-      .update({ links: simulatedAddress })
-      .eq("id", userId);
-      
-    if (error) {
-      console.error("Database update error:", error);
+    try {
+      // Update user in database with wallet address
+      const { error } = await supabase
+        .from("users")
+        .update({ wallet_address: simulatedAddress })
+        .eq("id", userId);
+        
+      if (error) {
+        console.error("Database update error:", error);
+        toast({
+          title: "Update Failed",
+          description: "Could not save wallet address to your profile",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Wallet Connected",
+          description: "Your TON wallet has been connected successfully",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to update wallet in database:", err);
       toast({
         title: "Update Failed",
         description: "Could not save wallet address to your profile",
         variant: "destructive"
       });
-    } else {
-      toast({
-        title: "Wallet Connected",
-        description: "Your TON wallet has been connected successfully",
-      });
     }
   };
+
+  // Function to check if user can mine (wallet must be connected)
+  const canMine = !!walletAddress;
 
   return (
     <div className="flex flex-col items-center justify-center space-y-8">
@@ -189,7 +199,7 @@ const Mining = () => {
         <>
           {!walletAddress ? (
             <Button 
-              variant="outline" 
+              variant="default" 
               onClick={handleConnectWallet}
               disabled={isConnecting || !isInTelegram}
               className="w-full max-w-md"
@@ -220,10 +230,14 @@ const Mining = () => {
           <Button 
             className="w-full max-w-md" 
             size="lg"
-            disabled={timeRemaining !== null && timeRemaining > 0}
+            disabled={(timeRemaining !== null && timeRemaining > 0) || !canMine}
             onClick={handleCollect}
           >
-            {timeRemaining !== null && timeRemaining > 0 ? 'Mining in progress...' : 'Collect KFC'}
+            {!canMine 
+              ? 'Connect wallet to mine KFC' 
+              : (timeRemaining !== null && timeRemaining > 0) 
+                ? 'Mining in progress...' 
+                : 'Collect KFC'}
           </Button>
 
           <BoostPurchaseDialog 

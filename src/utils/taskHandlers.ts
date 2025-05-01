@@ -44,6 +44,17 @@ export const handlePaymentTask = async (
     });
     return;
   }
+  
+  // Check if user has connected wallet
+  const walletAddress = localStorage.getItem("tonWalletAddress");
+  if (!walletAddress) {
+    toast({
+      title: "Wallet Not Connected",
+      description: "Please connect your TON wallet first to complete this task.",
+      variant: "destructive"
+    });
+    return;
+  }
 
   if (task.isDaily && !dailyTaskAvailable) {
     toast({
@@ -56,16 +67,6 @@ export const handlePaymentTask = async (
 
   try {
     console.log("Creating payment record for task:", task.id, "user:", userId);
-    
-    // Ensure the ID is valid for database operations
-    if (typeof userId !== 'string' || userId.length < 1) {
-      toast({
-        title: "Error",
-        description: "Invalid user ID. Please refresh the app.",
-        variant: "destructive"
-      });
-      return;
-    }
     
     // Create mining boost record
     const { data, error } = await supabase.from("mining_boosts").insert([
@@ -99,9 +100,7 @@ export const handlePaymentTask = async (
 
     // Check if running in Telegram WebApp
     const isInTelegram = typeof window !== 'undefined' && 
-                        window.Telegram?.WebApp &&
-                        window.Telegram.WebApp.initData && 
-                        window.Telegram.WebApp.initData.length > 0;
+                        window.Telegram?.WebApp !== undefined;
 
     if (isInTelegram) {
       console.log("Opening TON payment in Telegram");

@@ -35,15 +35,42 @@ export const useMining = () => {
     }
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const lastMiningTime = localStorage.getItem("lastMiningTime");
+  // Fetch user balance from Supabase
+  const fetchUserBalance = useCallback(async () => {
+    const userId = localStorage.getItem("telegramUserId");
+    if (!userId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("balance")
+        .eq("id", userId)
+        .maybeSingle();
+        
+      if (data) {
+        setBalance(data.balance || 0);
+        localStorage.setItem("kfcBalance", data.balance?.toString() || "0");
+      } else {
+        const savedBalance = localStorage.getItem("kfcBalance");
+        if (savedBalance) {
+          setBalance(parseFloat(savedBalance));
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching user balance:", err);
       const savedBalance = localStorage.getItem("kfcBalance");
-      
       if (savedBalance) {
         setBalance(parseFloat(savedBalance));
       }
+    }
+  }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchUserBalance();
+      
+      const lastMiningTime = localStorage.getItem("lastMiningTime");
+      
       if (lastMiningTime) {
         const elapsed = Math.floor((Date.now() - parseInt(lastMiningTime)) / 1000);
         if (elapsed < miningDuration) {
@@ -63,7 +90,7 @@ export const useMining = () => {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [fetchUserBalance]);
 
   useEffect(() => {
     let interval: number | null = null;
@@ -99,14 +126,50 @@ export const useMining = () => {
     ? miningRate * activeBoost.multiplier
     : miningRate;
 
-  const handleCollect = () => {
+  const handleCollect = async () => {
+    const userId = localStorage.getItem("telegramUserId");
+    if (!userId) {
+      toast({
+        title: "Error",
+        description: "User not found. Please refresh the page.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Verify wallet is connected
+    const walletAddress = localStorage.getItem("tonWalletAddress");
+    if (!walletAddress) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your TON wallet first to mine KFC.",
+        variant: "destructive" 
+      });
+      return;
+    }
+    
     const newBalance = balance + effectiveMiningRate;
+    
+    // Update local state and storage
     setBalance(newBalance);
     localStorage.setItem("kfcBalance", newBalance.toString());
-    
     localStorage.setItem("lastMiningTime", Date.now().toString());
     setTimeRemaining(miningDuration);
     setProgress(0);
+    
+    // Update balance in database
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({ balance: newBalance })
+        .eq("id", userId);
+        
+      if (error) {
+        console.error("Error updating balance in database:", error);
+      }
+    } catch (err) {
+      console.error("Failed to update balance in database:", err);
+    }
     
     toast({
       title: "KFC Collected!",

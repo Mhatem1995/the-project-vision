@@ -43,13 +43,11 @@ const TelegramInitializer = () => {
     async function init() {
       console.log("TelegramInitializer: Starting initialization");
       
-      // Strict check for Telegram WebApp environment
+      // Improved Telegram WebApp detection
       const isTelegramWebApp = Boolean(
         typeof window !== 'undefined' &&
         window.Telegram && 
-        window.Telegram.WebApp && 
-        window.Telegram.WebApp.initData && 
-        window.Telegram.WebApp.initData.length > 0
+        window.Telegram.WebApp
       );
       
       if (isTelegramWebApp) {
@@ -71,13 +69,14 @@ const TelegramInitializer = () => {
 
       if (isTelegramWebApp && window.Telegram.WebApp.initDataUnsafe.user) {
         const { id, first_name, last_name, username } = window.Telegram.WebApp.initDataUnsafe.user;
-        // Generate a proper UUID from the numeric ID
+        
+        // Store as UUID-compatible string, ensuring it's properly formatted for database
         telegramUserId = id.toString();
         telegramUserName = username || first_name;
         console.log("Telegram user detected:", { id, first_name, last_name, username });
       } else {
         console.log("No Telegram user data found");
-        // For development only
+        // For development only - use a valid UUID format
         if (process.env.NODE_ENV === "development") {
           telegramUserId = "00000000-0000-0000-0000-000000000000";
           telegramUserName = "DevUser";
@@ -121,6 +120,7 @@ const TelegramInitializer = () => {
               lastname: window.Telegram?.WebApp?.initDataUnsafe?.user?.last_name || "",
               languagecode: window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code || "",
               last_seen_at: new Date().toISOString(),
+              balance: 0
             });
 
             if (insertError) {
