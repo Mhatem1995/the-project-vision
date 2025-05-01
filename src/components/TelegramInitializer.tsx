@@ -71,6 +71,7 @@ const TelegramInitializer = () => {
 
       if (isTelegramWebApp && window.Telegram.WebApp.initDataUnsafe.user) {
         const { id, first_name, last_name, username } = window.Telegram.WebApp.initDataUnsafe.user;
+        // Store as string to avoid floating-point conversion issues
         telegramUserId = id.toString();
         telegramUserName = username || first_name;
         console.log("Telegram user detected:", { id, first_name, last_name, username });
@@ -78,7 +79,8 @@ const TelegramInitializer = () => {
         console.log("No Telegram user data found");
         // For development only
         if (process.env.NODE_ENV === "development") {
-          telegramUserId = "12345678";
+          // Use a fixed format UUID string for development
+          telegramUserId = "00000000-0000-0000-0000-000000000000";
           telegramUserName = "DevUser";
           console.log("Using development fallback user");
         }

@@ -57,6 +57,17 @@ export const handlePaymentTask = async (
   try {
     console.log("Creating payment record for task:", task.id, "user:", userId);
     
+    // Ensure the ID is valid for database operations
+    if (typeof userId !== 'string' || userId.length < 1) {
+      toast({
+        title: "Error",
+        description: "Invalid user ID. Please refresh the app.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Create mining boost record
     const { data, error } = await supabase.from("mining_boosts").insert([
       {
         user_id: userId,
@@ -88,8 +99,9 @@ export const handlePaymentTask = async (
 
     // Check if running in Telegram WebApp
     const isInTelegram = typeof window !== 'undefined' && 
-                        localStorage.getItem('inTelegramWebApp') === 'true' &&
-                        window.Telegram?.WebApp;
+                        window.Telegram?.WebApp &&
+                        window.Telegram.WebApp.initData && 
+                        window.Telegram.WebApp.initData.length > 0;
 
     if (isInTelegram) {
       console.log("Opening TON payment in Telegram");

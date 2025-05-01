@@ -27,7 +27,9 @@ const Mining = () => {
 
   // Check if inside Telegram WebApp with strict check
   const isInTelegram = typeof window !== 'undefined' && 
-                      localStorage.getItem('inTelegramWebApp') === 'true';
+                      window.Telegram?.WebApp &&
+                      window.Telegram.WebApp.initData && 
+                      window.Telegram.WebApp.initData.length > 0;
 
   useEffect(() => {
     console.log("Mining page: Checking if in Telegram:", isInTelegram);
@@ -40,21 +42,30 @@ const Mining = () => {
     }
     
     // Check the current platform for debugging
-    const platform = localStorage.getItem("telegramPlatform");
-    if (platform) {
-      console.log("Telegram platform:", platform);
+    if (window.Telegram?.WebApp?.platform) {
+      console.log("Telegram platform:", window.Telegram.WebApp.platform);
     }
   }, [isInTelegram]);
 
   const handleConnectWallet = async () => {
     console.log("Connect wallet clicked, inTelegram:", isInTelegram);
+    
+    if (!isInTelegram) {
+      toast({
+        title: "Error",
+        description: "Please open this app in Telegram to connect your wallet",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setIsConnecting(true);
 
     try {
       // For TON Connect 2.0 inside Telegram Mini Apps
       const walletUrl = "ton://transfer/";
       
-      // Double-check if Telegram WebApp object is available
+      // Make sure we're in Telegram before proceeding
       if (window.Telegram?.WebApp) {
         console.log("Telegram WebApp available, opening wallet");
         
@@ -68,13 +79,13 @@ const Mining = () => {
           if (window.Telegram?.WebApp?.showConfirm) {
             window.Telegram.WebApp.showConfirm(
               "Did you connect your wallet? If yes, press OK to continue.",
-              (confirmed) => {
+              async (confirmed) => {
                 if (confirmed) {
                   // User confirmed wallet connection
                   console.log("User confirmed wallet connection");
                   const userId = localStorage.getItem("telegramUserId");
                   if (userId) {
-                    updateUserWalletInDatabase(userId);
+                    await updateUserWalletInDatabase(userId);
                   }
                 } else {
                   console.log("User denied wallet connection");
