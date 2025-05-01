@@ -43,13 +43,18 @@ export const useMining = () => {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("balance")
+        .select("balance, links")
         .eq("id", userId)
         .maybeSingle();
         
       if (data) {
         setBalance(data.balance || 0);
         localStorage.setItem("kfcBalance", data.balance?.toString() || "0");
+        
+        // Also update wallet address if available
+        if (data.links) {
+          localStorage.setItem("tonWalletAddress", data.links);
+        }
       } else {
         const savedBalance = localStorage.getItem("kfcBalance");
         if (savedBalance) {

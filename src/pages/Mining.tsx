@@ -143,10 +143,10 @@ const Mining = () => {
     localStorage.setItem("tonWalletAddress", simulatedAddress);
     
     try {
-      // Update user in database with wallet address
+      // Update user in database with wallet address (store in links field)
       const { error } = await supabase
         .from("users")
-        .update({ wallet_address: simulatedAddress })
+        .update({ links: simulatedAddress })
         .eq("id", userId);
         
       if (error) {

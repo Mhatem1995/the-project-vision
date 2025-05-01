@@ -1,6 +1,6 @@
 
 import { useQuery } from "@tanstack/react-query";
-import { Award, User } from "lucide-react";
+import { User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Table,
@@ -18,7 +18,7 @@ const Leaderboard = () => {
       // First try to get users with balance from database
       const { data, error } = await supabase
         .from("users")
-        .select("id, username, firstname, balance, wallet_address")
+        .select("id, username, firstname, balance, links")
         .order("balance", { ascending: false })
         .limit(50);
 
@@ -88,8 +88,8 @@ const Leaderboard = () => {
                     {user.balance ? user.balance.toLocaleString() : "0"} KFC
                   </TableCell>
                   <TableCell className="text-center">
-                    {user.wallet_address ? (
-                      <span className="inline-flex h-2 w-2 bg-green-500 rounded-full" title={`Wallet connected: ${user.wallet_address.substring(0, 8)}...`}></span>
+                    {user.links ? (
+                      <span className="inline-flex h-2 w-2 bg-green-500 rounded-full" title="Wallet connected"></span>
                     ) : (
                       <span className="inline-flex h-2 w-2 bg-gray-300 rounded-full" title="No wallet connected"></span>
                     )}
