@@ -69,10 +69,15 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     const connectorInstance = new TonConnect({ manifestUrl: tonConnectOptions.manifestUrl });
     
     // Check if there's an existing connection
-    const walletConnectionSource = connectorInstance.getWalletConnectionSource();
-    if (walletConnectionSource) {
-      console.log("Found existing wallet connection source:", walletConnectionSource);
-    }
+    const checkConnection = async () => {
+      // Use restoreConnection instead of getWalletConnectionSource
+      const walletInfo = await connectorInstance.restoreConnection();
+      if (walletInfo) {
+        console.log("Found existing wallet connection:", walletInfo);
+      }
+    };
+    
+    checkConnection();
     
     // Set up event listeners
     const unsubscribe = connectorInstance.onStatusChange(walletInfo => {
@@ -143,21 +148,22 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       console.log("Available wallets:", walletsList);
       
       if (isTelegramWebApp) {
-        // In Telegram, prefer embedded wallets
-        const embeddedWallets = walletsList.filter(wallet => 
-          wallet.embedded && ["telegram", "tonkeeper"].includes(wallet.name.toLowerCase())
+        // In Telegram, prefer telegram wallets
+        const telegramWallets = walletsList.filter(wallet => 
+          wallet.name.toLowerCase().includes("telegram") || 
+          wallet.name.toLowerCase().includes("tonkeeper")
         );
         
-        if (embeddedWallets.length > 0) {
-          console.log("Using embedded wallet:", embeddedWallets[0].name);
-          await connector.connect({ jsBridgeKey: embeddedWallets[0].jsBridgeKey });
+        if (telegramWallets.length > 0) {
+          console.log("Using Telegram compatible wallet:", telegramWallets[0].name);
+          await connector.connect({walletName: telegramWallets[0].name});
         } else {
-          // Universal connection method
-          await connector.connect();
+          // Universal connection method with parameters
+          await connector.connect({});
         }
       } else {
-        // Outside Telegram use standard connection
-        await connector.connect();
+        // Outside Telegram use standard connection with parameters
+        await connector.connect({});
       }
     } catch (err) {
       console.error("Error connecting to wallet:", err);
