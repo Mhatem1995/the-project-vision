@@ -10,7 +10,7 @@ import FortuneWheel from "@/components/FortuneWheel";
 import { useMining } from "@/hooks/useMining";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useTonConnect } from '@tonconnect/ui-react';
+import { useTonConnect } from "@/components/TelegramInitializer";
 
 const Mining = () => {
   const { toast } = useToast();
@@ -60,7 +60,7 @@ const Mining = () => {
   // Handle TON wallet connection status changes
   useEffect(() => {
     if (connected && account) {
-      const address = account.address.toString();
+      const address = account.account.address.toString();
       console.log("TON Connect wallet connected:", address);
       
       setWalletAddress(address);
@@ -83,7 +83,7 @@ const Mining = () => {
       // Open TON Connect modal
       if (connector) {
         console.log("Opening TON Connect modal");
-        await connector.openModal();
+        await connector.connect();
       } else {
         console.error("TON Connect connector not available");
         toast({

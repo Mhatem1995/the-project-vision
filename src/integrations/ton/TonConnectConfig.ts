@@ -1,5 +1,4 @@
 
-import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import { getHttpEndpoint } from '@orbs-network/ton-access';
 
 // App details for TON Connect
@@ -11,9 +10,7 @@ export const tonConnectOptions = {
 // Custom style options for TON Connect UI
 export const uiOptions = {
   language: 'en',
-  uiPreferences: {
-    theme: 'light',
-  },
+  theme: 'light',
 };
 
 // Helper function for initializing TON API endpoints

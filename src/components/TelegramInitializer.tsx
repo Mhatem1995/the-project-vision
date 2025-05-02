@@ -1,9 +1,20 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, createContext, useContext } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
-import { TonConnectUIProvider } from '@tonconnect/ui-react';
-import { tonConnectOptions, uiOptions } from "@/integrations/ton/TonConnectConfig";
+import { TonConnector } from '@tonconnect/sdk';
+import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
+
+// Create a context for TonConnect
+const TonConnectContext = createContext(null);
+
+export const useTonConnect = () => {
+  const context = useContext(TonConnectContext);
+  if (!context) {
+    throw new Error("useTonConnect must be used within TonConnectProvider");
+  }
+  return context;
+};
 
 declare global {
   interface Window {
@@ -40,10 +51,53 @@ declare global {
 
 // Wrapper component that provides TON Connect throughout the app
 export const TonConnectProvider = ({ children }: { children: React.ReactNode }) => {
+  const [connector, setConnector] = useState<TonConnector | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [account, setAccount] = useState<any>(null);
+  
+  useEffect(() => {
+    // Initialize the connector
+    const connectorInstance = new TonConnector({ manifestUrl: tonConnectOptions.manifestUrl });
+    
+    // Set up event listeners
+    const unsubscribe = connectorInstance.onStatusChange(walletInfo => {
+      if (walletInfo) {
+        setConnected(true);
+        setAccount(walletInfo);
+        
+        // Save to localStorage
+        if (walletInfo.account?.address) {
+          const address = walletInfo.account.address.toString();
+          localStorage.setItem("tonWalletAddress", address);
+          
+          // Update user in database
+          const userId = localStorage.getItem("telegramUserId");
+          if (userId) {
+            supabase.from("users")
+              .update({ links: address })
+              .eq("id", userId)
+              .then(({ error }) => {
+                if (error) console.error("Error updating user wallet:", error);
+              });
+          }
+        }
+      } else {
+        setConnected(false);
+        setAccount(null);
+      }
+    });
+    
+    setConnector(connectorInstance);
+    
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   return (
-    <TonConnectUIProvider manifestUrl={tonConnectOptions.manifestUrl} uiPreferences={uiOptions.uiPreferences}>
+    <TonConnectContext.Provider value={{ connector, connected, account }}>
       {children}
-    </TonConnectUIProvider>
+    </TonConnectContext.Provider>
   );
 };
 
