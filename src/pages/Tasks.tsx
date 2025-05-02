@@ -1,16 +1,18 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Wallet } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TaskItem } from "@/components/tasks/TaskItem";
 import { handleCollabTask, handlePaymentTask } from "@/utils/taskHandlers";
 import { supabase } from "@/integrations/supabase/client";
 import { useTonConnect } from "@/providers/TonConnectProvider";
+import { Button } from "@/components/ui/button";
 import type { Task } from "@/types/task";
 
 const Tasks = () => {
   const { toast } = useToast();
-  const { isConnected, walletAddress } = useTonConnect();
+  const { isConnected, walletAddress, connect } = useTonConnect();
   const [tasks, setTasks] = useState<Task[]>([
     {
       id: "1",
@@ -96,9 +98,19 @@ const Tasks = () => {
       </div>
       
       {!isConnected && (
-        <div className="bg-amber-100 border-amber-300 border p-4 rounded-md flex items-center w-full text-amber-800 mb-4">
-          <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
-          <p className="text-sm">Connect your TON wallet to complete payment tasks.</p>
+        <div className="bg-amber-100 border-amber-300 border p-4 rounded-md flex flex-col items-center w-full text-amber-800 mb-4 gap-3">
+          <div className="flex items-center">
+            <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
+            <p className="text-sm">Connect your TON wallet to complete payment tasks.</p>
+          </div>
+          <Button 
+            onClick={connect} 
+            size="sm" 
+            variant="outline" 
+            className="bg-amber-50 border-amber-300 hover:bg-amber-200"
+          >
+            <Wallet className="mr-2 h-4 w-4" /> Connect Wallet
+          </Button>
         </div>
       )}
       
@@ -118,6 +130,7 @@ const Tasks = () => {
                 dailyTaskAvailable={dailyTaskAvailable}
                 onCollabComplete={(taskId) => handleCollabTask(taskId, tasks, setTasks, toast)}
                 onPaymentSubmit={(task) => handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus)}
+                walletConnected={isConnected}
               />
             ))
           }
@@ -133,6 +146,7 @@ const Tasks = () => {
                 dailyTaskAvailable={dailyTaskAvailable}
                 onCollabComplete={(taskId) => handleCollabTask(taskId, tasks, setTasks, toast)}
                 onPaymentSubmit={(task) => handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus)}
+                walletConnected={isConnected}
               />
             ))
           }

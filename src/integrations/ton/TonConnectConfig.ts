@@ -1,8 +1,9 @@
+
 import { getHttpEndpoint } from '@orbs-network/ton-access';
 
 // App details for TON Connect - updated with proper manifest
 export const tonConnectOptions = {
-  manifestUrl: 'https://raw.githubusercontent.com/ton-connect/demo-dapp/main/public/tonconnect-manifest.json',
+  manifestUrl: 'https://wiliamdrop.netlify.app/tonconnect-manifest.json',
 };
 
 // Helper function for initializing TON API endpoints

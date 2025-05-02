@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
 
 // Create a dedicated interface for our context
 interface TonConnectContextType {
@@ -53,13 +54,14 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
     
-    // Options for TonConnectUI
+    // Options for TonConnectUI with our custom manifest URL
     const options = {
-      manifestUrl: 'https://raw.githubusercontent.com/ton-connect/demo-dapp/main/public/tonconnect-manifest.json',
+      manifestUrl: tonConnectOptions.manifestUrl,
       // Use embedded wallet in Telegram when available
       preferredWallets: isTgWebApp ? ['telegram-wallet', 'tonkeeper'] : []
     };
 
+    console.log("TonConnect options:", options);
     const connector = new TonConnectUI(options);
     setTonConnectUI(connector);
 
@@ -79,7 +81,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         const userId = localStorage.getItem("telegramUserId");
         if (userId) {
           supabase.from("users")
-            .update({ links: address }) // Using 'links' column as per existing schema
+            .update({ links: address })
             .eq("id", userId)
             .then(({ error }) => {
               if (error) console.error("Error updating user wallet:", error);

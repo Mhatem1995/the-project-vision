@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { Check, ExternalLink, Clock } from "lucide-react";
+import { Check, ExternalLink, Clock, Wallet } from "lucide-react";
 import type { Task } from "@/types/task";
 
 interface TaskItemProps {
@@ -59,7 +59,10 @@ export const TaskItem = ({
                   Cooldown
                 </>
               ) : !walletConnected ? (
-                "Connect Wallet"
+                <>
+                  <Wallet className="mr-2 h-4 w-4" />
+                  Connect Wallet
+                </>
               ) : (
                 `Pay ${task.tonAmount} TON`
               )}
