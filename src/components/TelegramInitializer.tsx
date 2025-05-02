@@ -2,7 +2,7 @@
 import { useEffect, useState, createContext, useContext } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
-import { TonConnector } from '@tonconnect/sdk';
+import { TonConnect } from '@tonconnect/sdk';
 import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
 
 // Create a context for TonConnect
@@ -51,13 +51,13 @@ declare global {
 
 // Wrapper component that provides TON Connect throughout the app
 export const TonConnectProvider = ({ children }: { children: React.ReactNode }) => {
-  const [connector, setConnector] = useState<TonConnector | null>(null);
+  const [connector, setConnector] = useState<TonConnect | null>(null);
   const [connected, setConnected] = useState(false);
   const [account, setAccount] = useState<any>(null);
   
   useEffect(() => {
     // Initialize the connector
-    const connectorInstance = new TonConnector({ manifestUrl: tonConnectOptions.manifestUrl });
+    const connectorInstance = new TonConnect({ manifestUrl: tonConnectOptions.manifestUrl });
     
     // Set up event listeners
     const unsubscribe = connectorInstance.onStatusChange(walletInfo => {
