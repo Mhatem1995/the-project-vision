@@ -2,6 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
 import { tonWalletAddress } from "@/integrations/ton/TonConnectConfig";
+import { openTonPayment, pollForTransactionVerification } from "@/utils/tonTransactionUtils";
 
 export const handleCollabTask = (
   taskId: string,
@@ -97,99 +98,50 @@ export const handlePaymentTask = async (
       return;
     }
 
-    // Get Telegram WebApp detection for apps running in Telegram
-    const isInTelegram = typeof window !== 'undefined' && 
-                        Boolean(window.Telegram?.WebApp?.initData);
+    // Open TON payment in Telegram
+    openTonPayment(task.tonAmount);
 
-    if (isInTelegram) {
-      console.log("Opening TON payment in Telegram");
-      const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${task.tonAmount * 1000000000}`;
-      window.Telegram.WebApp.openLink(paymentUrl);
-
-      // Start transaction verification process
-      toast({
-        title: "Payment Initiated",
-        description: "Verifying your payment, please wait...",
-      });
+    // Start transaction verification process
+    toast({
+      title: "Payment Initiated",
+      description: "Complete the payment in your wallet app",
+    });
+    
+    // Wait a moment for user to complete payment then start polling
+    setTimeout(async () => {
+      const taskType = task.isDaily ? "daily_ton_payment" : undefined;
+      const successful = await pollForTransactionVerification(
+        userId,
+        task.tonAmount,
+        task.id,
+        data.id,
+        taskType
+      );
       
-      // Wait a moment for user to complete payment
-      setTimeout(async () => {
-        await verifyPayment(userId, task, data.id, toast, onDailyTaskComplete);
-      }, 15000);
-    } else {
-      toast({
-        title: "Error",
-        description: "Please open this app in Telegram to make payments",
-        variant: "destructive"
-      });
-    }
+      if (successful) {
+        // Special handling for fortune cookie task
+        if (task.id === "6") {
+          toast({
+            title: "Fortune Cookies Added!",
+            description: "10 fortune cookies have been added to your account.",
+          });
+        } else {
+          toast({
+            title: "Payment Confirmed!",
+            description: `You earned ${task.reward} KFC coins!`,
+          });
+        }
+        
+        if (task.isDaily && onDailyTaskComplete) {
+          onDailyTaskComplete();
+        }
+      }
+    }, 3000);
   } catch (err) {
     console.error("Error in handlePaymentTask:", err);
     toast({
       title: "Error",
       description: "An unexpected error occurred",
-      variant: "destructive"
-    });
-  }
-};
-
-const verifyPayment = async (
-  userId: string, 
-  task: Task, 
-  boostId: string, 
-  toast: any, 
-  onDailyTaskComplete?: () => void
-) => {
-  if (!task.tonAmount) return;
-  
-  try {
-    const taskType = task.isDaily ? "daily_ton_payment" : undefined;
-    
-    // Call our verification edge function
-    const { data, error } = await supabase.functions.invoke('verify-ton-payment', {
-      body: { 
-        userId,
-        amount: task.tonAmount,
-        taskId: task.id,
-        boostId,
-        taskType
-      }
-    });
-    
-    if (error || !data?.success) {
-      console.error("Payment verification failed:", error || data);
-      toast({
-        title: "Payment Not Detected",
-        description: "We couldn't verify your payment. If you've sent the TON, please wait a minute and try again.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    console.log("Payment verified:", data);
-    
-    // Special handling for fortune cookie task
-    if (task.id === "6") {
-      toast({
-        title: "Fortune Cookies Added!",
-        description: "10 fortune cookies have been added to your account.",
-      });
-    } else {
-      toast({
-        title: "Payment Confirmed!",
-        description: `You earned ${task.reward} KFC coins!`,
-      });
-    }
-    
-    if (task.isDaily && onDailyTaskComplete) {
-      onDailyTaskComplete();
-    }
-    
-  } catch (err) {
-    console.error("Error verifying payment:", err);
-    toast({
-      title: "Verification Error",
-      description: "Failed to verify your payment. Please try again later.",
       variant: "destructive"
     });
   }

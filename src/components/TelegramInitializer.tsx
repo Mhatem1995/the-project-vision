@@ -6,7 +6,14 @@ import { TonConnect } from '@tonconnect/sdk';
 import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
 
 // Create a context for TonConnect
-const TonConnectContext = createContext(null);
+const TonConnectContext = createContext<{
+  connector: TonConnect | null;
+  connected: boolean;
+  account: any;
+  connect: () => Promise<void>;
+  disconnect: () => Promise<void>;
+  isTelegramWebApp: boolean;
+} | null>(null);
 
 export const useTonConnect = () => {
   const context = useContext(TonConnectContext);
@@ -54,13 +61,23 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   const [connector, setConnector] = useState<TonConnect | null>(null);
   const [connected, setConnected] = useState(false);
   const [account, setAccount] = useState<any>(null);
+  const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
   
+  // Initialize TON Connect instance
   useEffect(() => {
-    // Initialize the connector
+    console.log("Initializing TON Connect...");
     const connectorInstance = new TonConnect({ manifestUrl: tonConnectOptions.manifestUrl });
+    
+    // Check if there's an existing connection
+    const walletConnectionSource = connectorInstance.getWalletConnectionSource();
+    if (walletConnectionSource) {
+      console.log("Found existing wallet connection source:", walletConnectionSource);
+    }
     
     // Set up event listeners
     const unsubscribe = connectorInstance.onStatusChange(walletInfo => {
+      console.log("Wallet status changed:", walletInfo ? "connected" : "disconnected");
+      
       if (walletInfo) {
         setConnected(true);
         setAccount(walletInfo);
@@ -78,12 +95,14 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
               .eq("id", userId)
               .then(({ error }) => {
                 if (error) console.error("Error updating user wallet:", error);
+                else console.log("Successfully updated wallet address in database");
               });
           }
         }
       } else {
         setConnected(false);
         setAccount(null);
+        localStorage.removeItem("tonWalletAddress");
       }
     });
     
@@ -94,8 +113,78 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
+  // Check if we're in Telegram WebApp
+  useEffect(() => {
+    const isTgWebApp = Boolean(
+      typeof window !== 'undefined' &&
+      window.Telegram && 
+      window.Telegram.WebApp &&
+      window.Telegram.WebApp.initData &&
+      window.Telegram.WebApp.initData.length > 0
+    );
+    
+    setIsTelegramWebApp(isTgWebApp);
+    console.log("Is Telegram WebApp:", isTgWebApp);
+    
+    if (isTgWebApp) {
+      console.log("Telegram WebApp platform:", window.Telegram.WebApp.platform);
+    }
+  }, []);
+
+  // Connect function that handles different environments
+  const connect = async () => {
+    if (!connector) return;
+    
+    try {
+      console.log("Connecting to TON wallet...");
+      
+      // Get available wallets
+      const walletsList = await connector.getWallets();
+      console.log("Available wallets:", walletsList);
+      
+      if (isTelegramWebApp) {
+        // In Telegram, prefer embedded wallets
+        const embeddedWallets = walletsList.filter(wallet => 
+          wallet.embedded && ["telegram", "tonkeeper"].includes(wallet.name.toLowerCase())
+        );
+        
+        if (embeddedWallets.length > 0) {
+          console.log("Using embedded wallet:", embeddedWallets[0].name);
+          await connector.connect({ jsBridgeKey: embeddedWallets[0].jsBridgeKey });
+        } else {
+          // Universal connection method
+          await connector.connect();
+        }
+      } else {
+        // Outside Telegram use standard connection
+        await connector.connect();
+      }
+    } catch (err) {
+      console.error("Error connecting to wallet:", err);
+      throw err;
+    }
+  };
+
+  // Disconnect from wallet
+  const disconnect = async () => {
+    if (!connector) return;
+    try {
+      await connector.disconnect();
+    } catch (err) {
+      console.error("Error disconnecting wallet:", err);
+      throw err;
+    }
+  };
+
   return (
-    <TonConnectContext.Provider value={{ connector, connected, account }}>
+    <TonConnectContext.Provider value={{ 
+      connector, 
+      connected, 
+      account, 
+      connect,
+      disconnect,
+      isTelegramWebApp
+    }}>
       {children}
     </TonConnectContext.Provider>
   );
