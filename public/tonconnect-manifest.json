@@ -1,0 +1,10 @@
+{
+  "url": "https://wiliamdrop.netlify.app",
+  "name": "William Knife Man",
+  "termsOfUseUrl": "https://wiliamdrop.netlify.app/terms.html",
+  "privacyPolicyUrl": "https://wiliamdrop.netlify.app/privacy.html,
+  "iconUrl": "https://wiliamdrop.netlify.app/icon.png",
+  "manifestVersion": "1",
+  "bridgeUrl": "https://bridge.tonapi.io/bridge",
+  "network": "mainnet"
+}
