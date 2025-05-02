@@ -1,13 +1,16 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TaskItem } from "@/components/tasks/TaskItem";
 import { handleCollabTask, handlePaymentTask } from "@/utils/taskHandlers";
 import { supabase } from "@/integrations/supabase/client";
+import { useTonConnect } from "@/providers/TonConnectProvider";
 import type { Task } from "@/types/task";
 
 const Tasks = () => {
   const { toast } = useToast();
+  const { isConnected, walletAddress } = useTonConnect();
   const [tasks, setTasks] = useState<Task[]>([
     {
       id: "1",
@@ -92,6 +95,13 @@ const Tasks = () => {
         <p className="text-muted-foreground">Complete tasks to earn KFC</p>
       </div>
       
+      {!isConnected && (
+        <div className="bg-amber-100 border-amber-300 border p-4 rounded-md flex items-center w-full text-amber-800 mb-4">
+          <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
+          <p className="text-sm">Connect your TON wallet to complete payment tasks.</p>
+        </div>
+      )}
+      
       <Tabs defaultValue="collab" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="collab">Collaborations</TabsTrigger>
@@ -121,6 +131,7 @@ const Tasks = () => {
                 key={task.id}
                 task={task}
                 dailyTaskAvailable={dailyTaskAvailable}
+                walletConnected={isConnected}
                 onCollabComplete={(taskId) => handleCollabTask(taskId, tasks, setTasks, toast)}
                 onPaymentSubmit={(task) => handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus)}
               />

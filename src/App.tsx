@@ -10,7 +10,8 @@ import Tasks from "./pages/Tasks";
 import Referrals from "./pages/Referrals";
 import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
-import TelegramInitializer, { TonConnectProvider } from "./components/TelegramInitializer";
+import TelegramInitializer from "./components/TelegramInitializer";
+import TonConnectProvider from "./providers/TonConnectProvider";
 
 const queryClient = new QueryClient();
 

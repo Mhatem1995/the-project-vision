@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { tonWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
 import { toast } from "@/hooks/use-toast";
 
-// Verify transaction directly via TON API
+// Verify transaction directly via Supabase function
 export const verifyTonTransaction = async (
   userId: string,
   expectedAmount: number,
@@ -15,11 +15,36 @@ export const verifyTonTransaction = async (
     // First attempt to use the Supabase edge function
     console.log("Verifying TON payment using edge function...");
     const { data, error } = await supabase.functions.invoke('verify-ton-payment', {
-      body: { userId, amount: expectedAmount, taskId, boostId, taskType }
+      body: { 
+        userId, 
+        amount: expectedAmount, 
+        taskId, 
+        boostId, 
+        taskType,
+        // Add the comment to help match the transaction
+        comment: taskId ? `task${taskId}` : undefined
+      }
     });
     
     if (data?.success) {
       console.log("Payment verified via edge function:", data);
+      
+      // Also update the tasks_completed table if this is a payment task
+      if (taskId) {
+        try {
+          await supabase.from("tasks_completed").insert({
+            user_id: userId,
+            task_id: taskId,
+            is_done: true,
+            tx_hash: data.transaction?.hash,
+            verified_at: new Date().toISOString()
+          });
+        } catch (err) {
+          console.error("Error updating tasks_completed:", err);
+          // Continue anyway since the main verification was successful
+        }
+      }
+      
       return {
         success: true,
         transactionHash: data.transaction?.hash,
@@ -90,13 +115,16 @@ export const formatWalletAddress = (address: string): string => {
 };
 
 // Open TON transaction in Telegram
-export const openTonPayment = (amount: number): void => {
+export const openTonPayment = (amount: number, taskId?: string): void => {
   const isInTelegram = typeof window !== 'undefined' && 
                       Boolean(window.Telegram?.WebApp?.initData);
 
   if (isInTelegram) {
-    console.log(`Opening TON payment in Telegram for ${amount} TON`);
-    const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amount * 1000000000}`;
+    const amountInNano = amount * 1000000000;
+    const comment = taskId ? `task${taskId}` : '';
+    const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amountInNano}&text=${comment}`;
+    
+    console.log(`Opening TON payment in Telegram for ${amount} TON`, paymentUrl);
     window.Telegram.WebApp.openLink(paymentUrl);
   } else {
     console.warn("Not in Telegram WebApp environment, cannot open TON payment");

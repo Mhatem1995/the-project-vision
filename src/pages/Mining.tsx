@@ -10,7 +10,7 @@ import FortuneWheel from "@/components/FortuneWheel";
 import { useMining } from "@/hooks/useMining";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useTonConnect } from "@/components/TelegramInitializer";
+import { useTonConnect } from "@/providers/TonConnectProvider";
 import { formatWalletAddress } from "@/utils/tonTransactionUtils";
 
 const Mining = () => {
@@ -18,8 +18,8 @@ const Mining = () => {
   const [boostDialogOpen, setBoostDialogOpen] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   
-  // TON Connect integration
-  const { connected, account, connect, isTelegramWebApp } = useTonConnect();
+  // TON Connect integration using our new hook
+  const { isConnected, walletAddress, connect, isTelegramWebApp } = useTonConnect();
   
   const {
     balance,
@@ -29,9 +29,6 @@ const Mining = () => {
     activeBoost,
     handleCollect,
   } = useMining();
-
-  // Get wallet address from TON Connect account or localStorage
-  const walletAddress = account?.account?.address?.toString() || localStorage.getItem("tonWalletAddress");
 
   useEffect(() => {
     console.log("Mining page: Checking if in Telegram:", isTelegramWebApp);
@@ -48,11 +45,8 @@ const Mining = () => {
     setIsConnecting(true);
 
     try {
-      await connect();
-      toast({
-        title: "Wallet Connected",
-        description: "Your TON wallet has been connected successfully",
-      });
+      connect();
+      // Note: Success toast is handled in the TonConnectProvider after successful connection
     } catch (error) {
       console.error("Wallet connection error:", error);
       toast({
@@ -90,7 +84,7 @@ const Mining = () => {
         </div>
       ) : (
         <>
-          {!walletAddress ? (
+          {!isConnected ? (
             <Button 
               variant="default" 
               onClick={handleConnectWallet}
@@ -103,7 +97,7 @@ const Mining = () => {
           ) : (
             <div className="w-full max-w-md bg-card p-4 rounded-lg border border-border">
               <p className="text-sm text-muted-foreground mb-1">Connected Wallet:</p>
-              <p className="text-xs font-mono break-all">{formatWalletAddress(walletAddress)}</p>
+              <p className="text-xs font-mono break-all">{formatWalletAddress(walletAddress || "")}</p>
             </div>
           )}
 

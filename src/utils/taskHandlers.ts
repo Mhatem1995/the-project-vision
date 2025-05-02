@@ -98,13 +98,26 @@ export const handlePaymentTask = async (
       return;
     }
 
-    // Open TON payment in Telegram
-    openTonPayment(task.tonAmount);
+    // Open TON payment in Telegram using deep link
+    // Format: ton://transfer/ADDRESS?amount=AMOUNT_IN_NANO
+    const amountInNano = task.tonAmount * 1000000000;
+    const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amountInNano}&text=task${task.id}`;
+    
+    const isTelegramWebApp = localStorage.getItem("inTelegramWebApp") === "true";
+    
+    if (isTelegramWebApp && window.Telegram?.WebApp) {
+      console.log(`Opening TON payment deep link in Telegram for ${task.tonAmount} TON`, paymentUrl);
+      window.Telegram.WebApp.openLink(paymentUrl);
+    } else {
+      // Fallback for non-Telegram environments - open URL directly
+      console.log("Not in Telegram WebApp, opening payment URL directly");
+      window.open(paymentUrl, "_blank");
+    }
 
     // Start transaction verification process
     toast({
       title: "Payment Initiated",
-      description: "Complete the payment in your wallet app",
+      description: "Complete the payment in your wallet app. We'll verify your transaction automatically.",
     });
     
     // Wait a moment for user to complete payment then start polling

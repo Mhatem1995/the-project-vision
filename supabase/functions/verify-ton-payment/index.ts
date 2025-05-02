@@ -13,6 +13,7 @@ interface TransactionVerifyRequest {
   taskId: string;
   boostId?: string;
   taskType?: string;
+  comment?: string;
 }
 
 serve(async (req: Request) => {
@@ -25,7 +26,7 @@ serve(async (req: Request) => {
     console.log("Transaction verification request received");
     
     // Get the request body
-    const { userId, amount, taskId, boostId, taskType } = await req.json() as TransactionVerifyRequest;
+    const { userId, amount, taskId, boostId, taskType, comment } = await req.json() as TransactionVerifyRequest;
 
     if (!userId || !amount || ((!taskId && !boostId))) {
       console.log("Missing required parameters:", { userId, amount, taskId, boostId });
@@ -85,6 +86,10 @@ serve(async (req: Request) => {
     const userWalletAddress = userData.links;
     console.log(`Checking transactions from ${userWalletAddress} to ${tonWalletAddress}`);
     
+    // Format amount for comparison (convert to nanoTONs)
+    const expectedAmountNano = Math.floor(amount * 1000000000);
+    const expectedComment = comment || (taskId ? `task${taskId}` : "");
+    
     // First, try using tonapi.io
     try {
       const tonapiResponse = await fetch(`https://tonapi.io/v2/accounts/${userWalletAddress}/transactions?limit=20`, {
@@ -97,8 +102,6 @@ serve(async (req: Request) => {
         const data = await tonapiResponse.json();
         console.log(`Found ${data.transactions?.length || 0} transactions in tonapi.io response`);
         
-        // Format amount for comparison (convert to nanoTONs)
-        const expectedAmountNano = Math.floor(amount * 1000000000);
         const transactions = data.transactions || [];
         
         // Find matching transaction (sent to our wallet with correct amount)
@@ -115,10 +118,22 @@ serve(async (req: Request) => {
             Math.abs(msg.value - expectedAmountNano) < 10000000 // Allow small rounding differences
           );
           
+          // Check if the message comment matches our expected comment if one was provided
+          let hasMatchingComment = true;
+          if (expectedComment) {
+            hasMatchingComment = tx.out_msgs?.some((msg: any) => {
+              if (!msg.message) return false;
+              if (typeof msg.message === 'string') {
+                return msg.message.includes(expectedComment);
+              }
+              return false;
+            });
+          }
+          
           // Check if transaction is recent (within last 30 minutes)
           const isRecent = (Date.now() - new Date(tx.utime * 1000).getTime()) < 30 * 60 * 1000;
           
-          const isMatch = isToOurWallet && hasMatchingAmount && isRecent;
+          const isMatch = isToOurWallet && hasMatchingAmount && hasMatchingComment && isRecent;
           if (isMatch) {
             console.log("Found matching transaction:", tx.hash);
           }
@@ -159,8 +174,6 @@ serve(async (req: Request) => {
         console.log(`Found ${data.result?.length || 0} transactions in toncenter response`);
         
         if (data.ok && data.result && Array.isArray(data.result)) {
-          // Format amount for comparison (convert to nanoTONs)
-          const expectedAmountNano = Math.floor(amount * 1000000000);
           const transactions = data.result;
           
           // Find matching transaction (sent to our wallet with correct amount)
@@ -168,10 +181,18 @@ serve(async (req: Request) => {
             if (!tx.out_msgs || !tx.out_msgs.length) return false;
             
             // Look for outgoing message to our wallet
-            const matchingMsg = tx.out_msgs.find((msg: any) => 
-              msg.destination === tonWalletAddress && 
-              Math.abs(parseInt(msg.value) - expectedAmountNano) < 10000000
-            );
+            const matchingMsg = tx.out_msgs.find((msg: any) => {
+              const isToOurWallet = msg.destination === tonWalletAddress;
+              const hasMatchingAmount = Math.abs(parseInt(msg.value) - expectedAmountNano) < 10000000;
+              
+              // Check comment if expected
+              let hasMatchingComment = true;
+              if (expectedComment && msg.message) {
+                hasMatchingComment = msg.message.includes(expectedComment);
+              }
+              
+              return isToOurWallet && hasMatchingAmount && hasMatchingComment;
+            });
             
             // Check if transaction is recent (within last 30 minutes)
             const txTime = tx.utime ? new Date(tx.utime * 1000) : null;
@@ -212,7 +233,8 @@ serve(async (req: Request) => {
         message: "No matching transaction found",
         expected: {
           amount: Math.floor(amount * 1000000000),
-          receiver: tonWalletAddress
+          receiver: tonWalletAddress,
+          comment: expectedComment || "(none)"
         }
       }),
       {
@@ -273,6 +295,32 @@ async function processVerifiedTransaction(
   
   // Handle task completion if taskId provided
   if (taskId) {
+    // Check if task already exists in tasks_completed
+    const { data: existingTask } = await supabaseAdmin
+      .from("tasks_completed")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("task_id", taskId)
+      .maybeSingle();
+    
+    // If not already completed, add record
+    if (!existingTask) {
+      const { error: taskError } = await supabaseAdmin
+        .from("tasks_completed")
+        .insert({
+          user_id: userId,
+          task_id: taskId,
+          is_done: true,
+          tx_hash: txHash,
+          verified_at: new Date().toISOString()
+        });
+      
+      if (taskError) {
+        console.error("Failed to record task completion:", taskError);
+        // Continue anyway since the main transaction was successful
+      }
+    }
+    
     if (taskId === "6") {
       // Special case: fortune cookies
       const { error: cookieError } = await supabaseAdmin.rpc('add_fortune_cookies', { 
