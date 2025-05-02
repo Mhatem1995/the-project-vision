@@ -1,7 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
-import { tonWalletAddress } from "@/integrations/ton/TonConnectConfig";
 import { openTonPayment, pollForTransactionVerification } from "@/utils/tonTransactionUtils";
 
 export const handleCollabTask = (
@@ -98,21 +97,8 @@ export const handlePaymentTask = async (
       return;
     }
 
-    // Open TON payment in Telegram using deep link
-    // Format: ton://transfer/ADDRESS?amount=AMOUNT_IN_NANO
-    const amountInNano = task.tonAmount * 1000000000;
-    const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amountInNano}&text=task${task.id}`;
-    
-    const isTelegramWebApp = localStorage.getItem("inTelegramWebApp") === "true";
-    
-    if (isTelegramWebApp && window.Telegram?.WebApp) {
-      console.log(`Opening TON payment deep link in Telegram for ${task.tonAmount} TON`, paymentUrl);
-      window.Telegram.WebApp.openLink(paymentUrl);
-    } else {
-      // Fallback for non-Telegram environments - open URL directly
-      console.log("Not in Telegram WebApp, opening payment URL directly");
-      window.open(paymentUrl, "_blank");
-    }
+    // Open TON payment using our utility function
+    openTonPayment(task.tonAmount, task.id);
 
     // Start transaction verification process
     toast({

@@ -295,30 +295,30 @@ async function processVerifiedTransaction(
   
   // Handle task completion if taskId provided
   if (taskId) {
-    // Check if task already exists in tasks_completed
-    const { data: existingTask } = await supabaseAdmin
-      .from("tasks_completed")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("task_id", taskId)
-      .maybeSingle();
-    
-    // If not already completed, add record
-    if (!existingTask) {
-      const { error: taskError } = await supabaseAdmin
+    try {
+      // Check if task already exists in tasks_completed
+      const { data: existingTask } = await supabaseAdmin
         .from("tasks_completed")
-        .insert({
-          user_id: userId,
-          task_id: taskId,
-          is_done: true,
-          tx_hash: txHash,
-          verified_at: new Date().toISOString()
-        });
+        .select("*")
+        .eq("user_id", userId)
+        .eq("task_id", taskId)
+        .maybeSingle();
       
-      if (taskError) {
-        console.error("Failed to record task completion:", taskError);
-        // Continue anyway since the main transaction was successful
+      // If not already completed, add record
+      if (!existingTask) {
+        await supabaseAdmin
+          .from("tasks_completed")
+          .insert({
+            user_id: userId,
+            task_id: taskId,
+            is_done: true,
+            tx_hash: txHash,
+            verified_at: new Date().toISOString()
+          });
       }
+    } catch (err) {
+      console.error("Error handling task completion:", err);
+      // Continue anyway since the main transaction was successful
     }
     
     if (taskId === "6") {
@@ -403,15 +403,15 @@ async function processVerifiedTransaction(
   
   // Record daily task completion if needed
   if (taskType === "daily_ton_payment") {
-    const { error: dailyError } = await supabaseAdmin
-      .from("daily_tasks")
-      .insert([{
-        user_id: userId,
-        task_type: taskType
-      }]);
-      
-    if (dailyError) {
-      console.error("Failed to record daily task:", dailyError);
+    try {
+      await supabaseAdmin
+        .from("daily_tasks")
+        .insert([{
+          user_id: userId,
+          task_type: taskType
+        }]);
+    } catch (err) {
+      console.error("Failed to record daily task:", err);
       // Continue anyway since the main transaction was successful
     }
   }

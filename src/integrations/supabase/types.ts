@@ -74,6 +74,33 @@ export type Database = {
           },
         ]
       }
+      tasks_completed: {
+        Row: {
+          id: string
+          is_done: boolean
+          task_id: string
+          tx_hash: string | null
+          user_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          id?: string
+          is_done?: boolean
+          task_id: string
+          tx_hash?: string | null
+          user_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          id?: string
+          is_done?: boolean
+          task_id?: string
+          tx_hash?: string | null
+          user_id?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           balance: number | null

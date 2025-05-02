@@ -110,7 +110,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [toast]);
 
   // Connect function that opens the wallet modal
   const connect = () => {

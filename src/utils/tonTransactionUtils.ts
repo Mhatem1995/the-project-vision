@@ -29,22 +29,7 @@ export const verifyTonTransaction = async (
     if (data?.success) {
       console.log("Payment verified via edge function:", data);
       
-      // Also update the tasks_completed table if this is a payment task
-      if (taskId) {
-        try {
-          await supabase.from("tasks_completed").insert({
-            user_id: userId,
-            task_id: taskId,
-            is_done: true,
-            tx_hash: data.transaction?.hash,
-            verified_at: new Date().toISOString()
-          });
-        } catch (err) {
-          console.error("Error updating tasks_completed:", err);
-          // Continue anyway since the main verification was successful
-        }
-      }
-      
+      // Since tasks_completed is handled in the edge function, we don't need to update it here
       return {
         success: true,
         transactionHash: data.transaction?.hash,

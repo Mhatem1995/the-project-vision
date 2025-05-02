@@ -1,6 +1,6 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { AlertCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TaskItem } from "@/components/tasks/TaskItem";
 import { handleCollabTask, handlePaymentTask } from "@/utils/taskHandlers";
@@ -131,7 +131,6 @@ const Tasks = () => {
                 key={task.id}
                 task={task}
                 dailyTaskAvailable={dailyTaskAvailable}
-                walletConnected={isConnected}
                 onCollabComplete={(taskId) => handleCollabTask(taskId, tasks, setTasks, toast)}
                 onPaymentSubmit={(task) => handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus)}
               />

@@ -8,13 +8,15 @@ interface TaskItemProps {
   dailyTaskAvailable: boolean;
   onCollabComplete: (taskId: string) => void;
   onPaymentSubmit: (task: Task) => void;
+  walletConnected?: boolean;
 }
 
 export const TaskItem = ({ 
   task, 
   dailyTaskAvailable, 
   onCollabComplete, 
-  onPaymentSubmit 
+  onPaymentSubmit,
+  walletConnected = true
 }: TaskItemProps) => {
   return (
     <div className="bg-card p-4 rounded-md shadow-sm flex items-start justify-between">
@@ -49,13 +51,15 @@ export const TaskItem = ({
             <Button 
               size="sm"
               onClick={() => onPaymentSubmit(task)}
-              disabled={task.isDaily && !dailyTaskAvailable}
+              disabled={(task.isDaily && !dailyTaskAvailable) || !walletConnected}
             >
               {task.isDaily && !dailyTaskAvailable ? (
                 <>
                   <Clock className="mr-2 h-4 w-4" />
                   Cooldown
                 </>
+              ) : !walletConnected ? (
+                "Connect Wallet"
               ) : (
                 `Pay ${task.tonAmount} TON`
               )}

@@ -9,7 +9,6 @@ import MiningProgress from "@/components/mining/MiningProgress";
 import FortuneWheel from "@/components/FortuneWheel";
 import { useMining } from "@/hooks/useMining";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { useTonConnect } from "@/providers/TonConnectProvider";
 import { formatWalletAddress } from "@/utils/tonTransactionUtils";
 
@@ -18,7 +17,7 @@ const Mining = () => {
   const [boostDialogOpen, setBoostDialogOpen] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   
-  // TON Connect integration using our new hook
+  // TON Connect integration using our hook
   const { isConnected, walletAddress, connect, isTelegramWebApp } = useTonConnect();
   
   const {
