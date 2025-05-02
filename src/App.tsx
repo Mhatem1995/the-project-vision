@@ -10,7 +10,7 @@ import Tasks from "./pages/Tasks";
 import Referrals from "./pages/Referrals";
 import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
-import TelegramInitializer from "./components/TelegramInitializer";
+import TelegramInitializer, { TonConnectProvider } from "./components/TelegramInitializer";
 
 const queryClient = new QueryClient();
 
@@ -19,16 +19,18 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <TelegramInitializer />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<AppLayout><Mining /></AppLayout>} />
-          <Route path="/tasks" element={<AppLayout><Tasks /></AppLayout>} />
-          <Route path="/leaderboard" element={<AppLayout><Leaderboard /></AppLayout>} />
-          <Route path="/referrals" element={<AppLayout><Referrals /></AppLayout>} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <TonConnectProvider>
+        <TelegramInitializer />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<AppLayout><Mining /></AppLayout>} />
+            <Route path="/tasks" element={<AppLayout><Tasks /></AppLayout>} />
+            <Route path="/leaderboard" element={<AppLayout><Leaderboard /></AppLayout>} />
+            <Route path="/referrals" element={<AppLayout><Referrals /></AppLayout>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TonConnectProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

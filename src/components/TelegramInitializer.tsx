@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
+import { TonConnectUIProvider } from '@tonconnect/ui-react';
+import { tonConnectOptions, uiOptions } from "@/integrations/ton/TonConnectConfig";
 
 declare global {
   interface Window {
@@ -36,6 +38,15 @@ declare global {
   }
 }
 
+// Wrapper component that provides TON Connect throughout the app
+export const TonConnectProvider = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <TonConnectUIProvider manifestUrl={tonConnectOptions.manifestUrl} uiPreferences={uiOptions.uiPreferences}>
+      {children}
+    </TonConnectUIProvider>
+  );
+};
+
 const TelegramInitializer = () => {
   const [loading, setLoading] = useState(true);
 
@@ -43,12 +54,13 @@ const TelegramInitializer = () => {
     async function init() {
       console.log("TelegramInitializer: Starting initialization");
       
-      // More robust Telegram WebApp detection - check multiple properties
+      // Enhanced Telegram WebApp detection - check multiple properties and verify initData
       const isTelegramWebApp = Boolean(
         typeof window !== 'undefined' &&
         window.Telegram && 
         window.Telegram.WebApp &&
-        window.Telegram.WebApp.initData
+        window.Telegram.WebApp.initData &&
+        window.Telegram.WebApp.initData.length > 0
       );
       
       if (isTelegramWebApp) {

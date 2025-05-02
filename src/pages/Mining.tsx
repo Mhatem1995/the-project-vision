@@ -10,12 +10,17 @@ import FortuneWheel from "@/components/FortuneWheel";
 import { useMining } from "@/hooks/useMining";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useTonConnect } from '@tonconnect/ui-react';
 
 const Mining = () => {
   const { toast } = useToast();
   const [boostDialogOpen, setBoostDialogOpen] = useState<boolean>(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
+  
+  // TON Connect integration
+  const { connector, connected, account } = useTonConnect();
+  
   const {
     balance,
     timeRemaining,
@@ -25,21 +30,22 @@ const Mining = () => {
     handleCollect,
   } = useMining();
 
-  // Better Telegram WebApp detection
+  // Enhanced Telegram WebApp detection
   const isInTelegram = typeof window !== 'undefined' && 
-                       Boolean(window.Telegram?.WebApp?.initData);
+                      Boolean(window.Telegram?.WebApp?.initData && 
+                              window.Telegram?.WebApp?.initData.length > 0);
 
   useEffect(() => {
     console.log("Mining page: Checking if in Telegram:", isInTelegram);
     
-    // Check if we already have a saved wallet address
+    // Check for already saved wallet address
     const savedAddress = localStorage.getItem("tonWalletAddress");
     if (savedAddress) {
       console.log("Found saved wallet address:", savedAddress);
       setWalletAddress(savedAddress);
     }
     
-    // Debug information to help troubleshoot
+    // Debug information for troubleshooting
     if (window.Telegram?.WebApp?.platform) {
       console.log("Telegram platform:", window.Telegram.WebApp.platform);
     }
@@ -47,83 +53,44 @@ const Mining = () => {
     if (window.Telegram?.WebApp) {
       console.log("Telegram WebApp available:", Boolean(window.Telegram.WebApp));
       console.log("Init data available:", Boolean(window.Telegram.WebApp.initData));
+      console.log("Init data length:", window.Telegram.WebApp.initData?.length || 0);
     }
   }, [isInTelegram]);
+
+  // Handle TON wallet connection status changes
+  useEffect(() => {
+    if (connected && account) {
+      const address = account.address.toString();
+      console.log("TON Connect wallet connected:", address);
+      
+      setWalletAddress(address);
+      localStorage.setItem("tonWalletAddress", address);
+      
+      // Update wallet address in database
+      const userId = localStorage.getItem("telegramUserId");
+      if (userId) {
+        updateUserWalletInDatabase(userId, address);
+      }
+    }
+  }, [connected, account]);
 
   const handleConnectWallet = async () => {
     console.log("Connect wallet clicked, inTelegram:", isInTelegram);
     
-    if (!isInTelegram) {
-      toast({
-        title: "Error",
-        description: "Please open this app in Telegram to connect your wallet",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     setIsConnecting(true);
 
     try {
-      // For TON Connect 2.0 inside Telegram Mini Apps
-      const walletUrl = "ton://transfer/";
-      
-      // Make sure we're in Telegram before proceeding
-      if (window.Telegram?.WebApp) {
-        console.log("Telegram WebApp available, opening wallet");
-        
-        // We're definitely inside Telegram, open the TON wallet
-        window.Telegram.WebApp.openLink(walletUrl);
-        
-        // Since we can't get a direct response when opening an external app,
-        // we'll ask the user to confirm they connected their wallet
-        setTimeout(() => {
-          // This timeout gives users time to go to wallet and come back
-          if (window.Telegram?.WebApp?.showConfirm) {
-            window.Telegram.WebApp.showConfirm(
-              "Did you connect your wallet? If yes, press OK to continue.",
-              async (confirmed) => {
-                if (confirmed) {
-                  // User confirmed wallet connection
-                  console.log("User confirmed wallet connection");
-                  const userId = localStorage.getItem("telegramUserId");
-                  if (userId) {
-                    await updateUserWalletInDatabase(userId);
-                  }
-                } else {
-                  console.log("User denied wallet connection");
-                  toast({
-                    title: "Wallet Connection Cancelled",
-                    description: "You can try again later when you're ready.",
-                  });
-                }
-                setIsConnecting(false);
-              }
-            );
-          } else {
-            console.log("showConfirm not available, using fallback");
-            toast({
-              title: "Wallet Requested",
-              description: "Please check if your wallet opened. If not, please try again.",
-            });
-            
-            // For demo purposes, let's save a placeholder or use saved address
-            const userId = localStorage.getItem("telegramUserId");
-            if (userId) {
-              updateUserWalletInDatabase(userId);
-            }
-            
-            setIsConnecting(false);
-          }
-        }, 2000);
+      // Open TON Connect modal
+      if (connector) {
+        console.log("Opening TON Connect modal");
+        await connector.openModal();
       } else {
-        console.error("Not in Telegram WebApp environment");
+        console.error("TON Connect connector not available");
         toast({
           title: "Error",
-          description: "Please open this app in Telegram",
+          description: "Wallet connection not available, please try again",
           variant: "destructive"
         });
-        setIsConnecting(false);
       }
     } catch (error) {
       console.error("Wallet connection error:", error);
@@ -132,26 +99,20 @@ const Mining = () => {
         description: "There was an error connecting to your wallet. Please try again.",
         variant: "destructive"
       });
+    } finally {
       setIsConnecting(false);
     }
   };
 
-  const updateUserWalletInDatabase = async (userId: string) => {
-    // For demo, generate a simulated wallet address
-    // In real app, this would come from TON Connect
-    const simulatedAddress = `EQ${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
-    
+  const updateUserWalletInDatabase = async (userId: string, address: string) => {
     console.log("Updating wallet address in database for user:", userId);
-    console.log("Simulated wallet address:", simulatedAddress);
-    
-    setWalletAddress(simulatedAddress);
-    localStorage.setItem("tonWalletAddress", simulatedAddress);
+    console.log("Wallet address:", address);
     
     try {
       // Update user in database with wallet address (store in links field)
       const { error } = await supabase
         .from("users")
-        .update({ links: simulatedAddress })
+        .update({ links: address })
         .eq("id", userId);
         
       if (error) {
@@ -210,7 +171,7 @@ const Mining = () => {
               className="w-full max-w-md"
             >
               <Wallet className="mr-2 h-4 w-4" />
-              {isConnecting ? 'Connecting...' : 'Connect Telegram Wallet'}
+              {isConnecting ? 'Connecting...' : 'Connect TON Wallet'}
             </Button>
           ) : (
             <div className="w-full max-w-md bg-card p-4 rounded-lg border border-border">

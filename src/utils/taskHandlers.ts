@@ -1,8 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
-
-export const tonWalletAddress = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
+import { tonWalletAddress } from "@/integrations/ton/TonConnectConfig";
 
 export const handleCollabTask = (
   taskId: string,
@@ -107,34 +106,16 @@ export const handlePaymentTask = async (
       const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${task.tonAmount * 1000000000}`;
       window.Telegram.WebApp.openLink(paymentUrl);
 
-      // Special handling for fortune cookie task
-      if (task.id === "6") {
-        console.log("Adding fortune cookies for user:", userId);
-        const { error: cookieError } = await supabase.rpc('add_fortune_cookies', { 
-          p_user_id: userId, 
-          p_cookie_count: 10 
-        });
-
-        if (cookieError) {
-          console.error("Failed to add fortune cookies:", cookieError);
-          toast({
-            title: "Error",
-            description: "Failed to add fortune cookies",
-            variant: "destructive"
-          });
-        }
-      }
-
-      if (task.isDaily) {
-        console.log("Logging daily task completion");
-        await supabase.from("daily_tasks").insert([
-          {
-            user_id: userId,
-            task_type: "daily_ton_payment"
-          }
-        ]);
-        onDailyTaskComplete?.();
-      }
+      // Start transaction verification process
+      toast({
+        title: "Payment Initiated",
+        description: "Verifying your payment, please wait...",
+      });
+      
+      // Wait a moment for user to complete payment
+      setTimeout(async () => {
+        await verifyPayment(userId, task, data.id, toast, onDailyTaskComplete);
+      }, 15000);
     } else {
       toast({
         title: "Error",
@@ -147,6 +128,68 @@ export const handlePaymentTask = async (
     toast({
       title: "Error",
       description: "An unexpected error occurred",
+      variant: "destructive"
+    });
+  }
+};
+
+const verifyPayment = async (
+  userId: string, 
+  task: Task, 
+  boostId: string, 
+  toast: any, 
+  onDailyTaskComplete?: () => void
+) => {
+  if (!task.tonAmount) return;
+  
+  try {
+    const taskType = task.isDaily ? "daily_ton_payment" : undefined;
+    
+    // Call our verification edge function
+    const { data, error } = await supabase.functions.invoke('verify-ton-payment', {
+      body: { 
+        userId,
+        amount: task.tonAmount,
+        taskId: task.id,
+        boostId,
+        taskType
+      }
+    });
+    
+    if (error || !data?.success) {
+      console.error("Payment verification failed:", error || data);
+      toast({
+        title: "Payment Not Detected",
+        description: "We couldn't verify your payment. If you've sent the TON, please wait a minute and try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    console.log("Payment verified:", data);
+    
+    // Special handling for fortune cookie task
+    if (task.id === "6") {
+      toast({
+        title: "Fortune Cookies Added!",
+        description: "10 fortune cookies have been added to your account.",
+      });
+    } else {
+      toast({
+        title: "Payment Confirmed!",
+        description: `You earned ${task.reward} KFC coins!`,
+      });
+    }
+    
+    if (task.isDaily && onDailyTaskComplete) {
+      onDailyTaskComplete();
+    }
+    
+  } catch (err) {
+    console.error("Error verifying payment:", err);
+    toast({
+      title: "Verification Error",
+      description: "Failed to verify your payment. Please try again later.",
       variant: "destructive"
     });
   }
