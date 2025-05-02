@@ -1,3 +1,4 @@
+
 import { useEffect, useState, createContext, useContext } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,10 +70,14 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     
     // Check if there's an existing connection
     const checkConnection = async () => {
-      // Use restoreConnection instead of getWalletConnectionSource
-      const walletInfo = await connectorInstance.restoreConnection();
-      if (walletInfo) {
-        console.log("Found existing wallet connection:", walletInfo);
+      try {
+        // Use restoreConnection and properly handle its return value
+        const walletInfo = await connectorInstance.restoreConnection();
+        if (walletInfo) {
+          console.log("Found existing wallet connection:", walletInfo);
+        }
+      } catch (err) {
+        console.error("Error restoring connection:", err);
       }
     };
     
