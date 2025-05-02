@@ -1,4 +1,3 @@
-
 import { useEffect, useState, createContext, useContext } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
@@ -156,14 +155,15 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         
         if (telegramWallets.length > 0) {
           console.log("Using Telegram compatible wallet:", telegramWallets[0].name);
-          await connector.connect({walletName: telegramWallets[0].name});
+          // Fix: Pass the correct wallet info to connect
+          await connector.connect(telegramWallets[0]);
         } else {
-          // Universal connection method with parameters
-          await connector.connect({});
+          // Fix: Connect with universal method by passing a valid wallet from the list
+          await connector.connect(walletsList[0]);
         }
       } else {
-        // Outside Telegram use standard connection with parameters
-        await connector.connect({});
+        // Outside Telegram, use the first available wallet
+        await connector.connect(walletsList[0]);
       }
     } catch (err) {
       console.error("Error connecting to wallet:", err);
