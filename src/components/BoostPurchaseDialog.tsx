@@ -76,14 +76,9 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     try {
       console.log("Creating boost record with text ID:", userId, "wallet:", walletAddress, "multiplier:", option.multiplier);
       
-      // Generate UUID for this boost directly in the client
-      // Using crypto.randomUUID() which is widely supported in modern browsers
-      const boostUuid = crypto.randomUUID();
-      console.log("Generated UUID for boost:", boostUuid);
-      
       // Creating a boost record (status: pending)
+      // Let Supabase generate UUID for us by omitting the id field
       const { data, error } = await supabase.from("mining_boosts").insert({
-        id: boostUuid, // Use generated UUID for the ID
         user_id: userId, // Keep user_id as the telegram ID
         multiplier: option.multiplier,
         price: option.price,
