@@ -52,12 +52,10 @@ const Leaderboard = () => {
       
       // Enhance user data with wallet info
       const enhancedUsers = userData ? userData.map(user => {
-        // Also try to get wallet from users.links field for backward compatibility
-        const userLinks = user.links;
         return {
           ...user,
-          // Try wallet map first, then fall back to links property
-          walletConnected: walletMap.has(user.id) || !!userLinks
+          // Check if wallet is connected based on wallet map
+          walletConnected: walletMap.has(user.id)
         };
       }) : [];
       
