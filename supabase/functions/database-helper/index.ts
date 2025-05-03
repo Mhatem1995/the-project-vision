@@ -1,4 +1,3 @@
-
 // This edge function will create database helper functions to avoid TypeScript errors
 // and also serve as an RPC endpoint to interact with those functions
 
@@ -212,6 +211,33 @@ serve(async (req: Request) => {
             }
           }
             
+          case 'gen_random_uuid': {
+            try {
+              // Generate a random UUID using Supabase's gen_random_uuid() function
+              const { data, error } = await supabase
+                .rpc('gen_random_uuid');
+                
+              if (error) {
+                console.error("Error generating UUID:", error);
+                return new Response(
+                  JSON.stringify({ success: false, error: error.message }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+              
+              return new Response(
+                JSON.stringify({ success: true, uuid: data }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            } catch (error) {
+              console.error("Error in gen_random_uuid:", error);
+              return new Response(
+                JSON.stringify({ success: false, error: error.message }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+          }
+            
           default:
             return new Response(
               JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -228,7 +254,7 @@ serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         message: "Database helper function is active and ready for RPC calls",
-        actions: ["save_wallet_connection", "insert_payment", "get_wallet_connections"]
+        actions: ["save_wallet_connection", "insert_payment", "get_wallet_connections", "gen_random_uuid"]
       }),
       {
         headers: {
