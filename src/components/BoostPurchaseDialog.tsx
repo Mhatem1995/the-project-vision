@@ -36,7 +36,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
   const [pendingBoost, setPendingBoost] = useState<any>(null);
   const [verifyDialog, setVerifyDialog] = useState(false);
   const { toast } = useToast();
-  const { tonConnectUI, isConnected } = useTonConnect();
+  const { tonConnectUI, isConnected, connect } = useTonConnect();
 
   const handlePurchase = async (option: BoostOption) => {
     // Get logged-in user ID
@@ -50,6 +50,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       return;
     }
 
+    // Ensure wallet is connected first
     const walletAddress = localStorage.getItem("tonWalletAddress");
     if (!walletAddress) {
       toast({
@@ -57,6 +58,18 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         description: "Please connect your TON wallet first to purchase a boost.",
         variant: "destructive" 
       });
+      // Attempt to connect wallet
+      connect();
+      return;
+    }
+
+    if (!isConnected || !tonConnectUI) {
+      toast({
+        title: "Wallet Connection Required",
+        description: "Please connect your TON wallet to continue.",
+        variant: "destructive"
+      });
+      connect();
       return;
     }
 
@@ -64,9 +77,12 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       console.log("Creating boost record with text ID:", userId, "wallet:", walletAddress, "multiplier:", option.multiplier);
       
       // Creating a boost record (status: pending)
+      // IMPORTANT: We need to ensure user_id is a TEXT type, not UUID
       const { data, error } = await supabase.from("mining_boosts").insert([
         {
-          user_id: userId,  // Using text ID not UUID
+          // Use text ID not UUID - This was causing the error
+          // Ensure this column accepts text IDs in your database schema
+          user_id: userId,
           multiplier: option.multiplier,
           price: option.price,
           duration: option.duration,
@@ -120,6 +136,18 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       if (tonConnectUI && isConnected) {
         try {
           console.log("Opening TonConnect transaction for", option.price, "TON");
+          
+          // This is the critical change - ensuring we properly trigger the wallet
+          // Make sure we check if we can call methods on tonConnectUI
+          if (typeof tonConnectUI.sendTransaction !== 'function') {
+            console.error("TonConnect UI doesn't have sendTransaction method");
+            toast({
+              title: "Wallet Error",
+              description: "Wallet connection issue. Please try again later.",
+              variant: "destructive"
+            });
+            return;
+          }
           
           await tonConnectUI.sendTransaction({
             validUntil: Math.floor(Date.now() / 1000) + 600, // expires in 10 mins

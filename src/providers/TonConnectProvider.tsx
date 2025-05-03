@@ -1,8 +1,16 @@
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
+
+// Add this to window global for access in other components
+declare global {
+  interface Window {
+    _tonConnectUI?: TonConnectUI;
+  }
+}
 
 // Create a dedicated interface for our context
 interface TonConnectContextType {
@@ -62,6 +70,10 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
 
     console.log("TonConnect options:", options);
     const connector = new TonConnectUI(options);
+    
+    // Make TonConnect instance globally available
+    window._tonConnectUI = connector;
+    
     setTonConnectUI(connector);
 
     // Set up listener for connection changes

@@ -1,7 +1,9 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
-import { openTonPayment, pollForTransactionVerification } from "@/utils/tonTransactionUtils";
+import { pollForTransactionVerification } from "@/utils/tonTransactionUtils";
+import { tonWalletAddress } from "@/integrations/ton/TonConnectConfig";
+import { TonConnectUI } from "@tonconnect/ui";
 
 export const handleCollabTask = (
   taskId: string,
@@ -98,8 +100,50 @@ export const handlePaymentTask = async (
       return;
     }
 
-    // Open TON payment using our utility function
-    openTonPayment(task.tonAmount, task.id);
+    // Get TonConnect instance from window
+    // This is a safer way to access the TonConnect instance
+    let tonConnectUI: TonConnectUI | null = null;
+    const tonConnectContext = window._tonConnectUI;
+    
+    if (tonConnectContext && typeof tonConnectContext === 'object') {
+      tonConnectUI = tonConnectContext as TonConnectUI;
+    }
+
+    if (!tonConnectUI || typeof tonConnectUI.sendTransaction !== 'function') {
+      console.error("TonConnect UI not available or missing sendTransaction method");
+      toast({
+        title: "Wallet Connection Error",
+        description: "Unable to open payment wallet. Please try reconnecting your wallet.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Use TonConnect to send transaction
+    try {
+      console.log(`Sending TON payment for ${task.tonAmount} TON using TonConnect`);
+      
+      await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 600, // expires in 10 mins
+        messages: [
+          {
+            address: tonWalletAddress,
+            amount: (task.tonAmount * 1e9).toString(), // Convert to nanoTON
+            payload: `task${task.id}`, // Task ID in payload for traceability
+          }
+        ]
+      });
+      
+      console.log("TonConnect transaction initiated for task payment");
+    } catch (txError) {
+      console.error("Error initiating TonConnect transaction:", txError);
+      toast({
+        title: "Transaction Error",
+        description: "Failed to open wallet for payment. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     // Start transaction verification process
     toast({
