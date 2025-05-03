@@ -68,6 +68,7 @@ serve(async (req: Request) => {
     let userWalletAddress: string | null = null;
     
     // Try to get from wallets table first
+    console.log(`Searching for wallet address for user ID: ${userId}`);
     const { data: walletData, error: walletError } = await supabaseAdmin
       .from("wallets")
       .select("wallet_address")
@@ -81,6 +82,7 @@ serve(async (req: Request) => {
       console.log(`Found wallet address in wallets table: ${userWalletAddress}`);
     } else {
       // Fall back to users table
+      console.log("Wallet not found in wallets table, checking users.links");
       const { data: userData, error: userError } = await supabaseAdmin
         .from("users")
         .select("links")
@@ -114,8 +116,11 @@ serve(async (req: Request) => {
     const expectedAmountNano = Math.floor(amount * 1000000000);
     const expectedComment = comment || (taskId ? `task${taskId}` : "");
     
+    console.log(`Looking for transaction with: amount=${expectedAmountNano} nanoTON, comment=${expectedComment || "(none)"}`);
+    
     // First, try using tonapi.io
     try {
+      console.log("Checking transactions using tonapi.io...");
       const tonapiResponse = await fetch(`https://tonapi.io/v2/accounts/${userWalletAddress}/transactions?limit=20`, {
         headers: {
           'Authorization': `Bearer ${tonApiKey}`
@@ -138,9 +143,14 @@ serve(async (req: Request) => {
           if (!isToOurWallet) return false;
           
           // Check for matching amount in any output message
-          const hasMatchingAmount = tx.out_msgs?.some((msg: any) => 
-            Math.abs(msg.value - expectedAmountNano) < 10000000 // Allow small rounding differences
-          );
+          const hasMatchingAmount = tx.out_msgs?.some((msg: any) => {
+            const diff = Math.abs(msg.value - expectedAmountNano);
+            const isMatch = diff < 10000000; // Allow small rounding differences
+            if (isMatch) {
+              console.log(`Found matching amount: ${msg.value} (expected ${expectedAmountNano}), diff: ${diff}`);
+            }
+            return isMatch;
+          });
           
           // Check if the message comment matches our expected comment if one was provided
           let hasMatchingComment = true;
@@ -148,14 +158,24 @@ serve(async (req: Request) => {
             hasMatchingComment = tx.out_msgs?.some((msg: any) => {
               if (!msg.message) return false;
               if (typeof msg.message === 'string') {
-                return msg.message.includes(expectedComment);
+                const isMatch = msg.message.includes(expectedComment);
+                if (isMatch) {
+                  console.log(`Found matching comment: "${msg.message}" includes "${expectedComment}"`);
+                }
+                return isMatch;
               }
               return false;
             });
           }
           
           // Check if transaction is recent (within last 30 minutes)
-          const isRecent = (Date.now() - new Date(tx.utime * 1000).getTime()) < 30 * 60 * 1000;
+          const txTime = new Date(tx.utime * 1000);
+          const timeDiff = Date.now() - txTime.getTime();
+          const isRecent = timeDiff < 30 * 60 * 1000;
+          
+          if (!isRecent) {
+            console.log(`Transaction from ${txTime.toISOString()} is too old (${Math.floor(timeDiff/1000/60)} minutes ago)`);
+          }
           
           const isMatch = isToOurWallet && hasMatchingAmount && hasMatchingComment && isRecent;
           if (isMatch) {
@@ -168,8 +188,10 @@ serve(async (req: Request) => {
         if (matchingTx) {
           // Process verified transaction
           const txHash = matchingTx.hash;
+          console.log(`Transaction match found with hash: ${txHash}`);
           
           // Update payment record with transaction hash
+          console.log("Updating payment record with transaction hash");
           await supabaseAdmin
             .from("payments")
             .update({ transaction_hash: txHash })
@@ -186,6 +208,8 @@ serve(async (req: Request) => {
             taskType, 
             corsHeaders
           );
+        } else {
+          console.log("No matching transaction found in tonapi.io response");
         }
       } else {
         console.log("tonapi.io request failed:", tonapiResponse.status);
@@ -196,6 +220,7 @@ serve(async (req: Request) => {
     
     // If tonapi.io fails, try toncenter API as fallback
     try {
+      console.log("Checking transactions using toncenter API...");
       const toncenterUrl = `https://toncenter.com/api/v2/getTransactions?address=${userWalletAddress}&limit=20&to_lt=0&archival=false`;
       const toncenterResponse = await fetch(toncenterUrl, {
         headers: {
@@ -217,12 +242,23 @@ serve(async (req: Request) => {
             // Look for outgoing message to our wallet
             const matchingMsg = tx.out_msgs.find((msg: any) => {
               const isToOurWallet = msg.destination === tonWalletAddress;
-              const hasMatchingAmount = Math.abs(parseInt(msg.value) - expectedAmountNano) < 10000000;
+              if (!isToOurWallet) return false;
+              
+              const msgValue = parseInt(msg.value);
+              const diff = Math.abs(msgValue - expectedAmountNano);
+              const hasMatchingAmount = diff < 10000000;
+              
+              if (hasMatchingAmount) {
+                console.log(`Found matching amount: ${msgValue} (expected ${expectedAmountNano}), diff: ${diff}`);
+              }
               
               // Check comment if expected
               let hasMatchingComment = true;
               if (expectedComment && msg.message) {
                 hasMatchingComment = msg.message.includes(expectedComment);
+                if (hasMatchingComment) {
+                  console.log(`Found matching comment: "${msg.message}" includes "${expectedComment}"`);
+                }
               }
               
               return isToOurWallet && hasMatchingAmount && hasMatchingComment;
@@ -230,7 +266,12 @@ serve(async (req: Request) => {
             
             // Check if transaction is recent (within last 30 minutes)
             const txTime = tx.utime ? new Date(tx.utime * 1000) : null;
-            const isRecent = txTime && (Date.now() - txTime.getTime() < 30 * 60 * 1000);
+            const timeDiff = txTime ? Date.now() - txTime.getTime() : 0;
+            const isRecent = txTime && (timeDiff < 30 * 60 * 1000);
+            
+            if (!isRecent && txTime) {
+              console.log(`Transaction from ${txTime.toISOString()} is too old (${Math.floor(timeDiff/1000/60)} minutes ago)`);
+            }
             
             const isMatch = !!matchingMsg && isRecent;
             if (isMatch) {
@@ -243,8 +284,10 @@ serve(async (req: Request) => {
           if (matchingTx) {
             // Process verified transaction
             const txHash = matchingTx.transaction_id;
+            console.log(`Transaction match found with hash: ${txHash}`);
             
             // Update payment record with transaction hash
+            console.log("Updating payment record with transaction hash");
             await supabaseAdmin
               .from("payments")
               .update({ transaction_hash: txHash })
@@ -261,6 +304,8 @@ serve(async (req: Request) => {
               taskType, 
               corsHeaders
             );
+          } else {
+            console.log("No matching transaction found in toncenter response");
           }
         }
       } else {
@@ -271,6 +316,7 @@ serve(async (req: Request) => {
     }
     
     // No matching transaction found in either API
+    console.log("No matching transaction found in any APIs");
     return new Response(
       JSON.stringify({ 
         success: false, 
@@ -311,7 +357,8 @@ async function processVerifiedTransaction(
   taskType?: string,
   corsHeaders: any = {}
 ) {
-  console.log("Processing verified transaction:", txHash);
+  console.log(`Processing verified transaction ${txHash} for user ${userId}`);
+  console.log(`Task ID: ${taskId || "none"}, Boost ID: ${boostId || "none"}, Task Type: ${taskType || "none"}`);
   
   // Handle boost payment confirmation if boostId provided
   if (boostId) {
@@ -373,6 +420,8 @@ async function processVerifiedTransaction(
           
         if (taskError) {
           console.error("Error recording task completion:", taskError);
+        } else {
+          console.log("Task completion record added successfully");
         }
       } else {
         console.log("Task already completed previously");
@@ -476,14 +525,18 @@ async function processVerifiedTransaction(
   if (taskType === "daily_ton_payment") {
     try {
       console.log(`Recording daily task completion for ${userId}, type: ${taskType}`);
-      await supabaseAdmin
+      const { error: dailyTaskError } = await supabaseAdmin
         .from("daily_tasks")
         .insert([{
           user_id: userId,
           task_type: taskType
         }]);
       
-      console.log("Daily task recorded successfully");
+      if (dailyTaskError) {
+        console.error("Failed to record daily task:", dailyTaskError);
+      } else {
+        console.log("Daily task recorded successfully");
+      }
     } catch (err) {
       console.error("Failed to record daily task:", err);
       // Continue anyway since the main transaction was successful

@@ -79,14 +79,16 @@ serve(async (req: Request) => {
               }
               
               // Also make sure the user record exists and has the wallet linked
+              // IMPORTANT: Using string data type for user ID, not UUID
               const { data: userData, error: getUserError } = await supabase
                 .from("users")
-                .select("id, links")
+                .select("id, links, balance")
                 .eq("id", telegram_id)
                 .maybeSingle();
                 
               if (getUserError) {
                 console.error("Error fetching user:", getUserError);
+                // Continue anyway since the wallet connection was saved
               } else if (userData) {
                 // Update existing user
                 const { error: updateError } = await supabase
@@ -117,7 +119,10 @@ serve(async (req: Request) => {
               }
               
               return new Response(
-                JSON.stringify({ success: true }),
+                JSON.stringify({ 
+                  success: true,
+                  message: "Wallet connection saved successfully"
+                }),
                 { headers: { ...corsHeaders, "Content-Type": "application/json" } }
               );
             } catch (error) {
@@ -192,6 +197,8 @@ serve(async (req: Request) => {
                 );
               }
               
+              console.log(`Retrieved ${data?.length || 0} wallet connections`);
+              
               return new Response(
                 JSON.stringify({ success: true, connections: data }),
                 { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -213,7 +220,7 @@ serve(async (req: Request) => {
         }
       }
     } catch (parseError) {
-      console.log("Not an RPC call or invalid JSON, proceeding with function creation");
+      console.log("Not an RPC call or invalid JSON:", parseError);
     }
 
     // If we reach here, this is a regular call to create the helper functions

@@ -13,7 +13,14 @@ export const verifyTonTransaction = async (
 ): Promise<{ success: boolean; transactionHash?: string; message?: string }> => {
   try {
     // First attempt to use the Supabase edge function
-    console.log("Verifying TON payment using edge function...");
+    console.log("Verifying TON payment using edge function...", {
+      userId,
+      amount: expectedAmount,
+      taskId,
+      boostId,
+      taskType
+    });
+    
     const { data, error } = await supabase.functions.invoke('verify-ton-payment', {
       body: { 
         userId, 
@@ -68,13 +75,25 @@ export const pollForTransactionVerification = async (
       description: "This may take a moment...",
     });
     
+    console.log("Starting transaction polling for:", { 
+      userId, 
+      amount, 
+      taskId, 
+      boostId, 
+      taskType,
+      maxAttempts: TRANSACTION_VERIFICATION.MAX_ATTEMPTS,
+      checkDelay: TRANSACTION_VERIFICATION.CHECK_DELAY_MS
+    });
+    
     const checkInterval = setInterval(async () => {
       attempts++;
+      console.log(`Attempt ${attempts}/${TRANSACTION_VERIFICATION.MAX_ATTEMPTS} to verify transaction`);
       
       const result = await verifyTonTransaction(userId, amount, taskId, boostId, taskType);
       
       if (result.success) {
         clearInterval(checkInterval);
+        console.log("Transaction verified successfully:", result);
         toast({
           title: "Payment confirmed!",
           description: "Your transaction has been verified.",
@@ -82,12 +101,15 @@ export const pollForTransactionVerification = async (
         resolve(true);
       } else if (attempts >= TRANSACTION_VERIFICATION.MAX_ATTEMPTS) {
         clearInterval(checkInterval);
+        console.error("Transaction verification timed out after", attempts, "attempts:", result.message);
         toast({
           title: "Verification timeout",
           description: "Please try again or contact support if you've made the payment.",
           variant: "destructive"
         });
         resolve(false);
+      } else {
+        console.log(`Verification attempt ${attempts} failed, retrying...`);
       }
     }, TRANSACTION_VERIFICATION.CHECK_DELAY_MS);
   });
@@ -109,7 +131,13 @@ export const openTonPayment = (amount: number, taskId?: string): void => {
     const comment = taskId ? `task${taskId}` : '';
     const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amountInNano}&text=${comment}`;
     
-    console.log(`Opening TON payment in Telegram for ${amount} TON`, paymentUrl);
+    console.log(`Opening TON payment in Telegram for ${amount} TON`, {
+      paymentUrl,
+      walletAddress: tonWalletAddress,
+      amountInNano,
+      comment
+    });
+    
     window.Telegram.WebApp.openLink(paymentUrl);
   } else {
     console.warn("Not in Telegram WebApp environment, cannot open TON payment");

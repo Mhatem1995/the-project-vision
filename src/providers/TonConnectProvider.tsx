@@ -74,6 +74,8 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         
         // Get the wallet address
         const address = wallet.account.address.toString();
+        console.log("Connected wallet address:", address);
+        
         setWalletAddress(address);
         localStorage.setItem("tonWalletAddress", address);
         
@@ -82,24 +84,10 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         if (userId) {
           console.log("Saving wallet connection for user:", userId, "address:", address);
           
-          // Save to users table (for backward compatibility)
-          try {
-            const { error: userError } = await supabase.from("users")
-              .update({ links: address })
-              .eq("id", userId);
-              
-            if (userError) {
-              console.error("Error updating user wallet:", userError);
-            } else {
-              console.log("Successfully updated wallet address in users table");
-            }
-          } catch (err) {
-            console.error("Error updating user wallet:", err);
-          }
-
           // Save to the wallets table using database-helper
           try {
-            const { error } = await supabase.functions.invoke('database-helper', {
+            console.log("Calling database-helper to save wallet connection");
+            const { data, error } = await supabase.functions.invoke('database-helper', {
               body: {
                 action: 'save_wallet_connection',
                 params: {
@@ -111,14 +99,45 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
             
             if (error) {
               console.error("Error storing wallet connection:", error);
+              toast({
+                title: "Warning",
+                description: "Connected wallet but failed to save connection: " + error.message,
+                variant: "default"
+              });
             } else {
-              console.log("Successfully stored wallet connection");
+              console.log("Successfully stored wallet connection:", data);
             }
           } catch (err) {
             console.error("Error calling save_wallet_connection RPC:", err);
+            toast({
+              title: "Warning",
+              description: "Connected wallet but failed to save connection",
+              variant: "default"
+            });
+          }
+          
+          // Save to users table (for backward compatibility)
+          try {
+            console.log("Updating user record with wallet address");
+            const { error: userError } = await supabase.from("users")
+              .update({ links: address })
+              .eq("id", userId);
+              
+            if (userError) {
+              console.error("Error updating user wallet in users table:", userError);
+            } else {
+              console.log("Successfully updated wallet address in users table");
+            }
+          } catch (err) {
+            console.error("Error updating user wallet in users table:", err);
           }
         } else {
           console.warn("No telegram user ID found in local storage");
+          toast({
+            title: "Warning",
+            description: "Wallet connected but user ID not found",
+            variant: "default"
+          });
         }
 
         toast({
@@ -129,14 +148,18 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         setIsConnected(false);
         setWalletAddress(null);
         localStorage.removeItem("tonWalletAddress");
+        
+        console.log("Wallet disconnected");
       }
     });
 
     // Check for existing session on load
     const savedAddress = localStorage.getItem("tonWalletAddress");
     if (savedAddress) {
+      console.log("Found saved wallet address in localStorage:", savedAddress);
       setWalletAddress(savedAddress);
       if (connector.connected) {
+        console.log("Wallet is already connected");
         setIsConnected(true);
       }
     }

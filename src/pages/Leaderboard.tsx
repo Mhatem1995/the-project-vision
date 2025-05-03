@@ -29,35 +29,62 @@ const Leaderboard = () => {
         throw userError;
       }
       
-      console.log("User data retrieved:", userData?.length || 0);
+      console.log("User data retrieved:", userData?.length || 0, "users");
       
       // Create a map for wallet connections
       const walletMap = new Map();
       
-      // Try to get wallet connections from the wallets table
+      // Try to get wallet connections from database helper
       try {
-        const { data: walletsData, error: walletsError } = await supabase
-          .from("wallets")
-          .select("telegram_id, wallet_address");
-          
-        if (walletsError) {
-          console.error("Error fetching wallets directly:", walletsError);
-        } else if (walletsData && Array.isArray(walletsData)) {
-          console.log("Wallet connections from wallets table:", walletsData.length);
-          walletsData.forEach((item: any) => {
+        console.log("Getting wallet connections from database helper");
+        const { data: connections, error: connectionsError } = await supabase.functions.invoke('database-helper', {
+          body: {
+            action: 'get_wallet_connections'
+          }
+        });
+        
+        if (connectionsError) {
+          console.error("Error fetching wallet connections:", connectionsError);
+        } else if (connections?.success && Array.isArray(connections.connections)) {
+          console.log("Wallet connections retrieved:", connections.connections.length);
+          connections.connections.forEach((item: any) => {
             if (item && item.telegram_id && item.wallet_address) {
               walletMap.set(item.telegram_id, item.wallet_address);
             }
           });
         }
       } catch (err) {
-        console.error("Error fetching wallet connections:", err);
+        console.error("Error calling get_wallet_connections:", err);
+      }
+      
+      // Fallback: Try to get wallet connections directly from the wallets table
+      if (walletMap.size === 0) {
+        try {
+          console.log("Fallback: Getting wallet connections directly from wallets table");
+          const { data: walletsData, error: walletsError } = await supabase
+            .from("wallets")
+            .select("telegram_id, wallet_address");
+            
+          if (walletsError) {
+            console.error("Error fetching wallets directly:", walletsError);
+          } else if (walletsData && Array.isArray(walletsData)) {
+            console.log("Wallet connections from wallets table:", walletsData.length);
+            walletsData.forEach((item: any) => {
+              if (item && item.telegram_id && item.wallet_address) {
+                walletMap.set(item.telegram_id, item.wallet_address);
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Error fetching wallet connections:", err);
+        }
       }
       
       console.log("Total wallet connections found:", walletMap.size);
       
       // Also check users table for wallet addresses (for backward compatibility)
       try {
+        console.log("Getting wallet connections from users.links field");
         const { data: usersWithLinks } = await supabase
           .from("users")
           .select("id, links")
@@ -77,14 +104,16 @@ const Leaderboard = () => {
       
       // Enhance user data with wallet info
       const enhancedUsers = userData && Array.isArray(userData) ? userData.map(user => {
+        const hasWallet = walletMap.has(user.id);
+        console.log(`User ${user.id}: has wallet = ${hasWallet}, balance = ${user.balance}`);
         return {
           ...user,
           // Check if wallet is connected based on wallet map
-          walletConnected: walletMap.has(user.id)
+          walletConnected: hasWallet
         };
       }) : [];
       
-      console.log("Final leaderboard data:", enhancedUsers.length);
+      console.log("Final leaderboard data:", enhancedUsers.length, "users");
       return enhancedUsers;
     },
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -99,6 +128,7 @@ const Leaderboard = () => {
   }
 
   if (error) {
+    console.error("Error loading leaderboard data:", error);
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <div className="text-destructive">Error loading leaderboard data</div>
@@ -108,6 +138,7 @@ const Leaderboard = () => {
 
   // Check if we have any users to display
   const hasUsers = users && users.length > 0;
+  console.log("Rendering leaderboard with", hasUsers ? users.length : 0, "users");
 
   return (
     <div className="flex flex-col space-y-6">

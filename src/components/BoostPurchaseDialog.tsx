@@ -59,10 +59,9 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     }
 
     try {
-      console.log("Creating boost record with text ID:", userId);
+      console.log("Creating boost record with text ID:", userId, "wallet:", walletAddress, "multiplier:", option.multiplier);
       
       // Creating a boost record (status: pending)
-      // IMPORTANT: Using text values for user_id, NOT UUID type
       const { data, error } = await supabase.from("mining_boosts").insert([
         {
           user_id: userId,  // Using text ID not UUID
@@ -119,6 +118,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       if (window.Telegram?.WebApp) {
         // Open TON payment in Telegram
         const paymentUrl = `ton://transfer/${tonWallet}?amount=${option.price * 1000000000}`; // Convert TON to nanotons
+        console.log("Opening TON payment in Telegram:", paymentUrl);
         window.Telegram.WebApp.openLink(paymentUrl);
       } else {
         // Fallback for non-Telegram environment

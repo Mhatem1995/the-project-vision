@@ -65,16 +65,15 @@ export const handlePaymentTask = async (
   }
 
   try {
-    console.log("Creating payment record for task:", task.id, "user:", userId);
+    console.log("Creating payment record for task:", task.id, "user:", userId, "wallet:", walletAddress);
     
     try {
-      // Important: Use text format for IDs, not UUID format
-      // Record the payment using edge function
-      const { error } = await supabase.functions.invoke('database-helper', {
+      // Record the payment using database-helper edge function
+      const { data, error } = await supabase.functions.invoke('database-helper', {
         body: {
           action: 'insert_payment',
           params: {
-            telegram_id: userId, // Using string ID, not UUID
+            telegram_id: userId,
             wallet_address: walletAddress,
             amount_paid: task.tonAmount,
             task_type: task.id,
@@ -84,15 +83,16 @@ export const handlePaymentTask = async (
       });
       
       if (error) {
+        console.error("Failed to record payment:", error);
         throw new Error(`Failed to record payment: ${error.message}`);
       }
       
-      console.log("Payment record created successfully");
+      console.log("Payment record created successfully:", data);
     } catch (paymentError) {
       console.error("Failed to record payment:", paymentError);
       toast({
         title: "Error",
-        description: "Failed to record payment. Please try again.",
+        description: paymentError instanceof Error ? paymentError.message : "Failed to record payment. Please try again.",
         variant: "destructive"
       });
       return;
@@ -110,6 +110,8 @@ export const handlePaymentTask = async (
     // Wait a moment for user to complete payment then start polling
     setTimeout(async () => {
       const taskType = task.isDaily ? "daily_ton_payment" : undefined;
+      console.log("Starting transaction verification for task:", task.id, "type:", taskType);
+      
       const successful = await pollForTransactionVerification(
         userId,
         task.tonAmount,
@@ -141,7 +143,7 @@ export const handlePaymentTask = async (
     console.error("Error in handlePaymentTask:", err);
     toast({
       title: "Error",
-      description: "An unexpected error occurred",
+      description: err instanceof Error ? err.message : "An unexpected error occurred",
       variant: "destructive"
     });
   }
