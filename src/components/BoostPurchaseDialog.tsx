@@ -76,35 +76,22 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     try {
       console.log("Creating boost record with text ID:", userId, "wallet:", walletAddress, "multiplier:", option.multiplier);
       
-      // First, generate a random UUID for this boost
-      const { data: uuidData, error: uuidError } = await supabase.rpc('gen_random_uuid');
-      
-      if (uuidError) {
-        console.error("Failed to generate UUID:", uuidError);
-        toast({
-          title: "Error",
-          description: "Failed to generate unique ID for boost",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      const boostUuid = uuidData;
+      // Generate UUID for this boost directly in the client
+      // Using crypto.randomUUID() which is widely supported in modern browsers
+      const boostUuid = crypto.randomUUID();
+      console.log("Generated UUID for boost:", boostUuid);
       
       // Creating a boost record (status: pending)
-      // IMPORTANT: We need to ensure user_id is a TEXT type, not UUID
-      const { data, error } = await supabase.from("mining_boosts").insert([
-        {
-          id: boostUuid,  // Use generated UUID for the ID
-          user_id: userId, // Keep user_id as the telegram ID
-          multiplier: option.multiplier,
-          price: option.price,
-          duration: option.duration,
-          status: "pending",
-          // Set expiration time to now + duration hours
-          expires_at: new Date(Date.now() + option.duration * 60 * 60 * 1000).toISOString()
-        }
-      ]).select().maybeSingle();
+      const { data, error } = await supabase.from("mining_boosts").insert({
+        id: boostUuid, // Use generated UUID for the ID
+        user_id: userId, // Keep user_id as the telegram ID
+        multiplier: option.multiplier,
+        price: option.price,
+        duration: option.duration,
+        status: "pending",
+        // Set expiration time to now + duration hours
+        expires_at: new Date(Date.now() + option.duration * 60 * 60 * 1000).toISOString()
+      }).select().maybeSingle();
 
       if (error || !data) {
         console.error("Error creating boost record:", error);
