@@ -74,6 +74,36 @@ export type Database = {
           },
         ]
       }
+      payments: {
+        Row: {
+          amount_paid: number
+          created_at: string
+          id: string
+          task_type: string
+          telegram_id: string
+          transaction_hash: string | null
+          wallet_address: string
+        }
+        Insert: {
+          amount_paid: number
+          created_at?: string
+          id?: string
+          task_type: string
+          telegram_id: string
+          transaction_hash?: string | null
+          wallet_address: string
+        }
+        Update: {
+          amount_paid?: number
+          created_at?: string
+          id?: string
+          task_type?: string
+          telegram_id?: string
+          transaction_hash?: string | null
+          wallet_address?: string
+        }
+        Relationships: []
+      }
       tasks_completed: {
         Row: {
           id: string
@@ -152,6 +182,27 @@ export type Database = {
           miningstartedtime?: string | null
           referrals?: Json | null
           username?: string | null
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          created_at: string
+          id: string
+          telegram_id: string
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          telegram_id: string
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          telegram_id?: string
+          wallet_address?: string
         }
         Relationships: []
       }
