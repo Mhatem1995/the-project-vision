@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { tonWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
 import { toast } from "@/hooks/use-toast";
@@ -29,14 +28,13 @@ export const verifyTonTransaction = async (
         boostId, 
         taskType,
         // Add the comment to help match the transaction
-        comment: taskId ? `task${taskId}` : undefined
+        comment: taskId ? `task${taskId}` : boostId ? `boost_${boostId}` : undefined
       }
     });
     
     if (data?.success) {
       console.log("Payment verified via edge function:", data);
       
-      // Since tasks_completed is handled in the edge function, we don't need to update it here
       return {
         success: true,
         transactionHash: data.transaction?.hash,
