@@ -121,7 +121,9 @@ export const formatWalletAddress = (address: string): string => {
   return `${address.slice(0, 6)}...${address.slice(-6)}`;
 };
 
-// Open TON transaction in Telegram
+/**
+ * @deprecated Use TonConnect's sendTransaction method instead for a better user experience
+ */
 export const openTonPayment = (amount: number, taskId?: string): void => {
   const isInTelegram = typeof window !== 'undefined' && 
                       Boolean(window.Telegram?.WebApp?.initData);

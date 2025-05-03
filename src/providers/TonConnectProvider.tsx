@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";

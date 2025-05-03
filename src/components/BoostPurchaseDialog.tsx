@@ -12,9 +12,9 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import BoostPaymentVerificationDialog from "./BoostPaymentVerificationDialog";
 import { useToast } from "@/hooks/use-toast";
-import { openTonPayment } from "@/utils/tonTransactionUtils";
+import { useTonConnect } from "@/providers/TonConnectProvider";
+import { tonWalletAddress } from "@/integrations/ton/TonConnectConfig";
 
-const tonWallet = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
 const boostOptions = [
   { multiplier: 2, price: 2, duration: 24 },
   { multiplier: 3, price: 5, duration: 24 },
@@ -36,6 +36,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
   const [pendingBoost, setPendingBoost] = useState<any>(null);
   const [verifyDialog, setVerifyDialog] = useState(false);
   const { toast } = useToast();
+  const { tonConnectUI, isConnected } = useTonConnect();
 
   const handlePurchase = async (option: BoostOption) => {
     // Get logged-in user ID
@@ -115,8 +116,41 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         console.warn("Failed to record boost payment (non-critical):", err);
       }
 
-      // Open TON payment in Telegram using our utility function
-      openTonPayment(option.price, `boost_${data.id}`);
+      // Use TonConnect to trigger transaction directly in the wallet
+      if (tonConnectUI && isConnected) {
+        try {
+          console.log("Opening TonConnect transaction for", option.price, "TON");
+          
+          await tonConnectUI.sendTransaction({
+            validUntil: Math.floor(Date.now() / 1000) + 600, // expires in 10 mins
+            messages: [
+              {
+                address: tonWalletAddress, // destination wallet from config
+                amount: (option.price * 1e9).toString(), // TON amount in nanoTONs
+                payload: `boost_${data.id}`, // Include boost ID in payload for traceability
+              }
+            ]
+          });
+          
+          console.log("TonConnect transaction initiated");
+        } catch (err) {
+          console.error("Error initiating TonConnect transaction:", err);
+          toast({
+            title: "Transaction Error",
+            description: "Failed to open wallet for payment. Please try again.",
+            variant: "destructive"
+          });
+          return;
+        }
+      } else {
+        console.error("TonConnect not initialized or wallet not connected");
+        toast({
+          title: "Wallet Error",
+          description: "Wallet connection issue. Please reconnect your wallet.",
+          variant: "destructive"
+        });
+        return;
+      }
 
       setPendingBoost(data);
       setVerifyDialog(true);
@@ -166,7 +200,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
             ))}
           </div>
           <div className="text-xs text-muted-foreground mt-2 text-center">
-            Send payment to: <span className="font-mono break-all">{tonWallet}</span>
+            Send payment to: <span className="font-mono break-all">{tonWalletAddress}</span>
           </div>
         </DialogContent>
       </Dialog>
@@ -178,7 +212,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
             if (!open) handleDialogChange(false);
           }}
           boost={pendingBoost}
-          tonWallet={tonWallet}
+          tonWallet={tonWalletAddress}
         />
       )}
     </>
