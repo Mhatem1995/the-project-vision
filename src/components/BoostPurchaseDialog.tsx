@@ -59,8 +59,10 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     }
 
     try {
-      // Creating a boost record (status: pending) directly using the normal Supabase client
-      // Using text values for user_id, NOT UUID type
+      console.log("Creating boost record with text ID:", userId);
+      
+      // Creating a boost record (status: pending)
+      // IMPORTANT: Using text values for user_id, NOT UUID type
       const { data, error } = await supabase.from("mining_boosts").insert([
         {
           user_id: userId,  // Using text ID not UUID
@@ -83,10 +85,10 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
 
       console.log("Boost record created:", data);
 
-      // Record the pending payment using edge function
+      // Record the pending payment using database-helper
       try {
         // Use the database-helper edge function to insert payment
-        await supabase.functions.invoke('database-helper', {
+        const { error: paymentError } = await supabase.functions.invoke('database-helper', {
           body: {
             action: 'insert_payment',
             params: {
@@ -98,7 +100,17 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
             }
           }
         });
-        console.log("Payment record created for boost");
+        
+        if (paymentError) {
+          console.error("Failed to record boost payment:", paymentError);
+          toast({
+            title: "Warning",
+            description: "Payment record created, but tracking may be incomplete.",
+            variant: "default"
+          });
+        } else {
+          console.log("Payment record created for boost");
+        }
       } catch (err) {
         console.warn("Failed to record boost payment (non-critical):", err);
       }

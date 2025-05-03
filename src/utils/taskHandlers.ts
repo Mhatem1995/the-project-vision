@@ -67,15 +67,14 @@ export const handlePaymentTask = async (
   try {
     console.log("Creating payment record for task:", task.id, "user:", userId);
     
-    // No need to create boost record for regular payment tasks
-    // We'll directly insert a payment record
     try {
-      // Record the payment using edge function instead of direct table access
-      await supabase.functions.invoke('database-helper', {
+      // Important: Use text format for IDs, not UUID format
+      // Record the payment using edge function
+      const { error } = await supabase.functions.invoke('database-helper', {
         body: {
           action: 'insert_payment',
           params: {
-            telegram_id: userId,
+            telegram_id: userId, // Using string ID, not UUID
             wallet_address: walletAddress,
             amount_paid: task.tonAmount,
             task_type: task.id,
@@ -83,6 +82,10 @@ export const handlePaymentTask = async (
           }
         }
       });
+      
+      if (error) {
+        throw new Error(`Failed to record payment: ${error.message}`);
+      }
       
       console.log("Payment record created successfully");
     } catch (paymentError) {

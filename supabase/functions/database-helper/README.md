@@ -1,31 +1,67 @@
-# Database Helper Function
 
-This edge function is meant to create SQL helper functions to work around TypeScript type issues when accessing new database tables that haven't been properly typed yet.
+# Database Helper Edge Function
 
-It creates the following database functions:
+This edge function provides a centralized way to interact with the database without running into TypeScript typing issues. It handles operations like:
 
-1. `save_wallet_connection`: Safely store a wallet connection in the wallets table
-2. `insert_payment`: Insert a payment record without TypeScript issues
-3. `get_wallet_connections`: Get all wallet connections for retrieving from client-side
+- Saving wallet connections
+- Recording payments
+- Retrieving wallet connections
 
-The function also serves as an API endpoint to interact with these functions without TypeScript errors in the client code.
+## Available Actions
+
+### save_wallet_connection
+
+Save a user's wallet address to both the `wallets` table and update the legacy `users.links` field.
+
+```json
+{
+  "action": "save_wallet_connection",
+  "params": {
+    "telegram_id": "user_telegram_id",
+    "wallet_address": "user_wallet_address"
+  }
+}
+```
+
+### insert_payment
+
+Record a payment in the database.
+
+```json
+{
+  "action": "insert_payment",
+  "params": {
+    "telegram_id": "user_telegram_id",
+    "wallet_address": "wallet_address",
+    "amount_paid": 0.1,
+    "task_type": "task3",
+    "transaction_hash": "optional_tx_hash"
+  }
+}
+```
+
+### get_wallet_connections
+
+Retrieve all wallet connections from the database.
+
+```json
+{
+  "action": "get_wallet_connections"
+}
+```
 
 ## Usage
 
-Call this function with action and params properties:
+Call this function from your frontend code:
 
-```javascript
-await supabase.functions.invoke('database-helper', {
+```typescript
+const { data, error } = await supabase.functions.invoke('database-helper', {
   body: {
-    action: 'save_wallet_connection', // or 'insert_payment' or 'get_wallet_connections'
+    action: 'save_wallet_connection',
     params: {
-      // Parameters required by the function
       telegram_id: 'user123',
-      wallet_address: 'EQD...'
-      // ... other params depending on the action
+      wallet_address: '0xWallet'
     }
   }
 });
 ```
-
-Run this function once after deploying to create all necessary helper functions in the database.

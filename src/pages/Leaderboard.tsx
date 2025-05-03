@@ -34,44 +34,21 @@ const Leaderboard = () => {
       // Create a map for wallet connections
       const walletMap = new Map();
       
-      // Try to get wallet connections
+      // Try to get wallet connections from the wallets table
       try {
-        // First try the wallets table directly
         const { data: walletsData, error: walletsError } = await supabase
           .from("wallets")
           .select("telegram_id, wallet_address");
           
         if (walletsError) {
           console.error("Error fetching wallets directly:", walletsError);
-        } else if (walletsData) {
+        } else if (walletsData && Array.isArray(walletsData)) {
           console.log("Wallet connections from wallets table:", walletsData.length);
           walletsData.forEach((item: any) => {
             if (item && item.telegram_id && item.wallet_address) {
               walletMap.set(item.telegram_id, item.wallet_address);
             }
           });
-        }
-        
-        // If no results or error, try the edge function
-        if (walletMap.size === 0) {
-          console.log("Using edge function to get wallet connections");
-          const { data: rpcData, error: rpcError } = await supabase.functions.invoke('database-helper', {
-            body: {
-              action: 'get_wallet_connections'
-            }
-          });
-          
-          if (!rpcError && rpcData && Array.isArray(rpcData.connections)) {
-            console.log("Wallet connections from edge function:", rpcData.connections.length);
-            // Process wallet connections data from the response
-            rpcData.connections.forEach((item: any) => {
-              if (item && item.telegram_id && item.wallet_address) {
-                walletMap.set(item.telegram_id, item.wallet_address);
-              }
-            });
-          } else if (rpcError) {
-            console.error("Error fetching wallet connections via edge function:", rpcError);
-          }
         }
       } catch (err) {
         console.error("Error fetching wallet connections:", err);
@@ -86,7 +63,7 @@ const Leaderboard = () => {
           .select("id, links")
           .not("links", "is", null);
           
-        if (usersWithLinks) {
+        if (usersWithLinks && Array.isArray(usersWithLinks)) {
           console.log("Users with wallet in links field:", usersWithLinks.length);
           usersWithLinks.forEach((user: any) => {
             if (user.id && user.links && !walletMap.has(user.id)) {
@@ -99,7 +76,7 @@ const Leaderboard = () => {
       }
       
       // Enhance user data with wallet info
-      const enhancedUsers = userData ? userData.map(user => {
+      const enhancedUsers = userData && Array.isArray(userData) ? userData.map(user => {
         return {
           ...user,
           // Check if wallet is connected based on wallet map

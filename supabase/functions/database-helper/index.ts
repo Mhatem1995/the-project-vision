@@ -29,7 +29,7 @@ serve(async (req: Request) => {
       const { action, params } = await req.json();
       
       if (action) {
-        console.log(`Processing RPC call for action: ${action}`);
+        console.log(`Processing RPC call for action: ${action} with params:`, params);
         
         // Handle different RPC actions
         switch (action) {
@@ -45,7 +45,7 @@ serve(async (req: Request) => {
             
             console.log(`Saving wallet connection for user: ${telegram_id}, wallet: ${wallet_address}`);
             
-            // Insert wallet connection directly (simplifying this process)
+            // Insert wallet connection directly
             try {
               // First check if the connection already exists
               const { data: existingWallet } = await supabase
@@ -57,12 +57,13 @@ serve(async (req: Request) => {
                 
               if (!existingWallet) {
                 // Insert the connection if it doesn't exist
-                const { error: insertError } = await supabase
+                const { data, error: insertError } = await supabase
                   .from("wallets")
                   .insert([{ 
                     telegram_id, 
                     wallet_address 
-                  }]);
+                  }])
+                  .select();
                   
                 if (insertError) {
                   console.error("Error inserting wallet connection:", insertError);
@@ -71,16 +72,48 @@ serve(async (req: Request) => {
                     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
                   );
                 }
+                
+                console.log("New wallet connection added:", data);
+              } else {
+                console.log("Wallet connection already exists, skipping insert");
               }
               
               // Also make sure the user record exists and has the wallet linked
-              const { error: updateError } = await supabase
+              const { data: userData, error: getUserError } = await supabase
                 .from("users")
-                .update({ links: wallet_address })
-                .eq("id", telegram_id);
+                .select("id, links")
+                .eq("id", telegram_id)
+                .maybeSingle();
                 
-              if (updateError) {
-                console.error("Error updating user wallet:", updateError);
+              if (getUserError) {
+                console.error("Error fetching user:", getUserError);
+              } else if (userData) {
+                // Update existing user
+                const { error: updateError } = await supabase
+                  .from("users")
+                  .update({ links: wallet_address })
+                  .eq("id", telegram_id);
+                  
+                if (updateError) {
+                  console.error("Error updating user wallet:", updateError);
+                } else {
+                  console.log("Updated wallet address for user");
+                }
+              } else {
+                // Create new user if not exists
+                const { error: createUserError } = await supabase
+                  .from("users")
+                  .insert([{ 
+                    id: telegram_id, 
+                    links: wallet_address,
+                    balance: 0
+                  }]);
+                  
+                if (createUserError) {
+                  console.error("Error creating user:", createUserError);
+                } else {
+                  console.log("Created new user with wallet address");
+                }
               }
               
               return new Response(
@@ -110,7 +143,7 @@ serve(async (req: Request) => {
             
             try {
               // Insert payment record directly
-              const { error: insertError } = await supabase
+              const { data, error: insertError } = await supabase
                 .from("payments")
                 .insert([{ 
                   telegram_id, 
@@ -118,7 +151,8 @@ serve(async (req: Request) => {
                   amount_paid,
                   task_type,
                   transaction_hash: transaction_hash || null
-                }]);
+                }])
+                .select();
                 
               if (insertError) {
                 console.error("Error inserting payment:", insertError);
@@ -128,8 +162,10 @@ serve(async (req: Request) => {
                 );
               }
               
+              console.log("Payment record inserted successfully:", data);
+              
               return new Response(
-                JSON.stringify({ success: true }),
+                JSON.stringify({ success: true, payment: data }),
                 { headers: { ...corsHeaders, "Content-Type": "application/json" } }
               );
             } catch (error) {

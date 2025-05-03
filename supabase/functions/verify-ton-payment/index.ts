@@ -26,7 +26,10 @@ serve(async (req: Request) => {
     console.log("Transaction verification request received");
     
     // Get the request body
-    const { userId, amount, taskId, boostId, taskType, comment } = await req.json() as TransactionVerifyRequest;
+    const requestBody = await req.json();
+    console.log("Request body:", requestBody);
+    
+    const { userId, amount, taskId, boostId, taskType, comment } = requestBody as TransactionVerifyRequest;
 
     if (!userId || !amount || ((!taskId && !boostId))) {
       console.log("Missing required parameters:", { userId, amount, taskId, boostId });
@@ -171,7 +174,7 @@ serve(async (req: Request) => {
             .from("payments")
             .update({ transaction_hash: txHash })
             .eq("telegram_id", userId)
-            .eq("task_type", taskId)
+            .eq("task_type", taskId || "boost")
             .is("transaction_hash", null);
             
           return await processVerifiedTransaction(
@@ -246,7 +249,7 @@ serve(async (req: Request) => {
               .from("payments")
               .update({ transaction_hash: txHash })
               .eq("telegram_id", userId)
-              .eq("task_type", taskId)
+              .eq("task_type", taskId || "boost")
               .is("transaction_hash", null);
               
             return await processVerifiedTransaction(
@@ -275,7 +278,10 @@ serve(async (req: Request) => {
         expected: {
           amount: Math.floor(amount * 1000000000),
           receiver: tonWalletAddress,
-          comment: expectedComment || "(none)"
+          comment: expectedComment || "(none)",
+          userId: userId,
+          taskId: taskId,
+          boostId: boostId
         }
       }),
       {

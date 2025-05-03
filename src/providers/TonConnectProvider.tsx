@@ -66,7 +66,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     setTonConnectUI(connector);
 
     // Set up listener for connection changes
-    const unsubscribe = connector.onStatusChange((wallet) => {
+    const unsubscribe = connector.onStatusChange(async (wallet) => {
       console.log("Wallet status changed:", wallet ? "connected" : "disconnected");
       
       if (wallet) {
@@ -83,17 +83,23 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
           console.log("Saving wallet connection for user:", userId, "address:", address);
           
           // Save to users table (for backward compatibility)
-          supabase.from("users")
-            .update({ links: address })
-            .eq("id", userId)
-            .then(({ error }) => {
-              if (error) console.error("Error updating user wallet:", error);
-              else console.log("Successfully updated wallet address in database");
-            });
-
-          // Save to the wallets table using an RPC function to avoid type errors
           try {
-            supabase.functions.invoke('database-helper', {
+            const { error: userError } = await supabase.from("users")
+              .update({ links: address })
+              .eq("id", userId);
+              
+            if (userError) {
+              console.error("Error updating user wallet:", userError);
+            } else {
+              console.log("Successfully updated wallet address in users table");
+            }
+          } catch (err) {
+            console.error("Error updating user wallet:", err);
+          }
+
+          // Save to the wallets table using database-helper
+          try {
+            const { error } = await supabase.functions.invoke('database-helper', {
               body: {
                 action: 'save_wallet_connection',
                 params: {
@@ -101,13 +107,13 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
                   wallet_address: address
                 }
               }
-            }).then(({ error, data }) => {
-              if (error) {
-                console.error("Error storing wallet connection:", error);
-              } else {
-                console.log("Successfully stored wallet connection:", data);
-              }
             });
+            
+            if (error) {
+              console.error("Error storing wallet connection:", error);
+            } else {
+              console.log("Successfully stored wallet connection");
+            }
           } catch (err) {
             console.error("Error calling save_wallet_connection RPC:", err);
           }
