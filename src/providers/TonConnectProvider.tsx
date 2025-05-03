@@ -89,19 +89,21 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
               else console.log("Successfully updated wallet address in database");
             });
 
-          // Save to the new wallets table (without UUID issues)
-          supabase.from("wallets")
-            .upsert({
-              telegram_id: userId,
-              wallet_address: address
-            }, { onConflict: 'telegram_id, wallet_address' })
-            .then(({ error }) => {
+          // Save to the new wallets table using an RPC function to avoid type errors
+          try {
+            supabase.rpc('save_wallet_connection', {
+              p_telegram_id: userId,
+              p_wallet_address: address
+            }).then(({ error }) => {
               if (error) {
                 console.error("Error storing wallet connection:", error);
               } else {
                 console.log("Successfully stored wallet connection");
               }
             });
+          } catch (err) {
+            console.error("Error calling save_wallet_connection RPC:", err);
+          }
         }
 
         toast({

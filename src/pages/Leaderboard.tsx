@@ -18,7 +18,7 @@ const Leaderboard = () => {
       // First try to get users with balance from database
       const { data: userData, error: userError } = await supabase
         .from("users")
-        .select("id, username, firstname, balance")
+        .select("id, username, firstname, balance, links")
         .order("balance", { ascending: false })
         .limit(50);
       
@@ -27,27 +27,31 @@ const Leaderboard = () => {
         throw userError;
       }
       
-      // Get wallet connections to enhance user data
-      const { data: walletData, error: walletError } = await supabase
-        .from("wallets")
-        .select("telegram_id, wallet_address");
-        
-      if (walletError) {
-        console.error("Error fetching wallet data:", walletError);
-      }
-      
-      // Create a map of telegram_id -> wallet_address
+      // Create a map for wallet connections
       const walletMap = new Map();
-      if (walletData) {
-        walletData.forEach((wallet) => {
-          walletMap.set(wallet.telegram_id, wallet.wallet_address);
-        });
+      
+      // Try to get wallet connections using RPC to avoid type errors
+      try {
+        // Use a custom RPC function to fetch wallet data safely
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_wallet_connections');
+        
+        if (!rpcError && rpcData) {
+          // Format of rpcData depends on your RPC function implementation
+          rpcData.forEach((item: any) => {
+            if (item && item.telegram_id && item.wallet_address) {
+              walletMap.set(item.telegram_id, item.wallet_address);
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching wallet connections:", err);
       }
       
       // Enhance user data with wallet info
       const enhancedUsers = userData ? userData.map(user => ({
         ...user,
-        links: walletMap.has(user.id) ? walletMap.get(user.id) : user.links || null
+        // Try wallet map first, then fall back to links property
+        walletConnected: walletMap.has(user.id) || !!user.links
       })) : [];
       
       console.log("Leaderboard data:", enhancedUsers);
@@ -111,7 +115,7 @@ const Leaderboard = () => {
                     {user.balance ? user.balance.toLocaleString() : "0"} KFC
                   </TableCell>
                   <TableCell className="text-center">
-                    {user.links ? (
+                    {user.walletConnected ? (
                       <span className="inline-flex h-2 w-2 bg-green-500 rounded-full" title="Wallet connected"></span>
                     ) : (
                       <span className="inline-flex h-2 w-2 bg-gray-300 rounded-full" title="No wallet connected"></span>

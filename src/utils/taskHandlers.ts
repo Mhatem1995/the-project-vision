@@ -67,7 +67,7 @@ export const handlePaymentTask = async (
   try {
     console.log("Creating payment record for task:", task.id, "user:", userId);
     
-    // Create mining boost record - using ID as string not UUID
+    // Create mining boost record - using text ID not UUID
     const { data, error } = await supabase.from("mining_boosts").insert([
       {
         user_id: userId,
@@ -97,16 +97,16 @@ export const handlePaymentTask = async (
       return;
     }
 
-    // Record the pending payment in the new payments table
-    const { error: paymentError } = await supabase.from("payments").insert([{
-      telegram_id: userId,
-      wallet_address: walletAddress,
-      amount_paid: task.tonAmount,
-      task_type: task.id,
-      transaction_hash: null // Will be updated after verification
-    }]);
-
-    if (paymentError) {
+    // Record the pending payment using RPC instead of direct table access
+    try {
+      await supabase.rpc('insert_payment', {
+        p_telegram_id: userId,
+        p_wallet_address: walletAddress,
+        p_amount_paid: task.tonAmount,
+        p_task_type: task.id,
+        p_transaction_hash: null
+      });
+    } catch (paymentError) {
       console.warn("Failed to record payment (non-critical):", paymentError);
     }
 

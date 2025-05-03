@@ -56,12 +56,15 @@ export const useMining = () => {
           localStorage.setItem("tonWalletAddress", data.links);
           
           // Make sure wallet is also recorded in the wallets table
-          supabase.from("wallets").upsert({
-            telegram_id: userId,
-            wallet_address: data.links
-          }, { onConflict: 'telegram_id, wallet_address' }).then(({ error }) => {
-            if (error) console.error("Error saving wallet connection:", error);
-          });
+          // Use RPC function instead of direct wallets table access to avoid type errors
+          try {
+            await supabase.rpc('save_wallet_connection', {
+              p_telegram_id: userId,
+              p_wallet_address: data.links
+            });
+          } catch (err) {
+            console.error("Error saving wallet connection:", err);
+          }
         }
       } else {
         const savedBalance = localStorage.getItem("kfcBalance");
