@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,9 +57,14 @@ export const useMining = () => {
           // Make sure wallet is also recorded in the wallets table
           // Use RPC function instead of direct wallets table access to avoid type errors
           try {
-            await supabase.rpc('save_wallet_connection', {
-              p_telegram_id: userId,
-              p_wallet_address: data.links
+            await supabase.functions.invoke('database-helper', {
+              body: {
+                action: 'save_wallet_connection',
+                params: {
+                  telegram_id: userId,
+                  wallet_address: data.links
+                }
+              }
             });
           } catch (err) {
             console.error("Error saving wallet connection:", err);

@@ -196,6 +196,39 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: boolean
       }
+      create_get_wallet_connections_function: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      create_insert_payment_function: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      create_save_wallet_connection_function: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      get_wallet_connections: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          telegram_id: string
+          wallet_address: string
+        }[]
+      }
+      insert_payment: {
+        Args: {
+          p_telegram_id: string
+          p_wallet_address: string
+          p_amount_paid: number
+          p_task_type: string
+          p_transaction_hash?: string
+        }
+        Returns: undefined
+      }
+      save_wallet_connection: {
+        Args: { p_telegram_id: string; p_wallet_address: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -78,16 +78,20 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       return;
     }
 
-    // Record the pending payment using raw SQL instead of the payments table directly
+    // Record the pending payment using edge function
     try {
-      // Use a custom RPC function to insert into payments table
-      // This avoids TypeScript errors until types are updated
-      await supabase.rpc('insert_payment', {
-        p_telegram_id: userId,
-        p_wallet_address: walletAddress,
-        p_amount_paid: option.price,
-        p_task_type: "boost",
-        p_transaction_hash: null
+      // Use the database-helper edge function to insert payment
+      await supabase.functions.invoke('database-helper', {
+        body: {
+          action: 'insert_payment',
+          params: {
+            telegram_id: userId,
+            wallet_address: walletAddress,
+            amount_paid: option.price,
+            task_type: "boost",
+            transaction_hash: null
+          }
+        }
       });
     } catch (err) {
       console.warn("Failed to record boost payment (non-critical):", err);

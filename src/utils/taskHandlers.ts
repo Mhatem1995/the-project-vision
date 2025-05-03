@@ -97,14 +97,19 @@ export const handlePaymentTask = async (
       return;
     }
 
-    // Record the pending payment using RPC instead of direct table access
+    // Record the pending payment using edge function instead of direct table access
     try {
-      await supabase.rpc('insert_payment', {
-        p_telegram_id: userId,
-        p_wallet_address: walletAddress,
-        p_amount_paid: task.tonAmount,
-        p_task_type: task.id,
-        p_transaction_hash: null
+      await supabase.functions.invoke('database-helper', {
+        body: {
+          action: 'insert_payment',
+          params: {
+            telegram_id: userId,
+            wallet_address: walletAddress,
+            amount_paid: task.tonAmount,
+            task_type: task.id,
+            transaction_hash: null
+          }
+        }
       });
     } catch (paymentError) {
       console.warn("Failed to record payment (non-critical):", paymentError);

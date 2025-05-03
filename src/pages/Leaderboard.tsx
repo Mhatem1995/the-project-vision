@@ -18,7 +18,7 @@ const Leaderboard = () => {
       // First try to get users with balance from database
       const { data: userData, error: userError } = await supabase
         .from("users")
-        .select("id, username, firstname, balance, links")
+        .select("id, username, firstname, balance")
         .order("balance", { ascending: false })
         .limit(50);
       
@@ -30,14 +30,17 @@ const Leaderboard = () => {
       // Create a map for wallet connections
       const walletMap = new Map();
       
-      // Try to get wallet connections using RPC to avoid type errors
+      // Try to get wallet connections using edge function invocation to avoid type errors
       try {
-        // Use a custom RPC function to fetch wallet data safely
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_wallet_connections');
+        const { data: rpcData, error: rpcError } = await supabase.functions.invoke('database-helper', {
+          body: {
+            action: 'get_wallet_connections'
+          }
+        });
         
-        if (!rpcError && rpcData) {
-          // Format of rpcData depends on your RPC function implementation
-          rpcData.forEach((item: any) => {
+        if (!rpcError && rpcData && Array.isArray(rpcData.connections)) {
+          // Process wallet connections data from the response
+          rpcData.connections.forEach((item: any) => {
             if (item && item.telegram_id && item.wallet_address) {
               walletMap.set(item.telegram_id, item.wallet_address);
             }
@@ -48,11 +51,15 @@ const Leaderboard = () => {
       }
       
       // Enhance user data with wallet info
-      const enhancedUsers = userData ? userData.map(user => ({
-        ...user,
-        // Try wallet map first, then fall back to links property
-        walletConnected: walletMap.has(user.id) || !!user.links
-      })) : [];
+      const enhancedUsers = userData ? userData.map(user => {
+        // Also try to get wallet from users.links field for backward compatibility
+        const userLinks = user.links;
+        return {
+          ...user,
+          // Try wallet map first, then fall back to links property
+          walletConnected: walletMap.has(user.id) || !!userLinks
+        };
+      }) : [];
       
       console.log("Leaderboard data:", enhancedUsers);
       return enhancedUsers;
