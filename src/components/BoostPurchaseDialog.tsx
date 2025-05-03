@@ -12,6 +12,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import BoostPaymentVerificationDialog from "./BoostPaymentVerificationDialog";
 import { useToast } from "@/hooks/use-toast";
+import { openTonPayment } from "@/utils/tonTransactionUtils";
 
 const tonWallet = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
 const boostOptions = [
@@ -114,24 +115,8 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         console.warn("Failed to record boost payment (non-critical):", err);
       }
 
-      // Check if running in Telegram WebApp environment
-      if (window.Telegram?.WebApp) {
-        // Open TON payment in Telegram
-        const paymentUrl = `ton://transfer/${tonWallet}?amount=${option.price * 1000000000}`; // Convert TON to nanotons
-        console.log("Opening TON payment in Telegram:", paymentUrl);
-        window.Telegram.WebApp.openLink(paymentUrl);
-      } else {
-        // Fallback for non-Telegram environment
-        try {
-          await navigator.clipboard.writeText(tonWallet);
-          toast({
-            title: "TON Wallet copied",
-            description: `Send ${option.price} TON to activate your ${option.multiplier}x boost`,
-          });
-        } catch (err) {
-          console.error("Failed to copy wallet address", err);
-        }
-      }
+      // Open TON payment in Telegram using our utility function
+      openTonPayment(option.price, `boost_${data.id}`);
 
       setPendingBoost(data);
       setVerifyDialog(true);

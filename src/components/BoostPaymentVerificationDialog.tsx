@@ -12,6 +12,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { pollForTransactionVerification } from "@/utils/tonTransactionUtils";
 
 interface BoostPaymentVerificationDialogProps {
   open: boolean;
@@ -36,8 +37,50 @@ export default function BoostPaymentVerificationDialog({
 
     if (open && boost && !verified && !verifying) {
       setVerifying(true);
-      interval = window.setInterval(checkPaymentStatus, 10000); // Check every 10 seconds
-      checkPaymentStatus(); // Initial check
+      
+      // Get user ID from localStorage
+      const userId = localStorage.getItem("telegramUserId");
+      if (!userId) {
+        setError("User ID not found. Please refresh the page.");
+        setVerifying(false);
+        return;
+      }
+      
+      // Start transaction verification
+      const verifyTransaction = async () => {
+        try {
+          console.log("Starting verification for boost:", boost.id, "user:", userId);
+          const success = await pollForTransactionVerification(
+            userId,
+            boost.price,
+            undefined, // No task ID for boosts
+            boost.id, // Pass the boost ID
+            "boost" // Type of transaction
+          );
+          
+          if (success) {
+            console.log("Boost payment verified successfully");
+            setVerified(true);
+            toast({
+              title: "Boost activated!",
+              description: `Your ${boost.multiplier}x boost is now active`,
+            });
+            // Close dialog after successful verification
+            setTimeout(() => onOpenChange(false), 2000);
+          } else {
+            console.error("Boost payment verification failed");
+            setError("Verification failed. Please try again or contact support.");
+          }
+        } catch (err) {
+          console.error("Error verifying boost payment:", err);
+          setError("Error verifying payment. Please try again later.");
+        } finally {
+          setVerifying(false);
+        }
+      };
+      
+      // Start verification process
+      verifyTransaction();
     }
 
     return () => {
@@ -45,84 +88,7 @@ export default function BoostPaymentVerificationDialog({
         window.clearInterval(interval);
       }
     };
-  }, [open, boost, verified]);
-
-  async function checkPaymentStatus() {
-    if (!boost || verified) return;
-    
-    try {
-      console.log("Checking payment status for boost:", boost.id);
-      
-      // Use the TON API key from the environment (previously added via secret form)
-      // The key is deployed with the application
-      const tonApiKey = process.env.TON_API_KEY || '';
-      
-      // Fetch recent transactions from TON API
-      const response = await fetch(`https://tonapi.io/v2/accounts/${tonWallet}/transactions?limit=20`, {
-        headers: {
-          'Authorization': `Bearer ${tonApiKey}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch TON transactions');
-      }
-      
-      const data = await response.json();
-      const transactions = data.transactions || [];
-      
-      // Look for a matching transaction with the correct amount
-      const matchingTx = transactions.find(tx => 
-        tx.value === boost.price && 
-        // Check if transaction is recent (within last 30 minutes)
-        (Date.now() - new Date(tx.utime * 1000).getTime()) < 30 * 60 * 1000
-      );
-      
-      if (matchingTx) {
-        await confirmBoost(matchingTx.hash);
-      }
-    } catch (err) {
-      console.error("Error checking payment status:", err);
-      setError("Error verifying payment. Please try again later.");
-      setVerifying(false);
-    }
-  }
-
-  async function confirmBoost(txHash: string) {
-    try {
-      // Update boost as confirmed in database
-      const { error: updateError } = await supabase
-        .from("mining_boosts")
-        .update({
-          status: "confirmed",
-          ton_tx: txHash,
-          expires_at: new Date(Date.now() + boost.duration * 3600 * 1000).toISOString(),
-        })
-        .eq("id", boost.id);
-
-      if (updateError) {
-        console.error("Database update error:", updateError);
-        setError("Failed to update boost status");
-        setVerifying(false);
-        return;
-      }
-
-      setVerified(true);
-      setVerifying(false);
-      
-      toast({
-        title: "Boost activated!",
-        description: `Your ${boost.multiplier}x boost is now active`,
-      });
-      
-      // Close dialog after successful verification
-      setTimeout(() => onOpenChange(false), 2000);
-    } catch (err) {
-      console.error("Error confirming boost:", err);
-      setError("Verification failed. Please try again.");
-      setVerifying(false);
-    }
-  }
+  }, [open, boost, verified, verifying, onOpenChange, toast, tonWallet]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
