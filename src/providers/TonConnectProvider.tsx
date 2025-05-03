@@ -80,12 +80,27 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         // Update user in database
         const userId = localStorage.getItem("telegramUserId");
         if (userId) {
+          // Save to users table (for backward compatibility)
           supabase.from("users")
             .update({ links: address })
             .eq("id", userId)
             .then(({ error }) => {
               if (error) console.error("Error updating user wallet:", error);
               else console.log("Successfully updated wallet address in database");
+            });
+
+          // Save to the new wallets table (without UUID issues)
+          supabase.from("wallets")
+            .upsert({
+              telegram_id: userId,
+              wallet_address: address
+            }, { onConflict: 'telegram_id, wallet_address' })
+            .then(({ error }) => {
+              if (error) {
+                console.error("Error storing wallet connection:", error);
+              } else {
+                console.log("Successfully stored wallet connection");
+              }
             });
         }
 

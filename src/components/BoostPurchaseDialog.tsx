@@ -48,6 +48,16 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       return;
     }
 
+    const walletAddress = localStorage.getItem("tonWalletAddress");
+    if (!walletAddress) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your TON wallet first to purchase a boost.",
+        variant: "destructive" 
+      });
+      return;
+    }
+
     // Create boost record (pending)
     const { data, error } = await supabase.from("mining_boosts").insert([
       {
@@ -66,6 +76,19 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         variant: "destructive"
       });
       return;
+    }
+
+    // Record the pending payment in the payments table
+    const { error: paymentError } = await supabase.from("payments").insert([{
+      telegram_id: userId,
+      wallet_address: walletAddress,
+      amount_paid: option.price,
+      task_type: "boost",
+      transaction_hash: null // Will be updated after verification
+    }]);
+
+    if (paymentError) {
+      console.warn("Failed to record boost payment (non-critical):", paymentError);
     }
 
     // Check if running in Telegram WebApp environment

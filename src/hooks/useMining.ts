@@ -54,6 +54,14 @@ export const useMining = () => {
         // Also update wallet address if available
         if (data.links) {
           localStorage.setItem("tonWalletAddress", data.links);
+          
+          // Make sure wallet is also recorded in the wallets table
+          supabase.from("wallets").upsert({
+            telegram_id: userId,
+            wallet_address: data.links
+          }, { onConflict: 'telegram_id, wallet_address' }).then(({ error }) => {
+            if (error) console.error("Error saving wallet connection:", error);
+          });
         }
       } else {
         const savedBalance = localStorage.getItem("kfcBalance");

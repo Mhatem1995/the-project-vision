@@ -61,20 +61,42 @@ serve(async (req: Request) => {
       );
     }
 
-    // Get user's wallet address
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from("users")
-      .select("links")
-      .eq("id", userId)
+    // Get user's wallet address - first try from wallets table
+    let userWalletAddress: string | null = null;
+    
+    // Try to get from wallets table first
+    const { data: walletData, error: walletError } = await supabaseAdmin
+      .from("wallets")
+      .select("wallet_address")
+      .eq("telegram_id", userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
+      
+    if (walletData?.wallet_address) {
+      userWalletAddress = walletData.wallet_address;
+      console.log(`Found wallet address in wallets table: ${userWalletAddress}`);
+    } else {
+      // Fall back to users table
+      const { data: userData, error: userError } = await supabaseAdmin
+        .from("users")
+        .select("links")
+        .eq("id", userId)
+        .single();
 
-    if (userError || !userData.links) {
-      console.log("User wallet not found:", userError);
+      if (userData?.links) {
+        userWalletAddress = userData.links;
+        console.log(`Found wallet address in users table: ${userWalletAddress}`);
+      }
+    }
+
+    if (!userWalletAddress) {
+      console.log("User wallet not found:", walletError || "No wallet connected");
       return new Response(
         JSON.stringify({ 
           success: false, 
           message: "User wallet not found",
-          error: userError?.message
+          error: walletError?.message || "No wallet address found for this user"
         }),
         {
           status: 404,
@@ -83,7 +105,6 @@ serve(async (req: Request) => {
       );
     }
 
-    const userWalletAddress = userData.links;
     console.log(`Checking transactions from ${userWalletAddress} to ${tonWalletAddress}`);
     
     // Format amount for comparison (convert to nanoTONs)
@@ -143,9 +164,19 @@ serve(async (req: Request) => {
         
         if (matchingTx) {
           // Process verified transaction
+          const txHash = matchingTx.hash;
+          
+          // Update payment record with transaction hash
+          await supabaseAdmin
+            .from("payments")
+            .update({ transaction_hash: txHash })
+            .eq("telegram_id", userId)
+            .eq("task_type", taskId)
+            .is("transaction_hash", null);
+            
           return await processVerifiedTransaction(
             supabaseAdmin, 
-            matchingTx.hash, 
+            txHash, 
             userId, 
             boostId, 
             taskId, 
@@ -208,9 +239,19 @@ serve(async (req: Request) => {
           
           if (matchingTx) {
             // Process verified transaction
+            const txHash = matchingTx.transaction_id;
+            
+            // Update payment record with transaction hash
+            await supabaseAdmin
+              .from("payments")
+              .update({ transaction_hash: txHash })
+              .eq("telegram_id", userId)
+              .eq("task_type", taskId)
+              .is("transaction_hash", null);
+              
             return await processVerifiedTransaction(
               supabaseAdmin, 
-              matchingTx.transaction_id, 
+              txHash, 
               userId, 
               boostId, 
               taskId, 

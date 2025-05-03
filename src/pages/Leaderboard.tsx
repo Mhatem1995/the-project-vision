@@ -16,19 +16,42 @@ const Leaderboard = () => {
     queryKey: ["leaderboard"],
     queryFn: async () => {
       // First try to get users with balance from database
-      const { data, error } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from("users")
-        .select("id, username, firstname, balance, links")
+        .select("id, username, firstname, balance")
         .order("balance", { ascending: false })
         .limit(50);
-
-      if (error) {
-        console.error("Error fetching leaderboard data:", error);
-        throw error;
+      
+      if (userError) {
+        console.error("Error fetching users:", userError);
+        throw userError;
       }
       
-      console.log("Leaderboard data:", data);
-      return data || [];
+      // Get wallet connections to enhance user data
+      const { data: walletData, error: walletError } = await supabase
+        .from("wallets")
+        .select("telegram_id, wallet_address");
+        
+      if (walletError) {
+        console.error("Error fetching wallet data:", walletError);
+      }
+      
+      // Create a map of telegram_id -> wallet_address
+      const walletMap = new Map();
+      if (walletData) {
+        walletData.forEach((wallet) => {
+          walletMap.set(wallet.telegram_id, wallet.wallet_address);
+        });
+      }
+      
+      // Enhance user data with wallet info
+      const enhancedUsers = userData ? userData.map(user => ({
+        ...user,
+        links: walletMap.has(user.id) ? walletMap.get(user.id) : user.links || null
+      })) : [];
+      
+      console.log("Leaderboard data:", enhancedUsers);
+      return enhancedUsers;
     },
   });
 
