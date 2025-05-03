@@ -80,6 +80,8 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         // Update user in database
         const userId = localStorage.getItem("telegramUserId");
         if (userId) {
+          console.log("Saving wallet connection for user:", userId, "address:", address);
+          
           // Save to users table (for backward compatibility)
           supabase.from("users")
             .update({ links: address })
@@ -89,7 +91,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
               else console.log("Successfully updated wallet address in database");
             });
 
-          // Save to the new wallets table using an RPC function to avoid type errors
+          // Save to the wallets table using an RPC function to avoid type errors
           try {
             supabase.functions.invoke('database-helper', {
               body: {
@@ -99,16 +101,18 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
                   wallet_address: address
                 }
               }
-            }).then(({ error }) => {
+            }).then(({ error, data }) => {
               if (error) {
                 console.error("Error storing wallet connection:", error);
               } else {
-                console.log("Successfully stored wallet connection");
+                console.log("Successfully stored wallet connection:", data);
               }
             });
           } catch (err) {
             console.error("Error calling save_wallet_connection RPC:", err);
           }
+        } else {
+          console.warn("No telegram user ID found in local storage");
         }
 
         toast({

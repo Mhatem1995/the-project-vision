@@ -43,15 +43,57 @@ serve(async (req: Request) => {
               );
             }
             
-            const { error } = await supabase.rpc('save_wallet_connection', { 
-              p_telegram_id: telegram_id, 
-              p_wallet_address: wallet_address 
-            });
+            console.log(`Saving wallet connection for user: ${telegram_id}, wallet: ${wallet_address}`);
             
-            return new Response(
-              JSON.stringify({ success: !error, error: error?.message }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+            // Insert wallet connection directly (simplifying this process)
+            try {
+              // First check if the connection already exists
+              const { data: existingWallet } = await supabase
+                .from("wallets")
+                .select("id")
+                .eq("telegram_id", telegram_id)
+                .eq("wallet_address", wallet_address)
+                .maybeSingle();
+                
+              if (!existingWallet) {
+                // Insert the connection if it doesn't exist
+                const { error: insertError } = await supabase
+                  .from("wallets")
+                  .insert([{ 
+                    telegram_id, 
+                    wallet_address 
+                  }]);
+                  
+                if (insertError) {
+                  console.error("Error inserting wallet connection:", insertError);
+                  return new Response(
+                    JSON.stringify({ success: false, error: insertError.message }),
+                    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                  );
+                }
+              }
+              
+              // Also make sure the user record exists and has the wallet linked
+              const { error: updateError } = await supabase
+                .from("users")
+                .update({ links: wallet_address })
+                .eq("id", telegram_id);
+                
+              if (updateError) {
+                console.error("Error updating user wallet:", updateError);
+              }
+              
+              return new Response(
+                JSON.stringify({ success: true }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            } catch (error) {
+              console.error("Error in save_wallet_connection:", error);
+              return new Response(
+                JSON.stringify({ success: false, error: error.message }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
           }
             
           case 'insert_payment': {
@@ -64,27 +106,67 @@ serve(async (req: Request) => {
               );
             }
             
-            const { error } = await supabase.rpc('insert_payment', { 
-              p_telegram_id: telegram_id, 
-              p_wallet_address: wallet_address,
-              p_amount_paid: amount_paid,
-              p_task_type: task_type,
-              p_transaction_hash: transaction_hash || null
-            });
+            console.log(`Inserting payment: ${telegram_id}, ${wallet_address}, ${amount_paid} TON, task: ${task_type}`);
             
-            return new Response(
-              JSON.stringify({ success: !error, error: error?.message }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+            try {
+              // Insert payment record directly
+              const { error: insertError } = await supabase
+                .from("payments")
+                .insert([{ 
+                  telegram_id, 
+                  wallet_address,
+                  amount_paid,
+                  task_type,
+                  transaction_hash: transaction_hash || null
+                }]);
+                
+              if (insertError) {
+                console.error("Error inserting payment:", insertError);
+                return new Response(
+                  JSON.stringify({ success: false, error: insertError.message }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+              
+              return new Response(
+                JSON.stringify({ success: true }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            } catch (error) {
+              console.error("Error in insert_payment:", error);
+              return new Response(
+                JSON.stringify({ success: false, error: error.message }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
           }
             
           case 'get_wallet_connections': {
-            const { data, error } = await supabase.rpc('get_wallet_connections');
-            
-            return new Response(
-              JSON.stringify({ success: !error, connections: data, error: error?.message }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+            try {
+              // Get wallet connections directly
+              const { data, error } = await supabase
+                .from("wallets")
+                .select("telegram_id, wallet_address");
+                
+              if (error) {
+                console.error("Error fetching wallet connections:", error);
+                return new Response(
+                  JSON.stringify({ success: false, error: error.message }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+              
+              return new Response(
+                JSON.stringify({ success: true, connections: data }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            } catch (error) {
+              console.error("Error in get_wallet_connections:", error);
+              return new Response(
+                JSON.stringify({ success: false, error: error.message }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
           }
             
           default:
@@ -99,18 +181,11 @@ serve(async (req: Request) => {
     }
 
     // If we reach here, this is a regular call to create the helper functions
-    const { error: createSaveWalletFnError } = await supabase.rpc('create_save_wallet_connection_function');
-    const { error: createInsertPaymentFnError } = await supabase.rpc('create_insert_payment_function');
-    const { error: createGetWalletsFnError } = await supabase.rpc('create_get_wallet_connections_function');
-    
+    console.log("Creating helper functions...");
     return new Response(
       JSON.stringify({
-        message: "Helper functions created successfully",
-        errors: {
-          saveWalletFn: createSaveWalletFnError?.message || null,
-          insertPaymentFn: createInsertPaymentFnError?.message || null,
-          getWalletsFn: createGetWalletsFnError?.message || null
-        }
+        message: "Database helper function is active and ready for RPC calls",
+        actions: ["save_wallet_connection", "insert_payment", "get_wallet_connections"]
       }),
       {
         headers: {
@@ -120,6 +195,7 @@ serve(async (req: Request) => {
       }
     );
   } catch (error) {
+    console.error("Unexpected error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {

@@ -71,7 +71,7 @@ serve(async (req: Request) => {
       .eq("telegram_id", userId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
       
     if (walletData?.wallet_address) {
       userWalletAddress = walletData.wallet_address;
@@ -82,7 +82,7 @@ serve(async (req: Request) => {
         .from("users")
         .select("links")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
       if (userData?.links) {
         userWalletAddress = userData.links;
@@ -309,14 +309,17 @@ async function processVerifiedTransaction(
   
   // Handle boost payment confirmation if boostId provided
   if (boostId) {
-    const { error: updateError } = await supabaseAdmin
+    console.log(`Confirming boost ${boostId} for user ${userId}`);
+    
+    const { data, error: updateError } = await supabaseAdmin
       .from("mining_boosts")
       .update({
         status: "confirmed",
         ton_tx: txHash,
         expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), // 24 hours from now
       })
-      .eq("id", boostId);
+      .eq("id", boostId)
+      .select();
     
     if (updateError) {
       console.error("Failed to confirm boost:", updateError);
@@ -332,11 +335,15 @@ async function processVerifiedTransaction(
         }
       );
     }
+    
+    console.log("Boost confirmed successfully:", data);
   }
   
   // Handle task completion if taskId provided
   if (taskId) {
     try {
+      console.log(`Processing task ${taskId} completion for user ${userId}`);
+      
       // Check if task already exists in tasks_completed
       const { data: existingTask } = await supabaseAdmin
         .from("tasks_completed")
@@ -347,7 +354,8 @@ async function processVerifiedTransaction(
       
       // If not already completed, add record
       if (!existingTask) {
-        await supabaseAdmin
+        console.log("Adding task completion record");
+        const { error: taskError } = await supabaseAdmin
           .from("tasks_completed")
           .insert({
             user_id: userId,
@@ -356,6 +364,12 @@ async function processVerifiedTransaction(
             tx_hash: txHash,
             verified_at: new Date().toISOString()
           });
+          
+        if (taskError) {
+          console.error("Error recording task completion:", taskError);
+        }
+      } else {
+        console.log("Task already completed previously");
       }
     } catch (err) {
       console.error("Error handling task completion:", err);
@@ -364,7 +378,8 @@ async function processVerifiedTransaction(
     
     if (taskId === "6") {
       // Special case: fortune cookies
-      const { error: cookieError } = await supabaseAdmin.rpc('add_fortune_cookies', { 
+      console.log("Processing fortune cookies purchase");
+      const { data: cookieResult, error: cookieError } = await supabaseAdmin.rpc('add_fortune_cookies', { 
         p_user_id: userId, 
         p_cookie_count: 10 
       });
@@ -383,6 +398,8 @@ async function processVerifiedTransaction(
           }
         );
       }
+      
+      console.log("Added fortune cookies successfully");
     } else {
       // Regular task - add KFC balance
       // First get the task reward amount
@@ -395,12 +412,14 @@ async function processVerifiedTransaction(
       }
       
       if (reward > 0) {
+        console.log(`Processing reward of ${reward} KFC for task ${taskId}`);
+        
         // Get current balance
         const { data: currentUser, error: balanceError } = await supabaseAdmin
           .from("users")
           .select("balance")
           .eq("id", userId)
-          .single();
+          .maybeSingle();
           
         if (balanceError) {
           console.error("Failed to get user balance:", balanceError);
@@ -418,7 +437,10 @@ async function processVerifiedTransaction(
         }
         
         // Update balance
-        const newBalance = (currentUser.balance || 0) + reward;
+        const currentBalance = currentUser?.balance || 0;
+        const newBalance = currentBalance + reward;
+        console.log(`Updating user balance from ${currentBalance} to ${newBalance}`);
+        
         const { error: updateError } = await supabaseAdmin
           .from("users")
           .update({ balance: newBalance })
@@ -438,6 +460,8 @@ async function processVerifiedTransaction(
             }
           );
         }
+        
+        console.log("Balance updated successfully");
       }
     }
   }
@@ -445,12 +469,15 @@ async function processVerifiedTransaction(
   // Record daily task completion if needed
   if (taskType === "daily_ton_payment") {
     try {
+      console.log(`Recording daily task completion for ${userId}, type: ${taskType}`);
       await supabaseAdmin
         .from("daily_tasks")
         .insert([{
           user_id: userId,
           task_type: taskType
         }]);
+      
+      console.log("Daily task recorded successfully");
     } catch (err) {
       console.error("Failed to record daily task:", err);
       // Continue anyway since the main transaction was successful

@@ -67,38 +67,10 @@ export const handlePaymentTask = async (
   try {
     console.log("Creating payment record for task:", task.id, "user:", userId);
     
-    // Create mining boost record - using text ID not UUID
-    const { data, error } = await supabase.from("mining_boosts").insert([
-      {
-        user_id: userId,
-        multiplier: 1,
-        price: task.tonAmount,
-        duration: 0,
-        status: "pending",
-      },
-    ]).select().maybeSingle();
-
-    if (error) {
-      console.error("Error creating payment record:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create payment record: " + error.message,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!data) {
-      toast({
-        title: "Error",
-        description: "Failed to create payment record - no data returned",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Record the pending payment using edge function instead of direct table access
+    // No need to create boost record for regular payment tasks
+    // We'll directly insert a payment record
     try {
+      // Record the payment using edge function instead of direct table access
       await supabase.functions.invoke('database-helper', {
         body: {
           action: 'insert_payment',
@@ -111,8 +83,16 @@ export const handlePaymentTask = async (
           }
         }
       });
+      
+      console.log("Payment record created successfully");
     } catch (paymentError) {
-      console.warn("Failed to record payment (non-critical):", paymentError);
+      console.error("Failed to record payment:", paymentError);
+      toast({
+        title: "Error",
+        description: "Failed to record payment. Please try again.",
+        variant: "destructive"
+      });
+      return;
     }
 
     // Open TON payment using our utility function
@@ -131,7 +111,7 @@ export const handlePaymentTask = async (
         userId,
         task.tonAmount,
         task.id,
-        data.id,
+        undefined, // No boost ID for regular payments
         taskType
       );
       

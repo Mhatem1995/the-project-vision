@@ -58,65 +58,79 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       return;
     }
 
-    // Create boost record (pending)
-    const { data, error } = await supabase.from("mining_boosts").insert([
-      {
-        user_id: userId,
-        multiplier: option.multiplier,
-        price: option.price,
-        duration: option.duration,
-        status: "pending",
-      },
-    ]).select().maybeSingle();
+    try {
+      // Creating a boost record (status: pending) directly using the normal Supabase client
+      // Using text values for user_id, NOT UUID type
+      const { data, error } = await supabase.from("mining_boosts").insert([
+        {
+          user_id: userId,  // Using text ID not UUID
+          multiplier: option.multiplier,
+          price: option.price,
+          duration: option.duration,
+          status: "pending",
+        }
+      ]).select().maybeSingle();
 
-    if (error || !data) {
+      if (error || !data) {
+        console.error("Error creating boost record:", error);
+        toast({
+          title: "Error",
+          description: "Failed to create boost record: " + (error?.message || "Unknown error"),
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log("Boost record created:", data);
+
+      // Record the pending payment using edge function
+      try {
+        // Use the database-helper edge function to insert payment
+        await supabase.functions.invoke('database-helper', {
+          body: {
+            action: 'insert_payment',
+            params: {
+              telegram_id: userId,
+              wallet_address: walletAddress,
+              amount_paid: option.price,
+              task_type: "boost",
+              transaction_hash: null
+            }
+          }
+        });
+        console.log("Payment record created for boost");
+      } catch (err) {
+        console.warn("Failed to record boost payment (non-critical):", err);
+      }
+
+      // Check if running in Telegram WebApp environment
+      if (window.Telegram?.WebApp) {
+        // Open TON payment in Telegram
+        const paymentUrl = `ton://transfer/${tonWallet}?amount=${option.price * 1000000000}`; // Convert TON to nanotons
+        window.Telegram.WebApp.openLink(paymentUrl);
+      } else {
+        // Fallback for non-Telegram environment
+        try {
+          await navigator.clipboard.writeText(tonWallet);
+          toast({
+            title: "TON Wallet copied",
+            description: `Send ${option.price} TON to activate your ${option.multiplier}x boost`,
+          });
+        } catch (err) {
+          console.error("Failed to copy wallet address", err);
+        }
+      }
+
+      setPendingBoost(data);
+      setVerifyDialog(true);
+    } catch (e) {
+      console.error("Unexpected error in handlePurchase:", e);
       toast({
         title: "Error",
-        description: "Failed to create boost record",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive"
       });
-      return;
     }
-
-    // Record the pending payment using edge function
-    try {
-      // Use the database-helper edge function to insert payment
-      await supabase.functions.invoke('database-helper', {
-        body: {
-          action: 'insert_payment',
-          params: {
-            telegram_id: userId,
-            wallet_address: walletAddress,
-            amount_paid: option.price,
-            task_type: "boost",
-            transaction_hash: null
-          }
-        }
-      });
-    } catch (err) {
-      console.warn("Failed to record boost payment (non-critical):", err);
-    }
-
-    // Check if running in Telegram WebApp environment
-    if (window.Telegram?.WebApp) {
-      // Open TON payment in Telegram
-      const paymentUrl = `ton://transfer/${tonWallet}?amount=${option.price * 1000000000}`; // Convert TON to nanotons
-      window.Telegram.WebApp.openLink(paymentUrl);
-    } else {
-      // Fallback for non-Telegram environment
-      try {
-        await navigator.clipboard.writeText(tonWallet);
-        toast({
-          title: "TON Wallet copied",
-          description: `Send ${option.price} TON to activate your ${option.multiplier}x boost`,
-        });
-      } catch (err) {
-        console.error("Failed to copy wallet address", err);
-      }
-    }
-
-    setPendingBoost(data);
-    setVerifyDialog(true);
   };
 
   // Handle dialog close: reset states

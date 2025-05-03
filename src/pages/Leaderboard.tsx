@@ -15,6 +15,8 @@ const Leaderboard = () => {
   const { data: users, isLoading, error } = useQuery({
     queryKey: ["leaderboard"],
     queryFn: async () => {
+      console.log("Fetching leaderboard data...");
+      
       // First try to get users with balance from database
       const { data: userData, error: userError } = await supabase
         .from("users")
@@ -27,27 +29,73 @@ const Leaderboard = () => {
         throw userError;
       }
       
+      console.log("User data retrieved:", userData?.length || 0);
+      
       // Create a map for wallet connections
       const walletMap = new Map();
       
-      // Try to get wallet connections using edge function invocation to avoid type errors
+      // Try to get wallet connections
       try {
-        const { data: rpcData, error: rpcError } = await supabase.functions.invoke('database-helper', {
-          body: {
-            action: 'get_wallet_connections'
-          }
-        });
-        
-        if (!rpcError && rpcData && Array.isArray(rpcData.connections)) {
-          // Process wallet connections data from the response
-          rpcData.connections.forEach((item: any) => {
+        // First try the wallets table directly
+        const { data: walletsData, error: walletsError } = await supabase
+          .from("wallets")
+          .select("telegram_id, wallet_address");
+          
+        if (walletsError) {
+          console.error("Error fetching wallets directly:", walletsError);
+        } else if (walletsData) {
+          console.log("Wallet connections from wallets table:", walletsData.length);
+          walletsData.forEach((item: any) => {
             if (item && item.telegram_id && item.wallet_address) {
               walletMap.set(item.telegram_id, item.wallet_address);
             }
           });
         }
+        
+        // If no results or error, try the edge function
+        if (walletMap.size === 0) {
+          console.log("Using edge function to get wallet connections");
+          const { data: rpcData, error: rpcError } = await supabase.functions.invoke('database-helper', {
+            body: {
+              action: 'get_wallet_connections'
+            }
+          });
+          
+          if (!rpcError && rpcData && Array.isArray(rpcData.connections)) {
+            console.log("Wallet connections from edge function:", rpcData.connections.length);
+            // Process wallet connections data from the response
+            rpcData.connections.forEach((item: any) => {
+              if (item && item.telegram_id && item.wallet_address) {
+                walletMap.set(item.telegram_id, item.wallet_address);
+              }
+            });
+          } else if (rpcError) {
+            console.error("Error fetching wallet connections via edge function:", rpcError);
+          }
+        }
       } catch (err) {
         console.error("Error fetching wallet connections:", err);
+      }
+      
+      console.log("Total wallet connections found:", walletMap.size);
+      
+      // Also check users table for wallet addresses (for backward compatibility)
+      try {
+        const { data: usersWithLinks } = await supabase
+          .from("users")
+          .select("id, links")
+          .not("links", "is", null);
+          
+        if (usersWithLinks) {
+          console.log("Users with wallet in links field:", usersWithLinks.length);
+          usersWithLinks.forEach((user: any) => {
+            if (user.id && user.links && !walletMap.has(user.id)) {
+              walletMap.set(user.id, user.links);
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching users with links:", err);
       }
       
       // Enhance user data with wallet info
@@ -59,9 +107,10 @@ const Leaderboard = () => {
         };
       }) : [];
       
-      console.log("Leaderboard data:", enhancedUsers);
+      console.log("Final leaderboard data:", enhancedUsers.length);
       return enhancedUsers;
     },
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   if (isLoading) {
