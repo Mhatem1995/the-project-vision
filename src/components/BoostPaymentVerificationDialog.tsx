@@ -34,6 +34,7 @@ export default function BoostPaymentVerificationDialog({
   useEffect(() => {
     if (open && boost && !verified && !verifying) {
       setVerifying(true);
+      setError(null);
       
       // Get user ID from localStorage
       const userId = localStorage.getItem("telegramUserId");
@@ -46,7 +47,7 @@ export default function BoostPaymentVerificationDialog({
       // Start transaction verification using the same logic as TON payment task
       const verifyTransaction = async () => {
         try {
-          console.log("Starting verification for boost:", boost.id, "user:", userId);
+          console.log("Starting verification for boost:", boost.id, "user:", userId, "amount:", boost.price);
           const success = await pollForTransactionVerification(
             userId,
             boost.price,
@@ -66,7 +67,7 @@ export default function BoostPaymentVerificationDialog({
             setTimeout(() => onOpenChange(false), 2000);
           } else {
             console.error("Boost payment verification failed");
-            setError("Verification failed. Please try again or contact support if you made the payment.");
+            setError("Payment verification failed. Please try again or contact support if you made the payment.");
           }
         } catch (err) {
           console.error("Error verifying boost payment:", err);
@@ -76,7 +77,7 @@ export default function BoostPaymentVerificationDialog({
         }
       };
       
-      // Start verification process
+      // Start verification process immediately
       verifyTransaction();
     }
   }, [open, boost, verified, verifying, onOpenChange, toast]);
@@ -92,14 +93,22 @@ export default function BoostPaymentVerificationDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="bg-muted p-4 rounded-md">
-            <p className="text-sm text-center">We're automatically checking for your payment</p>
+            <p className="text-sm text-center">
+              {verifying ? "Checking for your payment..." : "Payment verification complete"}
+            </p>
             {verifying && !verified && (
               <div className="flex justify-center mt-2">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             )}
-            {error && <div className="text-destructive text-xs mt-2 text-center">{error}</div>}
-            {verified && <div className="text-green-600 font-medium text-center mt-2">✅ Payment Verified! Boost activated.</div>}
+            {error && (
+              <div className="text-destructive text-xs mt-2 text-center">{error}</div>
+            )}
+            {verified && (
+              <div className="text-green-600 font-medium text-center mt-2">
+                ✅ Payment Verified! Boost activated.
+              </div>
+            )}
           </div>
           
           <div className="text-xs text-muted-foreground text-center">

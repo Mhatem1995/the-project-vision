@@ -37,10 +37,10 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
   const [pendingBoost, setPendingBoost] = useState<any>(null);
   const [verifyDialog, setVerifyDialog] = useState(false);
   const { toast } = useToast();
-  const { isConnected } = useTonConnect();
+  const { isConnected, isTelegramWebApp } = useTonConnect();
 
   const handlePurchase = async (option: BoostOption) => {
-    // Get logged-in user ID
+    // Get logged-in user ID from localStorage
     const userId = localStorage.getItem("telegramUserId");
     if (!userId) {
       toast({
@@ -58,6 +58,16 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         title: "Wallet Not Connected",
         description: "Please connect your TON wallet first to purchase a boost.",
         variant: "destructive" 
+      });
+      return;
+    }
+
+    // Check if we're in Telegram WebApp environment
+    if (!isTelegramWebApp) {
+      toast({
+        title: "Telegram Required",
+        description: "Please open this app in Telegram to make payments.",
+        variant: "destructive"
       });
       return;
     }
@@ -111,13 +121,16 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         console.warn("Failed to record boost payment (non-critical):", err);
       }
 
-      // Open Telegram wallet immediately - same as TON payment task
-      console.log(`Opening TON payment for ${option.price} TON boost`);
+      // Open Telegram wallet immediately - EXACTLY like TON payment task
+      console.log(`Opening TON payment for ${option.price} TON boost with ID: ${data.id}`);
       openTonPayment(option.price, data.id); // Use the auto-generated boost ID
 
       // Set up verification dialog
       setPendingBoost(data);
       setVerifyDialog(true);
+      
+      // Close the purchase dialog to show only the verification dialog
+      onOpenChange(false);
     } catch (e) {
       console.error("Unexpected error in handlePurchase:", e);
       toast({
@@ -157,14 +170,21 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
                   </p>
                   <p className="text-sm text-muted-foreground">For {option.duration} hours</p>
                 </div>
-                <Button onClick={() => handlePurchase(option)}>
+                <Button 
+                  onClick={() => handlePurchase(option)}
+                  disabled={!isConnected || !isTelegramWebApp}
+                >
                   Pay {option.price} TON
                 </Button>
               </div>
             ))}
           </div>
           <div className="text-xs text-muted-foreground mt-2 text-center">
-            Send payment to: <span className="font-mono break-all">{tonWalletAddress}</span>
+            {!isTelegramWebApp ? (
+              <span className="text-amber-600">⚠️ Open in Telegram to make payments</span>
+            ) : (
+              <>Send payment to: <span className="font-mono break-all">{tonWalletAddress}</span></>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -173,7 +193,9 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
           open={verifyDialog}
           onOpenChange={(open) => {
             setVerifyDialog(open);
-            if (!open) handleDialogChange(false);
+            if (!open) {
+              setPendingBoost(null);
+            }
           }}
           boost={pendingBoost}
           tonWallet={tonWalletAddress}
