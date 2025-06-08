@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { pollForTransactionVerification } from "@/utils/tonTransactionUtils";
@@ -33,8 +32,6 @@ export default function BoostPaymentVerificationDialog({
   const { toast } = useToast();
 
   useEffect(() => {
-    let interval: number | null = null;
-
     if (open && boost && !verified && !verifying) {
       setVerifying(true);
       
@@ -46,15 +43,15 @@ export default function BoostPaymentVerificationDialog({
         return;
       }
       
-      // Start transaction verification
+      // Start transaction verification using the same logic as TON payment task
       const verifyTransaction = async () => {
         try {
           console.log("Starting verification for boost:", boost.id, "user:", userId);
           const success = await pollForTransactionVerification(
             userId,
             boost.price,
-            undefined, // No task ID for boosts
-            boost.id, // Pass the boost ID
+            boost.id, // Use boost ID as the task identifier
+            boost.id, // Also pass as boost ID
             "boost" // Type of transaction
           );
           
@@ -63,13 +60,13 @@ export default function BoostPaymentVerificationDialog({
             setVerified(true);
             toast({
               title: "Boost activated!",
-              description: `Your ${boost.multiplier}x boost is now active`,
+              description: `Your ${boost.multiplier}x boost is now active for 24 hours`,
             });
             // Close dialog after successful verification
             setTimeout(() => onOpenChange(false), 2000);
           } else {
             console.error("Boost payment verification failed");
-            setError("Verification failed. Please try again or contact support.");
+            setError("Verification failed. Please try again or contact support if you made the payment.");
           }
         } catch (err) {
           console.error("Error verifying boost payment:", err);
@@ -82,13 +79,7 @@ export default function BoostPaymentVerificationDialog({
       // Start verification process
       verifyTransaction();
     }
-
-    return () => {
-      if (interval) {
-        window.clearInterval(interval);
-      }
-    };
-  }, [open, boost, verified, verifying, onOpenChange, toast, tonWallet]);
+  }, [open, boost, verified, verifying, onOpenChange, toast]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -96,7 +87,7 @@ export default function BoostPaymentVerificationDialog({
         <DialogHeader>
           <DialogTitle>Payment Processing</DialogTitle>
           <DialogDescription>
-            To activate your {boost?.multiplier}x boost, send <b>{boost?.price} TON</b> to <span className="font-mono break-all">{tonWallet}</span>
+            Waiting for confirmation of your {boost?.price} TON payment for {boost?.multiplier}x boost.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

@@ -29,7 +29,7 @@ export const verifyTonTransaction = async (
         boostId, 
         taskType,
         // Add the comment to help match the transaction
-        comment: taskId ? `task${taskId}` : boostId ? `boost_${boostId}` : undefined
+        comment: taskType === "boost" ? `boost_${boostId}` : taskId ? `task${taskId}` : undefined
       }
     });
     
@@ -121,7 +121,7 @@ export const formatWalletAddress = (address: string): string => {
 };
 
 /**
- * @deprecated Use TonConnect's sendTransaction method instead for a better user experience
+ * Open TON payment in Telegram wallet - same as TON payment task
  */
 export const openTonPayment = (amount: number, taskId?: string): void => {
   const isInTelegram = typeof window !== 'undefined' && 
@@ -129,7 +129,7 @@ export const openTonPayment = (amount: number, taskId?: string): void => {
 
   if (isInTelegram) {
     const amountInNano = amount * 1000000000;
-    const comment = taskId ? `task${taskId}` : '';
+    const comment = taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '';
     const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amountInNano}&text=${comment}`;
     
     console.log(`Opening TON payment in Telegram for ${amount} TON`, {

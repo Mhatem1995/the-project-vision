@@ -14,6 +14,7 @@ import BoostPaymentVerificationDialog from "./BoostPaymentVerificationDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useTonConnect } from "@/providers/TonConnectProvider";
 import { tonWalletAddress } from "@/integrations/ton/TonConnectConfig";
+import { openTonPayment } from "@/utils/tonTransactionUtils";
 
 const boostOptions = [
   { multiplier: 2, price: 2, duration: 24 },
@@ -36,7 +37,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
   const [pendingBoost, setPendingBoost] = useState<any>(null);
   const [verifyDialog, setVerifyDialog] = useState(false);
   const { toast } = useToast();
-  const { tonConnectUI, isConnected, connect } = useTonConnect();
+  const { isConnected } = useTonConnect();
 
   const handlePurchase = async (option: BoostOption) => {
     // Get logged-in user ID
@@ -52,39 +53,25 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
 
     // Ensure wallet is connected first
     const walletAddress = localStorage.getItem("tonWalletAddress");
-    if (!walletAddress) {
+    if (!walletAddress || !isConnected) {
       toast({
         title: "Wallet Not Connected",
         description: "Please connect your TON wallet first to purchase a boost.",
         variant: "destructive" 
       });
-      // Attempt to connect wallet
-      connect();
-      return;
-    }
-
-    if (!isConnected || !tonConnectUI) {
-      toast({
-        title: "Wallet Connection Required",
-        description: "Please connect your TON wallet to continue.",
-        variant: "destructive"
-      });
-      connect();
       return;
     }
 
     try {
-      console.log("Creating boost record with text ID:", userId, "wallet:", walletAddress, "multiplier:", option.multiplier);
+      console.log("Creating boost record for user:", userId, "multiplier:", option.multiplier);
       
-      // Creating a boost record (status: pending)
-      // Let Supabase generate UUID for us by omitting the id field
+      // Create a boost record (status: pending) - let Supabase generate UUID
       const { data, error } = await supabase.from("mining_boosts").insert({
-        user_id: userId, // Keep user_id as the telegram ID
+        user_id: userId, // This is the telegram ID as string
         multiplier: option.multiplier,
         price: option.price,
         duration: option.duration,
         status: "pending",
-        // Set expiration time to now + duration hours
         expires_at: new Date(Date.now() + option.duration * 60 * 60 * 1000).toISOString()
       }).select().maybeSingle();
 
@@ -102,7 +89,6 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
 
       // Record the pending payment using database-helper
       try {
-        // Use the database-helper edge function to insert payment
         const { error: paymentError } = await supabase.functions.invoke('database-helper', {
           body: {
             action: 'insert_payment',
@@ -118,11 +104,6 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         
         if (paymentError) {
           console.error("Failed to record boost payment:", paymentError);
-          toast({
-            title: "Warning",
-            description: "Payment record created, but tracking may be incomplete.",
-            variant: "default"
-          });
         } else {
           console.log("Payment record created for boost");
         }
@@ -130,54 +111,11 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         console.warn("Failed to record boost payment (non-critical):", err);
       }
 
-      // Use TonConnect to trigger transaction directly in the wallet
-      if (tonConnectUI && isConnected) {
-        try {
-          console.log("Opening TonConnect transaction for", option.price, "TON");
-          
-          // This is the critical change - ensuring we properly trigger the wallet
-          // Make sure we check if we can call methods on tonConnectUI
-          if (typeof tonConnectUI.sendTransaction !== 'function') {
-            console.error("TonConnect UI doesn't have sendTransaction method");
-            toast({
-              title: "Wallet Error",
-              description: "Wallet connection issue. Please try again later.",
-              variant: "destructive"
-            });
-            return;
-          }
-          
-          await tonConnectUI.sendTransaction({
-            validUntil: Math.floor(Date.now() / 1000) + 600, // expires in 10 mins
-            messages: [
-              {
-                address: tonWalletAddress, // destination wallet from config
-                amount: (option.price * 1e9).toString(), // TON amount in nanoTONs
-                payload: `boost_${data.id}`, // Include boost ID in payload for traceability
-              }
-            ]
-          });
-          
-          console.log("TonConnect transaction initiated");
-        } catch (err) {
-          console.error("Error initiating TonConnect transaction:", err);
-          toast({
-            title: "Transaction Error",
-            description: "Failed to open wallet for payment. Please try again.",
-            variant: "destructive"
-          });
-          return;
-        }
-      } else {
-        console.error("TonConnect not initialized or wallet not connected");
-        toast({
-          title: "Wallet Error",
-          description: "Wallet connection issue. Please reconnect your wallet.",
-          variant: "destructive"
-        });
-        return;
-      }
+      // Open Telegram wallet immediately - same as TON payment task
+      console.log(`Opening TON payment for ${option.price} TON boost`);
+      openTonPayment(option.price, data.id); // Use the generated boost ID as task identifier
 
+      // Set up verification dialog
       setPendingBoost(data);
       setVerifyDialog(true);
     } catch (e) {
