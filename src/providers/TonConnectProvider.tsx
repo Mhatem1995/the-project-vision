@@ -35,15 +35,37 @@ const TonConnectContext = createContext<TonConnectContextType>({
 // Custom hook to use the context
 export const useTonConnect = () => useContext(TonConnectContext);
 
-// Detect if we're in Telegram WebApp
+// Enhanced Telegram WebApp detection
 const detectTelegramWebApp = () => {
-  return Boolean(
+  // Check localStorage first (set by TelegramInitializer)
+  const storedValue = localStorage.getItem("inTelegramWebApp");
+  if (storedValue) {
+    const result = storedValue === "true";
+    console.log("TonConnect: Using stored Telegram WebApp detection:", result);
+    return result;
+  }
+  
+  // Fallback detection
+  const hasTelegramObject = Boolean(
     typeof window !== "undefined" &&
     window.Telegram &&
-    window.Telegram.WebApp &&
-    window.Telegram.WebApp.initData &&
-    window.Telegram.WebApp.initData.length > 0
+    window.Telegram.WebApp
   );
+  
+  const isTelegramUserAgent = navigator.userAgent.includes('Telegram');
+  
+  const result = hasTelegramObject && (
+    (window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 0) ||
+    isTelegramUserAgent
+  );
+  
+  console.log("TonConnect: Fallback Telegram WebApp detection:", {
+    hasTelegramObject,
+    isTelegramUserAgent,
+    result
+  });
+  
+  return result;
 };
 
 // Provider component
@@ -179,6 +201,20 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       unsubscribe();
     };
   }, [toast]);
+
+  // Listen for changes in localStorage (updated by TelegramInitializer)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const newValue = detectTelegramWebApp();
+      console.log("TonConnect: Detected Telegram WebApp change:", newValue);
+      setIsTelegramWebApp(newValue);
+    };
+
+    // Check periodically for changes
+    const interval = setInterval(handleStorageChange, 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Connect function that opens the wallet modal
   const connect = () => {

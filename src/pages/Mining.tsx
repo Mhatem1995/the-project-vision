@@ -36,7 +36,16 @@ const Mining = () => {
     if (window.Telegram?.WebApp?.platform) {
       console.log("Telegram platform:", window.Telegram.WebApp.platform);
     }
-  }, [isTelegramWebApp]);
+    
+    // Additional debugging for boost button issue
+    console.log("Mining page debug info:", {
+      isTelegramWebApp,
+      isConnected,
+      walletAddress,
+      userAgent: navigator.userAgent,
+      storedTelegramFlag: localStorage.getItem("inTelegramWebApp")
+    });
+  }, [isTelegramWebApp, isConnected, walletAddress]);
 
   const handleConnectWallet = async () => {
     console.log("Connect wallet clicked, inTelegram:", isTelegramWebApp);

@@ -31,6 +31,7 @@ declare global {
         showConfirm: (message: string, callback: (confirmed: boolean) => void) => void;
         isExpanded: boolean;
         platform: string;
+        version: string;
       };
     };
   }
@@ -43,14 +44,37 @@ const TelegramInitializer = () => {
     async function init() {
       console.log("TelegramInitializer: Starting initialization");
       
-      // Enhanced Telegram WebApp detection - check multiple properties and verify initData
+      // More comprehensive Telegram WebApp detection
+      const hasTelegramObject = typeof window !== 'undefined' && 
+                               window.Telegram && 
+                               window.Telegram.WebApp;
+      
+      console.log("Telegram detection details:", {
+        hasTelegramObject,
+        hasInitData: hasTelegramObject && window.Telegram.WebApp.initData,
+        initDataLength: hasTelegramObject ? window.Telegram.WebApp.initData?.length : 0,
+        platform: hasTelegramObject ? window.Telegram.WebApp.platform : 'none',
+        version: hasTelegramObject ? window.Telegram.WebApp.version : 'none',
+        userAgent: navigator.userAgent
+      });
+      
+      // Enhanced detection - check for Telegram in user agent as fallback
+      const isTelegramUserAgent = navigator.userAgent.includes('Telegram');
+      
       const isTelegramWebApp = Boolean(
-        typeof window !== 'undefined' &&
-        window.Telegram && 
-        window.Telegram.WebApp &&
-        window.Telegram.WebApp.initData &&
-        window.Telegram.WebApp.initData.length > 0
+        hasTelegramObject && (
+          // Primary check: has initData
+          (window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 0) ||
+          // Fallback: check for Telegram in user agent and has Telegram object
+          isTelegramUserAgent
+        )
       );
+      
+      console.log("Final Telegram WebApp detection:", {
+        isTelegramWebApp,
+        isTelegramUserAgent,
+        finalResult: isTelegramWebApp
+      });
       
       if (isTelegramWebApp) {
         console.log("Running inside Telegram WebApp environment");
@@ -61,24 +85,36 @@ const TelegramInitializer = () => {
           console.log("Telegram platform:", window.Telegram.WebApp.platform);
           localStorage.setItem("telegramPlatform", window.Telegram.WebApp.platform);
         }
+        
+        // Store version info
+        if (window.Telegram.WebApp.version) {
+          console.log("Telegram WebApp version:", window.Telegram.WebApp.version);
+          localStorage.setItem("telegramVersion", window.Telegram.WebApp.version);
+        }
       } else {
         console.log("Not running inside Telegram WebApp environment");
         localStorage.setItem("inTelegramWebApp", "false");
+        
+        // Force true in development for testing
+        if (process.env.NODE_ENV === "development") {
+          console.log("Development mode: forcing Telegram WebApp to true");
+          localStorage.setItem("inTelegramWebApp", "true");
+        }
       }
 
       let telegramUserId = null;
       let telegramUserName = null;
 
-      if (isTelegramWebApp && window.Telegram.WebApp.initDataUnsafe.user) {
+      if (hasTelegramObject && window.Telegram.WebApp.initDataUnsafe?.user) {
         const { id, first_name, last_name, username } = window.Telegram.WebApp.initDataUnsafe.user;
         
-        // Store as UUID-compatible string, ensuring it's properly formatted for database
+        // Store as string for compatibility
         telegramUserId = id.toString();
         telegramUserName = username || first_name;
         console.log("Telegram user detected:", { id, first_name, last_name, username });
       } else {
         console.log("No Telegram user data found");
-        // For development only - use a valid UUID format
+        // For development only - use a test user ID
         if (process.env.NODE_ENV === "development") {
           telegramUserId = "00000000-0000-0000-0000-000000000000";
           telegramUserName = "DevUser";
@@ -156,7 +192,7 @@ const TelegramInitializer = () => {
       }
 
       // Initialize Telegram WebApp if available
-      if (isTelegramWebApp) {
+      if (hasTelegramObject) {
         console.log("Initializing Telegram WebApp");
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
