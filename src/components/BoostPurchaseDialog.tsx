@@ -65,7 +65,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     try {
       console.log("Creating boost record for user:", userId, "multiplier:", option.multiplier);
       
-      // Create a boost record (status: pending) - let Supabase generate UUID
+      // Create a boost record (status: pending) - let Supabase auto-generate the UUID
       const { data, error } = await supabase.from("mining_boosts").insert({
         user_id: userId, // This is the telegram ID as string
         multiplier: option.multiplier,
@@ -73,7 +73,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         duration: option.duration,
         status: "pending",
         expires_at: new Date(Date.now() + option.duration * 60 * 60 * 1000).toISOString()
-      }).select().maybeSingle();
+      }).select().single();
 
       if (error || !data) {
         console.error("Error creating boost record:", error);
@@ -113,7 +113,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
 
       // Open Telegram wallet immediately - same as TON payment task
       console.log(`Opening TON payment for ${option.price} TON boost`);
-      openTonPayment(option.price, data.id); // Use the generated boost ID as task identifier
+      openTonPayment(option.price, data.id); // Use the auto-generated boost ID
 
       // Set up verification dialog
       setPendingBoost(data);
