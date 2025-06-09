@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,17 +41,17 @@ const TelegramInitializer = () => {
 
   useEffect(() => {
     async function init() {
-      console.log("TelegramInitializer: Starting FRESH initialization - clearing old data");
+      console.log("TelegramInitializer: Starting initialization with forced wallet reset");
       
-      // FORCE CLEAR ALL OLD DATA
+      // FORCE CLEAR ALL WALLET AND BALANCE DATA but keep user ID
+      const existingUserId = localStorage.getItem("telegramUserId");
+      const existingUserName = localStorage.getItem("telegramUserName");
+      
       localStorage.removeItem("kfcBalance");
       localStorage.removeItem("tonWalletAddress");
       localStorage.removeItem("lastMiningTime");
-      localStorage.removeItem("telegramUserId");
-      localStorage.removeItem("telegramUserName");
-      localStorage.removeItem("referrer");
       
-      console.log("All localStorage data cleared - forcing fresh start");
+      console.log("Cleared wallet and balance data, preserved user ID:", existingUserId);
       
       // Telegram WebApp detection
       const hasTelegramObject = typeof window !== 'undefined' && 
@@ -113,8 +112,8 @@ const TelegramInitializer = () => {
         }
       }
 
-      let telegramUserId = null;
-      let telegramUserName = null;
+      let telegramUserId = existingUserId;
+      let telegramUserName = existingUserName;
       let firstName = null;
       let lastName = null;
       let languageCode = null;
@@ -176,7 +175,8 @@ const TelegramInitializer = () => {
               lastname: lastName,
               languagecode: languageCode,
               last_seen_at: new Date().toISOString(),
-              balance: 0 // Start with 0 balance
+              balance: 0, // Start with 0 balance
+              links: null // FORCE wallet to be null until connected
             }, {
               onConflict: 'id'
             });
@@ -184,7 +184,7 @@ const TelegramInitializer = () => {
           if (insertError) {
             console.error("Error creating/updating user:", insertError);
           } else {
-            console.log("Successfully created/updated user:", insertResult);
+            console.log("Successfully created/updated user with forced null wallet:", insertResult);
           }
           
           // Verify user was created

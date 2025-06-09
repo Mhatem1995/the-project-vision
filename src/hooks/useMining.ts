@@ -56,34 +56,26 @@ export const useMining = () => {
         setBalance(data.balance || 0);
         localStorage.setItem("kfcBalance", data.balance?.toString() || "0");
         
-        // Also update wallet address if available
+        // IMPORTANT: Only set wallet if it actually exists in database
         if (data.links) {
           localStorage.setItem("tonWalletAddress", data.links);
-          
-          // Make sure wallet is also recorded in the wallets table
-          try {
-            await supabase.functions.invoke('database-helper', {
-              body: {
-                action: 'save_wallet_connection',
-                params: {
-                  telegram_id: userId,
-                  wallet_address: data.links
-                }
-              }
-            });
-          } catch (err) {
-            console.error("Error saving wallet connection:", err);
-          }
+          console.log("Wallet found in database:", data.links);
+        } else {
+          // Remove any stale wallet data
+          localStorage.removeItem("tonWalletAddress");
+          console.log("No wallet found in database - cleared localStorage");
         }
       } else {
         console.log("No user data found, starting fresh");
         setBalance(0);
         localStorage.setItem("kfcBalance", "0");
+        localStorage.removeItem("tonWalletAddress");
       }
     } catch (err) {
       console.error("Error fetching user balance:", err);
       setBalance(0);
       localStorage.setItem("kfcBalance", "0");
+      localStorage.removeItem("tonWalletAddress");
     }
   }, []);
 
@@ -147,13 +139,39 @@ export const useMining = () => {
       return;
     }
     
-    // Verify wallet is connected
+    // Verify wallet is connected by checking BOTH localStorage AND database
     const walletAddress = localStorage.getItem("tonWalletAddress");
     if (!walletAddress) {
       toast({
         title: "Wallet Not Connected",
         description: "Please connect your TON wallet first to mine Knife Coin.",
         variant: "destructive" 
+      });
+      return;
+    }
+    
+    // Double check database has the wallet
+    try {
+      const { data: userData } = await supabase
+        .from("users")
+        .select("links")
+        .eq("id", userId)
+        .single();
+        
+      if (!userData?.links) {
+        toast({
+          title: "Wallet Not Found",
+          description: "Wallet connection not found in database. Please reconnect your wallet.",
+          variant: "destructive"
+        });
+        return;
+      }
+    } catch (err) {
+      console.error("Error verifying wallet in database:", err);
+      toast({
+        title: "Database Error",
+        description: "Could not verify wallet connection. Please try again.",
+        variant: "destructive"
       });
       return;
     }
@@ -176,6 +194,8 @@ export const useMining = () => {
         
       if (error) {
         console.error("Error updating balance in database:", error);
+      } else {
+        console.log("Successfully updated balance in database to:", newBalance);
       }
     } catch (err) {
       console.error("Failed to update balance in database:", err);

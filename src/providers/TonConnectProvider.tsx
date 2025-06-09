@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
@@ -84,6 +85,12 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
     
+    // CLEAR any existing wallet state on initialization
+    localStorage.removeItem("tonWalletAddress");
+    setWalletAddress(null);
+    setIsConnected(false);
+    console.log("TonConnect: Cleared existing wallet state");
+    
     // Options for TonConnectUI with our custom manifest URL
     const options = {
       manifestUrl: tonConnectOptions.manifestUrl,
@@ -102,8 +109,9 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     // Set up listener for connection changes
     const unsubscribe = connector.onStatusChange(async (wallet) => {
       console.log("Wallet status changed:", wallet ? "connected" : "disconnected");
+      console.log("Wallet details:", wallet);
       
-      if (wallet) {
+      if (wallet && wallet.account) {
         setIsConnected(true);
         
         // Get the wallet address
@@ -115,6 +123,8 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         
         // Update user in database
         const userId = localStorage.getItem("telegramUserId");
+        console.log("Current telegram user ID:", userId);
+        
         if (userId) {
           console.log("Saving wallet connection for user:", userId, "address:", address);
           
@@ -179,24 +189,15 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
           description: "Your TON wallet has been connected successfully.",
         });
       } else {
+        console.log("Wallet disconnected or no account found");
         setIsConnected(false);
         setWalletAddress(null);
         localStorage.removeItem("tonWalletAddress");
-        
-        console.log("Wallet disconnected");
       }
     });
 
-    // Check for existing session on load
-    const savedAddress = localStorage.getItem("tonWalletAddress");
-    if (savedAddress) {
-      console.log("Found saved wallet address in localStorage:", savedAddress);
-      setWalletAddress(savedAddress);
-      if (connector.connected) {
-        console.log("Wallet is already connected");
-        setIsConnected(true);
-      }
-    }
+    // DO NOT check for existing session on load - force fresh connection
+    console.log("TonConnect initialized - forcing fresh connection state");
 
     return () => {
       unsubscribe();
