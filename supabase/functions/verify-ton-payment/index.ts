@@ -113,7 +113,8 @@ serve(async (req: Request) => {
     
     // Format amount for comparison (convert to nanoTONs)
     const expectedAmountNano = Math.floor(amount * 1000000000);
-    const expectedComment = comment || (taskId ? `task${taskId}` : "");
+    // Handle boost comments properly - they use UUID format
+    const expectedComment = comment || (boostId ? `boost_${boostId}` : taskId ? `task${taskId}` : "");
     
     console.log(`Looking for transaction with: amount=${expectedAmountNano} nanoTON, comment=${expectedComment || "(none)"}`);
     
@@ -195,7 +196,7 @@ serve(async (req: Request) => {
             .from("payments")
             .update({ transaction_hash: txHash })
             .eq("telegram_id", userId)
-            .eq("task_type", taskId || "boost")
+            .eq("task_type", taskType || "boost")
             .is("transaction_hash", null);
             
           return await processVerifiedTransaction(
@@ -291,7 +292,7 @@ serve(async (req: Request) => {
               .from("payments")
               .update({ transaction_hash: txHash })
               .eq("telegram_id", userId)
-              .eq("task_type", taskId || "boost")
+              .eq("task_type", taskType || "boost")
               .is("transaction_hash", null);
               
             return await processVerifiedTransaction(
@@ -371,6 +372,7 @@ async function processVerifiedTransaction(
         expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), // 24 hours from now
       })
       .eq("id", boostId)
+      .eq("user_id", userId) // Ensure we're updating the right user's boost
       .select();
     
     if (updateError) {

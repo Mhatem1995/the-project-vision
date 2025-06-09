@@ -40,9 +40,10 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
   const { isConnected, isTelegramWebApp } = useTonConnect();
 
   const handlePurchase = async (option: BoostOption) => {
-    // Get logged-in user ID from localStorage
+    // Get Telegram user ID - same as TON payment tasks
     const userId = localStorage.getItem("telegramUserId");
     if (!userId) {
+      console.error("No Telegram user ID found in localStorage");
       toast({
         title: "Error",
         description: "User not found. Please refresh the page.",
@@ -51,7 +52,9 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       return;
     }
 
-    // Ensure wallet is connected first
+    console.log("Processing boost purchase for user:", userId);
+
+    // Ensure wallet is connected
     const walletAddress = localStorage.getItem("tonWalletAddress");
     if (!walletAddress || !isConnected) {
       toast({
@@ -77,7 +80,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       
       // Create a boost record (status: pending) - let Supabase auto-generate the UUID
       const { data, error } = await supabase.from("mining_boosts").insert({
-        user_id: userId, // This is the telegram ID as string
+        user_id: userId, // Telegram ID as string
         multiplier: option.multiplier,
         price: option.price,
         duration: option.duration,
@@ -95,9 +98,9 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         return;
       }
 
-      console.log("Boost record created:", data);
+      console.log("Boost record created with ID:", data.id);
 
-      // Record the pending payment using database-helper
+      // Record the pending payment - same as TON payment tasks
       try {
         const { error: paymentError } = await supabase.functions.invoke('database-helper', {
           body: {
@@ -121,9 +124,9 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         console.warn("Failed to record boost payment (non-critical):", err);
       }
 
-      // Open Telegram wallet immediately - EXACTLY like TON payment task
+      // Open Telegram wallet - EXACTLY like TON payment tasks
       console.log(`Opening TON payment for ${option.price} TON boost with ID: ${data.id}`);
-      openTonPayment(option.price, data.id); // Use the auto-generated boost ID
+      openTonPayment(option.price, data.id); // Use the UUID boost ID
 
       // Set up verification dialog
       setPendingBoost(data);

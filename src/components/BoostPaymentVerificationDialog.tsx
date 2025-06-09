@@ -36,7 +36,7 @@ export default function BoostPaymentVerificationDialog({
       setVerifying(true);
       setError(null);
       
-      // Get user ID from localStorage
+      // Get user ID from localStorage - same as TON payment tasks
       const userId = localStorage.getItem("telegramUserId");
       if (!userId) {
         setError("User ID not found. Please refresh the page.");
@@ -44,7 +44,14 @@ export default function BoostPaymentVerificationDialog({
         return;
       }
       
-      // Start transaction verification using the same logic as TON payment task
+      console.log("Starting boost payment verification:", {
+        userId,
+        boostId: boost.id,
+        amount: boost.price,
+        taskType: "boost"
+      });
+      
+      // Start transaction verification using EXACTLY the same logic as TON payment tasks
       const verifyTransaction = async () => {
         try {
           console.log("Starting verification for boost:", boost.id, "user:", userId, "amount:", boost.price);

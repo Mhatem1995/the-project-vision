@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { tonWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
 import { toast } from "@/hooks/use-toast";
@@ -129,6 +128,7 @@ export const openTonPayment = (amount: number, taskId?: string): void => {
 
   if (isInTelegram) {
     const amountInNano = amount * 1000000000;
+    // Use consistent comment format for both tasks and boosts
     const comment = taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '';
     const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amountInNano}&text=${comment}`;
     
@@ -136,7 +136,8 @@ export const openTonPayment = (amount: number, taskId?: string): void => {
       paymentUrl,
       walletAddress: tonWalletAddress,
       amountInNano,
-      comment
+      comment,
+      taskId
     });
     
     window.Telegram.WebApp.openLink(paymentUrl);
