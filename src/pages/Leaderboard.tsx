@@ -17,20 +17,27 @@ const Leaderboard = () => {
     queryFn: async () => {
       console.log("Fetching leaderboard data from users table...");
       
-      // First, let's see what's in the users table
+      // First, let's see what's in the users table with all data
       const { data: allUsers, error: allUsersError } = await supabase
         .from("users")
         .select("*");
       
       console.log("All users in database:", allUsers);
-      console.log("Users table query error:", allUsersError);
+      console.log("Total users found:", allUsers?.length);
       
-      // Fetch users with positive balances
+      if (allUsersError) {
+        console.error("Error fetching all users:", allUsersError);
+      }
+      
+      // Check for users with any balance (including 0)
+      const usersWithBalance = allUsers?.filter(user => user.balance !== null && user.balance !== undefined) || [];
+      console.log("Users with balance (any amount):", usersWithBalance);
+      
+      // For now, let's show all users who have a balance field set, even if it's 0
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("id, username, firstname, lastname, balance")
         .not("balance", "is", null)
-        .gt("balance", 0)
         .order("balance", { ascending: false })
         .limit(50);
       
@@ -42,11 +49,11 @@ const Leaderboard = () => {
       }
       
       if (!userData || userData.length === 0) {
-        console.log("No users found with positive balance");
+        console.log("No users found with balance field");
         return [];
       }
       
-      console.log(`Found ${userData.length} users with positive balances`);
+      console.log(`Found ${userData.length} users with balance data`);
       
       // Transform the data for display
       const leaderboardUsers = userData.map((user) => ({
@@ -98,19 +105,11 @@ const Leaderboard = () => {
     );
   }
 
-  // Debug: Show raw data
-  console.log("About to render users:", users);
-
   return (
     <div className="flex flex-col space-y-6">
       <div className="text-center">
         <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
         <p className="text-muted-foreground">Top Knife Coin holders</p>
-      </div>
-
-      {/* Debug info */}
-      <div className="text-xs text-gray-500 p-2 bg-gray-100 rounded">
-        Debug: Found {users?.length || 0} users
       </div>
 
       {!users || users.length === 0 ? (
