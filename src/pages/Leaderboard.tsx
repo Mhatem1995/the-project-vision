@@ -15,67 +15,93 @@ const Leaderboard = () => {
   const { data: users, isLoading, error } = useQuery({
     queryKey: ["leaderboard"],
     queryFn: async () => {
-      console.log("Fetching leaderboard data from users table...");
+      console.log("=== LEADERBOARD DEBUGGING ===");
       
-      // First, let's see what's in the users table with all data
-      const { data: allUsers, error: allUsersError } = await supabase
-        .from("users")
-        .select("*");
-      
-      console.log("All users in database:", allUsers);
-      console.log("Total users found:", allUsers?.length);
-      
-      if (allUsersError) {
-        console.error("Error fetching all users:", allUsersError);
+      try {
+        // Try to get basic info about the users table
+        const { data: allUsers, error: allUsersError, count } = await supabase
+          .from("users")
+          .select("*", { count: 'exact' });
+        
+        console.log("=== DATABASE QUERY RESULTS ===");
+        console.log("Query error:", allUsersError);
+        console.log("Total count from database:", count);
+        console.log("Returned users array:", allUsers);
+        console.log("Users array length:", allUsers?.length);
+        
+        if (allUsersError) {
+          console.error("Database error details:", {
+            message: allUsersError.message,
+            details: allUsersError.details,
+            hint: allUsersError.hint,
+            code: allUsersError.code
+          });
+          throw allUsersError;
+        }
+
+        // Show detailed info about each user
+        if (allUsers && allUsers.length > 0) {
+          console.log("=== USER DETAILS ===");
+          allUsers.forEach((user, index) => {
+            console.log(`User ${index + 1}:`, {
+              id: user.id,
+              username: user.username,
+              firstname: user.firstname,
+              lastname: user.lastname,
+              balance: user.balance,
+              balanceType: typeof user.balance,
+              hasBalance: user.balance !== null && user.balance !== undefined
+            });
+          });
+          
+          // Filter users with valid balance data
+          const usersWithBalance = allUsers.filter(user => 
+            user.balance !== null && 
+            user.balance !== undefined && 
+            Number(user.balance) >= 0
+          );
+          
+          console.log("=== FILTERED USERS ===");
+          console.log("Users with valid balance:", usersWithBalance.length);
+          
+          // Transform for leaderboard display
+          const leaderboardUsers = usersWithBalance
+            .map((user) => ({
+              id: user.id,
+              username: user.username,
+              firstname: user.firstname,
+              lastname: user.lastname,
+              balance: Number(user.balance) || 0,
+            }))
+            .sort((a, b) => b.balance - a.balance)
+            .slice(0, 50);
+          
+          console.log("=== FINAL LEADERBOARD DATA ===");
+          console.log("Processed users for leaderboard:", leaderboardUsers);
+          
+          return leaderboardUsers;
+        } else {
+          console.log("=== NO USERS FOUND ===");
+          console.log("The users table appears to be empty or inaccessible");
+          return [];
+        }
+        
+      } catch (err) {
+        console.error("=== QUERY EXCEPTION ===");
+        console.error("Error details:", err);
+        throw err;
       }
-      
-      // Check for users with any balance (including 0)
-      const usersWithBalance = allUsers?.filter(user => user.balance !== null && user.balance !== undefined) || [];
-      console.log("Users with balance (any amount):", usersWithBalance);
-      
-      // For now, let's show all users who have a balance field set, even if it's 0
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("id, username, firstname, lastname, balance")
-        .not("balance", "is", null)
-        .order("balance", { ascending: false })
-        .limit(50);
-      
-      console.log("Leaderboard query result:", { userData, userError });
-      
-      if (userError) {
-        console.error("Error fetching leaderboard users:", userError);
-        throw userError;
-      }
-      
-      if (!userData || userData.length === 0) {
-        console.log("No users found with balance field");
-        return [];
-      }
-      
-      console.log(`Found ${userData.length} users with balance data`);
-      
-      // Transform the data for display
-      const leaderboardUsers = userData.map((user) => ({
-        id: user.id,
-        username: user.username,
-        firstname: user.firstname,
-        lastname: user.lastname,
-        balance: Number(user.balance) || 0,
-      }));
-      
-      console.log("Final leaderboard users:", leaderboardUsers);
-      return leaderboardUsers;
     },
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: 10000,
     retry: 1,
   });
 
-  console.log("Leaderboard component state:", { 
+  console.log("=== COMPONENT STATE ===");
+  console.log("React Query state:", { 
     users, 
+    usersLength: users?.length,
     isLoading, 
-    error, 
-    usersCount: users?.length 
+    error: error?.message 
   });
 
   if (isLoading) {
@@ -88,12 +114,16 @@ const Leaderboard = () => {
   }
 
   if (error) {
-    console.error("Leaderboard error:", error);
+    console.error("=== COMPONENT ERROR ===");
+    console.error("Full error object:", error);
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <div className="text-destructive mb-4">Error loading leaderboard</div>
-        <div className="text-sm text-muted-foreground mb-4">
-          {error.message || "Failed to fetch leaderboard data"}
+        <div className="text-destructive mb-4">Database Error</div>
+        <div className="text-sm text-muted-foreground mb-4 max-w-md text-center">
+          <div className="font-mono text-xs bg-gray-100 p-2 rounded mb-2">
+            {error.message || "Failed to fetch leaderboard data"}
+          </div>
+          <p>Check the browser console for detailed error information.</p>
         </div>
         <button 
           onClick={() => window.location.reload()} 
@@ -110,13 +140,21 @@ const Leaderboard = () => {
       <div className="text-center">
         <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
         <p className="text-muted-foreground">Top Knife Coin holders</p>
+        <div className="text-xs text-gray-500 mt-2">
+          Found {users?.length || 0} users with Knife Coin
+        </div>
       </div>
 
       {!users || users.length === 0 ? (
         <div className="text-center p-8 rounded-lg border border-dashed">
           <User className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium">No miners yet</h3>
-          <p className="text-muted-foreground">Be the first to connect your wallet and mine Knife Coin!</p>
+          <h3 className="text-lg font-medium">No miners found</h3>
+          <p className="text-muted-foreground mb-4">
+            The database appears to be empty or there's a connection issue.
+          </p>
+          <p className="text-xs text-gray-500">
+            Check the browser console for detailed debugging information.
+          </p>
         </div>
       ) : (
         <div className="rounded-md border">
