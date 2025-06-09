@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { tonWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
 import { toast } from "@/hooks/use-toast";
@@ -120,27 +121,90 @@ export const formatWalletAddress = (address: string): string => {
 };
 
 /**
- * Open TON payment in Telegram wallet - same as TON payment task
+ * Open TON payment in Telegram wallet - Enhanced for mobile Telegram
  */
 export const openTonPayment = (amount: number, taskId?: string): void => {
-  const isInTelegram = typeof window !== 'undefined' && 
-                      Boolean(window.Telegram?.WebApp?.initData);
+  // Enhanced Telegram detection for mobile
+  const isTelegramApp = Boolean(
+    typeof window !== 'undefined' && 
+    (
+      // Check for Telegram object
+      (window.Telegram?.WebApp?.initData) ||
+      // Check user agent
+      navigator.userAgent.includes('Telegram') ||
+      // Check stored flag
+      localStorage.getItem("inTelegramWebApp") === "true"
+    )
+  );
 
-  if (isInTelegram) {
-    const amountInNano = amount * 1000000000;
+  console.log("Opening TON payment with enhanced detection:", {
+    isTelegramApp,
+    amount,
+    taskId,
+    userAgent: navigator.userAgent,
+    hasTelegramObject: Boolean(window.Telegram?.WebApp),
+    hasInitData: Boolean(window.Telegram?.WebApp?.initData),
+    storedFlag: localStorage.getItem("inTelegramWebApp")
+  });
+
+  if (isTelegramApp) {
+    const amountInNano = Math.floor(amount * 1000000000);
     // Use consistent comment format for both tasks and boosts
     const comment = taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '';
-    const paymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amountInNano}&text=${comment}`;
     
-    console.log(`Opening TON payment in Telegram for ${amount} TON`, {
-      paymentUrl,
+    // Create multiple payment URL formats to ensure compatibility
+    const tonPaymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amountInNano}&text=${encodeURIComponent(comment)}`;
+    const httpsPaymentUrl = `https://app.tonkeeper.com/transfer/${tonWalletAddress}?amount=${amountInNano}&text=${encodeURIComponent(comment)}`;
+    
+    console.log(`Opening TON payment for ${amount} TON`, {
+      tonPaymentUrl,
+      httpsPaymentUrl,
       walletAddress: tonWalletAddress,
       amountInNano,
       comment,
       taskId
     });
     
-    window.Telegram.WebApp.openLink(paymentUrl);
+    // Try multiple methods to open the payment
+    if (window.Telegram?.WebApp?.openLink) {
+      console.log("Using Telegram WebApp openLink");
+      // Try ton:// protocol first
+      try {
+        window.Telegram.WebApp.openLink(tonPaymentUrl);
+        console.log("Successfully opened ton:// payment URL");
+      } catch (error) {
+        console.log("ton:// failed, trying https:// fallback");
+        try {
+          window.Telegram.WebApp.openLink(httpsPaymentUrl);
+          console.log("Successfully opened https:// payment URL");
+        } catch (fallbackError) {
+          console.error("Both payment URL attempts failed:", error, fallbackError);
+          toast({
+            title: "Payment URL Error",
+            description: "Could not open payment. Please try again.",
+            variant: "destructive"
+          });
+        }
+      }
+    } else {
+      console.log("Telegram WebApp openLink not available, using window.open");
+      // Fallback to window.open
+      try {
+        const opened = window.open(tonPaymentUrl, '_blank');
+        if (!opened) {
+          // If ton:// doesn't work, try https://
+          window.open(httpsPaymentUrl, '_blank');
+        }
+        console.log("Payment URL opened via window.open");
+      } catch (error) {
+        console.error("window.open failed:", error);
+        toast({
+          title: "Payment Error", 
+          description: "Could not open payment. Please check your wallet app.",
+          variant: "destructive"
+        });
+      }
+    }
   } else {
     console.warn("Not in Telegram WebApp environment, cannot open TON payment");
     toast({

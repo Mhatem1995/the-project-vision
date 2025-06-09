@@ -39,11 +39,6 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
   const { toast } = useToast();
   const { isConnected } = useTonConnect();
 
-  // Simplified Telegram detection - check localStorage and user agent
-  const isTelegramWebApp = localStorage.getItem("inTelegramWebApp") === "true" || 
-                           navigator.userAgent.includes('Telegram') ||
-                           process.env.NODE_ENV === "development";
-
   const handlePurchase = async (option: BoostOption) => {
     // Get Telegram user ID - same as TON payment tasks
     const userId = localStorage.getItem("telegramUserId");
@@ -68,11 +63,6 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         variant: "destructive" 
       });
       return;
-    }
-
-    // Check if we're in Telegram WebApp environment (more lenient check)
-    if (!isTelegramWebApp) {
-      console.warn("Not detected as Telegram WebApp, but proceeding anyway");
     }
 
     try {
@@ -124,16 +114,20 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         console.warn("Failed to record boost payment (non-critical):", err);
       }
 
-      // Open Telegram wallet - EXACTLY like TON payment tasks
-      console.log(`Opening TON payment for ${option.price} TON boost with ID: ${data.id}`);
-      openTonPayment(option.price, data.id); // Use the UUID boost ID
-
-      // Set up verification dialog
+      // Show verification dialog first
       setPendingBoost(data);
       setVerifyDialog(true);
-      
-      // Close the purchase dialog to show only the verification dialog
       onOpenChange(false);
+
+      // CRITICAL: Add delay before opening payment to ensure dialog is shown
+      console.log(`About to open TON payment for ${option.price} TON boost with ID: ${data.id}`);
+      
+      // Wait a moment for the dialog to render, then open payment
+      setTimeout(() => {
+        console.log("Opening TON payment with delay...");
+        openTonPayment(option.price, data.id); // Use the UUID boost ID
+      }, 500); // 500ms delay to ensure dialog is visible first
+
     } catch (e) {
       console.error("Unexpected error in handlePurchase:", e);
       toast({
@@ -183,11 +177,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
             ))}
           </div>
           <div className="text-xs text-muted-foreground mt-2 text-center">
-            {!isTelegramWebApp ? (
-              <span className="text-amber-600">⚠️ Best experience in Telegram app</span>
-            ) : (
-              <>Send payment to: <span className="font-mono break-all">{tonWalletAddress}</span></>
-            )}
+            <>Send payment to: <span className="font-mono break-all">{tonWalletAddress}</span></>
           </div>
         </DialogContent>
       </Dialog>
