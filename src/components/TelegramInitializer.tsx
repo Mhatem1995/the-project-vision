@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,17 +42,24 @@ const TelegramInitializer = () => {
 
   useEffect(() => {
     async function init() {
-      console.log("TelegramInitializer: Starting initialization with forced wallet reset");
+      console.log("TelegramInitializer: Starting initialization");
       
-      // FORCE CLEAR ALL WALLET AND BALANCE DATA but keep user ID
-      const existingUserId = localStorage.getItem("telegramUserId");
-      const existingUserName = localStorage.getItem("telegramUserName");
-      
+      // FORCE CLEAR ALL WALLET DATA - no exceptions
+      console.log("=== FORCE CLEARING ALL WALLET AND CONNECTION DATA ===");
       localStorage.removeItem("kfcBalance");
       localStorage.removeItem("tonWalletAddress");
       localStorage.removeItem("lastMiningTime");
       
-      console.log("Cleared wallet and balance data, preserved user ID:", existingUserId);
+      // Also clear any TonConnect stored data
+      const tonConnectKeys = Object.keys(localStorage).filter(key => 
+        key.includes('ton-connect') || key.includes('tonconnect')
+      );
+      tonConnectKeys.forEach(key => {
+        console.log("Clearing TonConnect key:", key);
+        localStorage.removeItem(key);
+      });
+      
+      console.log("=== ALL WALLET DATA CLEARED ===");
       
       // Telegram WebApp detection
       const hasTelegramObject = typeof window !== 'undefined' && 
@@ -112,8 +120,8 @@ const TelegramInitializer = () => {
         }
       }
 
-      let telegramUserId = existingUserId;
-      let telegramUserName = existingUserName;
+      let telegramUserId = null;
+      let telegramUserName = null;
       let firstName = null;
       let lastName = null;
       let languageCode = null;
@@ -160,23 +168,22 @@ const TelegramInitializer = () => {
           localStorage.setItem("referrer", referrerId);
         }
 
-        // Now ensure user exists in Supabase with REAL Telegram ID
+        // Create user in database with NO wallet connection
         try {
-          console.log("=== CREATING/UPDATING USER IN DATABASE ===");
+          console.log("=== CREATING USER IN DATABASE WITH NO WALLET ===");
           console.log("Telegram ID:", telegramUserId);
           
-          // Always insert/update user to ensure fresh data
           const { data: insertResult, error: insertError } = await supabase
             .from("users")
             .upsert({
-              id: telegramUserId, // Use actual Telegram ID as primary key
+              id: telegramUserId,
               username: telegramUserName,
               firstname: firstName,
               lastname: lastName,
               languagecode: languageCode,
               last_seen_at: new Date().toISOString(),
-              balance: 0, // Start with 0 balance
-              links: null // FORCE wallet to be null until connected
+              balance: 0,
+              links: null // EXPLICITLY set wallet to null
             }, {
               onConflict: 'id'
             });
@@ -184,27 +191,14 @@ const TelegramInitializer = () => {
           if (insertError) {
             console.error("Error creating/updating user:", insertError);
           } else {
-            console.log("Successfully created/updated user with forced null wallet:", insertResult);
-          }
-          
-          // Verify user was created
-          const { data: verifyUser, error: verifyError } = await supabase
-            .from("users")
-            .select("*")
-            .eq("id", telegramUserId)
-            .single();
-            
-          if (verifyError) {
-            console.error("Error verifying user creation:", verifyError);
-          } else {
-            console.log("User verified in database:", verifyUser);
+            console.log("Successfully created user with NO wallet:", insertResult);
           }
           
         } catch (err) {
           console.error("Database error:", err);
         }
       } else {
-        console.warn("No Telegram user ID found - user will not be stored in database");
+        console.warn("No Telegram user ID found");
       }
 
       // Initialize Telegram WebApp if available

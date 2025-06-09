@@ -85,11 +85,11 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
     
-    // CLEAR any existing wallet state on initialization
+    // FORCE CLEAR all existing wallet state
     localStorage.removeItem("tonWalletAddress");
     setWalletAddress(null);
     setIsConnected(false);
-    console.log("TonConnect: Cleared existing wallet state");
+    console.log("TonConnect: Forcefully cleared all wallet state");
     
     // Options for TonConnectUI with our custom manifest URL
     const options = {
@@ -100,6 +100,9 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
 
     console.log("TonConnect options:", options);
     const connector = new TonConnectUI(options);
+    
+    // FORCE DISCONNECT any existing connection
+    connector.disconnect().catch(console.error);
     
     // Make TonConnect instance globally available
     window._tonConnectUI = connector;
@@ -196,8 +199,8 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       }
     });
 
-    // DO NOT check for existing session on load - force fresh connection
-    console.log("TonConnect initialized - forcing fresh connection state");
+    // DO NOT check for existing session - start completely fresh
+    console.log("TonConnect initialized - starting with NO existing connections");
 
     return () => {
       unsubscribe();
@@ -213,7 +216,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   // Connect function that opens the wallet modal
   const connect = () => {
     if (tonConnectUI) {
-      console.log("Opening TON Connect modal...");
+      console.log("User clicked connect - opening TON Connect modal...");
       tonConnectUI.openModal();
     } else {
       console.error("TonConnect UI not initialized");
