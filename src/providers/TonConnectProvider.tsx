@@ -129,12 +129,55 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         console.log("Current telegram user ID:", userId);
         
         if (userId) {
-          console.log("Saving wallet connection for user:", userId, "address:", address);
+          console.log("=== SAVING WALLET CONNECTION TO DATABASE ===");
+          console.log("User ID:", userId);
+          console.log("Wallet Address:", address);
           
-          // Save to the wallets table using database-helper
+          // First, save to wallets table using direct Supabase query
           try {
-            console.log("Calling database-helper to save wallet connection");
-            const { data, error } = await supabase.functions.invoke('database-helper', {
+            console.log("Step 1: Inserting into wallets table directly");
+            const { data: walletData, error: walletError } = await supabase
+              .from("wallets")
+              .upsert({
+                telegram_id: userId,
+                wallet_address: address
+              }, {
+                onConflict: 'telegram_id,wallet_address',
+                ignoreDuplicates: false
+              })
+              .select();
+
+            if (walletError) {
+              console.error("Error saving to wallets table:", walletError);
+            } else {
+              console.log("Successfully saved wallet connection:", walletData);
+            }
+          } catch (err) {
+            console.error("Database error saving wallet:", err);
+          }
+          
+          // Also update users table with wallet address
+          try {
+            console.log("Step 2: Updating users table with wallet address");
+            const { data: userData, error: userError } = await supabase
+              .from("users")
+              .update({ links: address })
+              .eq("id", userId)
+              .select();
+              
+            if (userError) {
+              console.error("Error updating user wallet in users table:", userError);
+            } else {
+              console.log("Successfully updated wallet address in users table:", userData);
+            }
+          } catch (err) {
+            console.error("Error updating user wallet in users table:", err);
+          }
+          
+          // Also try the database helper function as backup
+          try {
+            console.log("Step 3: Using database-helper function as backup");
+            const { data: helperData, error: helperError } = await supabase.functions.invoke('database-helper', {
               body: {
                 action: 'save_wallet_connection',
                 params: {
@@ -144,40 +187,15 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
               }
             });
             
-            if (error) {
-              console.error("Error storing wallet connection:", error);
-              toast({
-                title: "Warning",
-                description: "Connected wallet but failed to save connection: " + error.message,
-                variant: "default"
-              });
+            if (helperError) {
+              console.error("Database helper error:", helperError);
             } else {
-              console.log("Successfully stored wallet connection:", data);
+              console.log("Database helper success:", helperData);
             }
           } catch (err) {
-            console.error("Error calling save_wallet_connection RPC:", err);
-            toast({
-              title: "Warning",
-              description: "Connected wallet but failed to save connection",
-              variant: "default"
-            });
+            console.error("Error calling database helper:", err);
           }
           
-          // Save to users table (for backward compatibility)
-          try {
-            console.log("Updating user record with wallet address");
-            const { error: userError } = await supabase.from("users")
-              .update({ links: address })
-              .eq("id", userId);
-              
-            if (userError) {
-              console.error("Error updating user wallet in users table:", userError);
-            } else {
-              console.log("Successfully updated wallet address in users table");
-            }
-          } catch (err) {
-            console.error("Error updating user wallet in users table:", err);
-          }
         } else {
           console.warn("No telegram user ID found in local storage");
           toast({

@@ -170,28 +170,61 @@ const TelegramInitializer = () => {
 
         // Create user in database with NO wallet connection
         try {
-          console.log("=== CREATING USER IN DATABASE WITH NO WALLET ===");
+          console.log("=== CREATING/UPDATING USER IN DATABASE ===");
           console.log("Telegram ID:", telegramUserId);
           
+          // First check if user exists
+          const { data: existingUser, error: fetchError } = await supabase
+            .from("users")
+            .select("id, balance, links")
+            .eq("id", telegramUserId)
+            .maybeSingle();
+            
+          if (fetchError) {
+            console.error("Error checking existing user:", fetchError);
+          }
+          
+          console.log("Existing user data:", existingUser);
+          
+          // Prepare user data
+          const userData = {
+            id: telegramUserId,
+            username: telegramUserName,
+            firstname: firstName,
+            lastname: lastName,
+            languagecode: languageCode,
+            last_seen_at: new Date().toISOString(),
+            balance: existingUser?.balance || 0, // Keep existing balance if user exists
+            links: null // EXPLICITLY clear wallet connection
+          };
+          
+          console.log("User data to save:", userData);
+
           const { data: insertResult, error: insertError } = await supabase
             .from("users")
-            .upsert({
-              id: telegramUserId,
-              username: telegramUserName,
-              firstname: firstName,
-              lastname: lastName,
-              languagecode: languageCode,
-              last_seen_at: new Date().toISOString(),
-              balance: 0,
-              links: null // EXPLICITLY set wallet to null
-            }, {
-              onConflict: 'id'
-            });
+            .upsert(userData, {
+              onConflict: 'id',
+              ignoreDuplicates: false
+            })
+            .select();
 
           if (insertError) {
             console.error("Error creating/updating user:", insertError);
           } else {
-            console.log("Successfully created user with NO wallet:", insertResult);
+            console.log("Successfully created/updated user:", insertResult);
+            
+            // Verify the user was saved
+            const { data: verifyUser, error: verifyError } = await supabase
+              .from("users")
+              .select("*")
+              .eq("id", telegramUserId)
+              .single();
+              
+            if (verifyError) {
+              console.error("Error verifying user creation:", verifyError);
+            } else {
+              console.log("User verification successful:", verifyUser);
+            }
           }
           
         } catch (err) {
