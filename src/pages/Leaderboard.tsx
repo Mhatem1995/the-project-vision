@@ -15,91 +15,143 @@ const Leaderboard = () => {
   const { data: users, isLoading, error } = useQuery({
     queryKey: ["leaderboard"],
     queryFn: async () => {
-      console.log("=== LEADERBOARD QUERY ===");
+      console.log("Fetching leaderboard data...");
       
-      try {
-        const { data: allUsers, error: allUsersError } = await supabase
-          .from("users")
-          .select("id, username, firstname, lastname, balance")
-          .not("balance", "is", null)
-          .gte("balance", 0)
-          .order("balance", { ascending: false })
-          .limit(50);
-        
-        console.log("Database query result:", { allUsers, allUsersError });
-        
-        if (allUsersError) {
-          console.error("Database error:", allUsersError);
-          throw allUsersError;
-        }
-
-        if (!allUsers || allUsers.length === 0) {
-          console.log("No users found with balance data");
-          return [];
-        }
-
-        const leaderboardUsers = allUsers.map((user) => ({
-          id: user.id,
-          username: user.username,
-          firstname: user.firstname,
-          lastname: user.lastname,
-          balance: Number(user.balance) || 0,
-        }));
-
-        console.log("Final leaderboard data:", leaderboardUsers);
-        return leaderboardUsers;
-        
-      } catch (err) {
-        console.error("Query error:", err);
-        throw err;
+      // First try to get users with balance from database
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("id, username, firstname, balance")
+        .order("balance", { ascending: false })
+        .limit(50);
+      
+      if (userError) {
+        console.error("Error fetching users:", userError);
+        throw userError;
       }
+      
+      console.log("User data retrieved:", userData?.length || 0, "users");
+      
+      // Create a map for wallet connections
+      const walletMap = new Map();
+      
+      // Try to get wallet connections from database helper
+      try {
+        console.log("Getting wallet connections from database helper");
+        const { data: connections, error: connectionsError } = await supabase.functions.invoke('database-helper', {
+          body: {
+            action: 'get_wallet_connections'
+          }
+        });
+        
+        if (connectionsError) {
+          console.error("Error fetching wallet connections:", connectionsError);
+        } else if (connections?.success && Array.isArray(connections.connections)) {
+          console.log("Wallet connections retrieved:", connections.connections.length);
+          connections.connections.forEach((item: any) => {
+            if (item && item.telegram_id && item.wallet_address) {
+              walletMap.set(item.telegram_id, item.wallet_address);
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Error calling get_wallet_connections:", err);
+      }
+      
+      // Fallback: Try to get wallet connections directly from the wallets table
+      if (walletMap.size === 0) {
+        try {
+          console.log("Fallback: Getting wallet connections directly from wallets table");
+          const { data: walletsData, error: walletsError } = await supabase
+            .from("wallets")
+            .select("telegram_id, wallet_address");
+            
+          if (walletsError) {
+            console.error("Error fetching wallets directly:", walletsError);
+          } else if (walletsData && Array.isArray(walletsData)) {
+            console.log("Wallet connections from wallets table:", walletsData.length);
+            walletsData.forEach((item: any) => {
+              if (item && item.telegram_id && item.wallet_address) {
+                walletMap.set(item.telegram_id, item.wallet_address);
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Error fetching wallet connections:", err);
+        }
+      }
+      
+      console.log("Total wallet connections found:", walletMap.size);
+      
+      // Also check users table for wallet addresses (for backward compatibility)
+      try {
+        console.log("Getting wallet connections from users.links field");
+        const { data: usersWithLinks } = await supabase
+          .from("users")
+          .select("id, links")
+          .not("links", "is", null);
+          
+        if (usersWithLinks && Array.isArray(usersWithLinks)) {
+          console.log("Users with wallet in links field:", usersWithLinks.length);
+          usersWithLinks.forEach((user: any) => {
+            if (user.id && user.links && !walletMap.has(user.id)) {
+              walletMap.set(user.id, user.links);
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching users with links:", err);
+      }
+      
+      // Enhance user data with wallet info
+      const enhancedUsers = userData && Array.isArray(userData) ? userData.map(user => {
+        const hasWallet = walletMap.has(user.id);
+        console.log(`User ${user.id}: has wallet = ${hasWallet}, balance = ${user.balance}`);
+        return {
+          ...user,
+          // Check if wallet is connected based on wallet map
+          walletConnected: hasWallet
+        };
+      }) : [];
+      
+      console.log("Final leaderboard data:", enhancedUsers.length, "users");
+      return enhancedUsers;
     },
     refetchInterval: 30000, // Refresh every 30 seconds
-    retry: 1,
   });
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <p className="mt-4 text-muted-foreground">Loading leaderboard...</p>
       </div>
     );
   }
 
   if (error) {
+    console.error("Error loading leaderboard data:", error);
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <div className="text-destructive mb-4">Database Error</div>
-        <div className="text-sm text-muted-foreground mb-4 max-w-md text-center">
-          <div className="font-mono text-xs bg-gray-100 p-2 rounded mb-2">
-            {error.message || "Failed to fetch leaderboard data"}
-          </div>
-        </div>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-        >
-          Retry
-        </button>
+        <div className="text-destructive">Error loading leaderboard data</div>
       </div>
     );
   }
+
+  // Check if we have any users to display
+  const hasUsers = users && users.length > 0;
+  console.log("Rendering leaderboard with", hasUsers ? users.length : 0, "users");
 
   return (
     <div className="flex flex-col space-y-6">
       <div className="text-center">
         <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
-        <p className="text-muted-foreground">Top Knife Coin holders</p>
+        <p className="text-muted-foreground">Top KFC holders</p>
       </div>
 
-      {!users || users.length === 0 ? (
+      {!hasUsers ? (
         <div className="text-center p-8 rounded-lg border border-dashed">
           <User className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium">No miners found</h3>
-          <p className="text-muted-foreground">
-            Start mining to appear on the leaderboard!
-          </p>
+          <h3 className="text-lg font-medium">No miners yet</h3>
+          <p className="text-muted-foreground">Be the first to connect your wallet and mine KFC!</p>
         </div>
       ) : (
         <div className="rounded-md border">
@@ -107,32 +159,34 @@ const Leaderboard = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12 text-center">Rank</TableHead>
-                <TableHead>Miner</TableHead>
-                <TableHead className="text-right">Knife Coin Balance</TableHead>
+                <TableHead>Username</TableHead>
+                <TableHead className="text-right">KFC Balance</TableHead>
+                <TableHead className="text-center w-20">Wallet</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {users.map((user, index) => (
-                <TableRow key={user.id}>
+                <TableRow key={index}>
                   <TableCell className="text-center font-medium">
-                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">
-                      {index + 1}
-                    </span>
+                    {index + 1}
                   </TableCell>
-                  <TableCell className="font-medium">
-                    {user.username || user.firstname || user.lastname || `Miner #${user.id.toString().slice(0, 8)}`}
+                  <TableCell>
+                    {user.username || user.firstname || "Anonymous"}
                   </TableCell>
-                  <TableCell className="text-right font-bold text-lg">
-                    {user.balance.toLocaleString()} KC
+                  <TableCell className="text-right font-medium">
+                    {user.balance ? user.balance.toLocaleString() : "0"} KFC
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {user.walletConnected ? (
+                      <span className="inline-flex h-2 w-2 bg-green-500 rounded-full" title="Wallet connected"></span>
+                    ) : (
+                      <span className="inline-flex h-2 w-2 bg-gray-300 rounded-full" title="No wallet connected"></span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          
-          <div className="p-4 text-center text-sm text-muted-foreground border-t">
-            Showing {users.length} miners • Updates every 30 seconds
-          </div>
         </div>
       )}
     </div>
