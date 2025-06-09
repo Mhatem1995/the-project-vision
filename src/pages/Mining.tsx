@@ -96,37 +96,40 @@ const Mining = () => {
             timeRemaining={timeRemaining}
           />
 
-          {!isConnected ? (
+          {/* Wallet connection section and mining button - positioned right after mining progress */}
+          <div className="w-full max-w-md space-y-4">
+            {!isConnected ? (
+              <Button 
+                variant="default" 
+                onClick={handleConnectWallet}
+                disabled={isConnecting}
+                className="w-full"
+              >
+                <Wallet className="mr-2 h-4 w-4" />
+                {isConnecting ? 'Connecting...' : 'Connect TON Wallet'}
+              </Button>
+            ) : (
+              <div className="bg-card p-4 rounded-lg border border-border">
+                <p className="text-sm text-muted-foreground mb-1">Connected Wallet:</p>
+                <p className="text-xs font-mono break-all">{formatWalletAddress(walletAddress || "")}</p>
+              </div>
+            )}
+            
             <Button 
-              variant="default" 
-              onClick={handleConnectWallet}
-              disabled={isConnecting}
-              className="w-full max-w-md"
+              className="w-full" 
+              size="lg"
+              disabled={(timeRemaining !== null && timeRemaining > 0) || !canMine}
+              onClick={handleCollect}
             >
-              <Wallet className="mr-2 h-4 w-4" />
-              {isConnecting ? 'Connecting...' : 'Connect TON Wallet'}
+              {!canMine 
+                ? 'Connect wallet to mine Knife Coin' 
+                : (timeRemaining !== null && timeRemaining > 0) 
+                  ? 'Mining in progress...' 
+                  : 'Collect Knife Coin'}
             </Button>
-          ) : (
-            <div className="w-full max-w-md bg-card p-4 rounded-lg border border-border">
-              <p className="text-sm text-muted-foreground mb-1">Connected Wallet:</p>
-              <p className="text-xs font-mono break-all">{formatWalletAddress(walletAddress || "")}</p>
-            </div>
-          )}
+          </div>
           
           <FortuneWheel />
-
-          <Button 
-            className="w-full max-w-md" 
-            size="lg"
-            disabled={(timeRemaining !== null && timeRemaining > 0) || !canMine}
-            onClick={handleCollect}
-          >
-            {!canMine 
-              ? 'Connect wallet to mine Knife Coin' 
-              : (timeRemaining !== null && timeRemaining > 0) 
-                ? 'Mining in progress...' 
-                : 'Collect Knife Coin'}
-          </Button>
 
           <BoostPurchaseDialog 
             open={boostDialogOpen} 
