@@ -37,7 +37,12 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
   const [pendingBoost, setPendingBoost] = useState<any>(null);
   const [verifyDialog, setVerifyDialog] = useState(false);
   const { toast } = useToast();
-  const { isConnected, isTelegramWebApp } = useTonConnect();
+  const { isConnected } = useTonConnect();
+
+  // Simplified Telegram detection - check localStorage and user agent
+  const isTelegramWebApp = localStorage.getItem("inTelegramWebApp") === "true" || 
+                           navigator.userAgent.includes('Telegram') ||
+                           process.env.NODE_ENV === "development";
 
   const handlePurchase = async (option: BoostOption) => {
     // Get Telegram user ID - same as TON payment tasks
@@ -65,14 +70,9 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       return;
     }
 
-    // Check if we're in Telegram WebApp environment
+    // Check if we're in Telegram WebApp environment (more lenient check)
     if (!isTelegramWebApp) {
-      toast({
-        title: "Telegram Required",
-        description: "Please open this app in Telegram to make payments.",
-        variant: "destructive"
-      });
-      return;
+      console.warn("Not detected as Telegram WebApp, but proceeding anyway");
     }
 
     try {
@@ -175,7 +175,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
                 </div>
                 <Button 
                   onClick={() => handlePurchase(option)}
-                  disabled={!isConnected || !isTelegramWebApp}
+                  disabled={!isConnected}
                 >
                   Pay {option.price} TON
                 </Button>
@@ -184,7 +184,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
           </div>
           <div className="text-xs text-muted-foreground mt-2 text-center">
             {!isTelegramWebApp ? (
-              <span className="text-amber-600">⚠️ Open in Telegram to make payments</span>
+              <span className="text-amber-600">⚠️ Best experience in Telegram app</span>
             ) : (
               <>Send payment to: <span className="font-mono break-all">{tonWalletAddress}</span></>
             )}

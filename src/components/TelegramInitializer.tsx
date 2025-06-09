@@ -44,55 +44,66 @@ const TelegramInitializer = () => {
     async function init() {
       console.log("TelegramInitializer: Starting initialization");
       
-      // More comprehensive Telegram WebApp detection
+      // More aggressive Telegram WebApp detection for mobile
       const hasTelegramObject = typeof window !== 'undefined' && 
                                window.Telegram && 
                                window.Telegram.WebApp;
       
-      console.log("Telegram detection details:", {
+      // Check user agent for Telegram
+      const isTelegramUserAgent = navigator.userAgent.includes('Telegram') || 
+                                  navigator.userAgent.includes('TelegramBot');
+      
+      // Check if we're in an iframe (common for Telegram WebApps)
+      const isInIframe = window !== window.top;
+      
+      // Check for Telegram-specific URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasTelegramParams = urlParams.has('tgWebAppStartParam') || 
+                               urlParams.has('tgWebAppData') ||
+                               window.location.hash.includes('tgWebAppStartParam');
+      
+      console.log("Enhanced Telegram detection:", {
         hasTelegramObject,
-        hasInitData: hasTelegramObject && window.Telegram.WebApp.initData,
-        initDataLength: hasTelegramObject ? window.Telegram.WebApp.initData?.length : 0,
+        isTelegramUserAgent,
+        isInIframe,
+        hasTelegramParams,
+        userAgent: navigator.userAgent,
         platform: hasTelegramObject ? window.Telegram.WebApp.platform : 'none',
-        version: hasTelegramObject ? window.Telegram.WebApp.version : 'none',
-        userAgent: navigator.userAgent
+        hasInitData: hasTelegramObject && window.Telegram.WebApp.initData?.length > 0
       });
       
-      // Enhanced detection - check for Telegram in user agent as fallback
-      const isTelegramUserAgent = navigator.userAgent.includes('Telegram');
-      
+      // More permissive detection - if any Telegram indicator is present, assume we're in Telegram
       const isTelegramWebApp = Boolean(
         hasTelegramObject && (
-          // Primary check: has initData
+          // Primary indicators
           (window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 0) ||
-          // Fallback: check for Telegram in user agent and has Telegram object
-          isTelegramUserAgent
+          // Secondary indicators for mobile
+          isTelegramUserAgent ||
+          isInIframe ||
+          hasTelegramParams ||
+          // Development mode
+          process.env.NODE_ENV === "development"
         )
       );
       
-      console.log("Final Telegram WebApp detection:", {
-        isTelegramWebApp,
-        isTelegramUserAgent,
-        finalResult: isTelegramWebApp
-      });
+      console.log("Final Telegram WebApp detection result:", isTelegramWebApp);
       
-      if (isTelegramWebApp) {
-        console.log("Running inside Telegram WebApp environment");
+      // Always set to true if we have ANY Telegram indicators
+      if (isTelegramWebApp || isTelegramUserAgent) {
+        console.log("Detected Telegram environment - setting flag to true");
         localStorage.setItem("inTelegramWebApp", "true");
         
-        // Log platform info for debugging
-        if (window.Telegram.WebApp.platform) {
-          console.log("Telegram platform:", window.Telegram.WebApp.platform);
-          localStorage.setItem("telegramPlatform", window.Telegram.WebApp.platform);
-        }
-        
-        // Store version info
-        if (window.Telegram.WebApp.version) {
-          console.log("Telegram WebApp version:", window.Telegram.WebApp.version);
-          localStorage.setItem("telegramVersion", window.Telegram.WebApp.version);
+        // Store additional platform info
+        if (hasTelegramObject) {
+          if (window.Telegram.WebApp.platform) {
+            localStorage.setItem("telegramPlatform", window.Telegram.WebApp.platform);
+          }
+          if (window.Telegram.WebApp.version) {
+            localStorage.setItem("telegramVersion", window.Telegram.WebApp.version);
+          }
         }
       } else {
-        console.log("Not running inside Telegram WebApp environment");
+        console.log("No Telegram environment detected");
         localStorage.setItem("inTelegramWebApp", "false");
         
         // Force true in development for testing
@@ -113,12 +124,12 @@ const TelegramInitializer = () => {
         telegramUserName = username || first_name;
         console.log("Telegram user detected:", { id, first_name, last_name, username });
       } else {
-        console.log("No Telegram user data found");
-        // For development only - use a test user ID
-        if (process.env.NODE_ENV === "development") {
+        console.log("No Telegram user data found - checking for fallback");
+        // For development or mobile environments without proper initData
+        if (process.env.NODE_ENV === "development" || isTelegramUserAgent) {
           telegramUserId = "00000000-0000-0000-0000-000000000000";
-          telegramUserName = "DevUser";
-          console.log("Using development fallback user");
+          telegramUserName = "MobileUser";
+          console.log("Using fallback user for mobile/development");
         }
       }
 
