@@ -15,20 +15,29 @@ const Leaderboard = () => {
   const { data: users, isLoading, error } = useQuery({
     queryKey: ["leaderboard"],
     queryFn: async () => {
-      console.log("Fetching leaderboard data...");
+      console.log("Fetching leaderboard data from users table...");
       
-      // Fetch all users with their balances, filtering for positive balances
+      // First, let's see what's in the users table
+      const { data: allUsers, error: allUsersError } = await supabase
+        .from("users")
+        .select("*");
+      
+      console.log("All users in database:", allUsers);
+      console.log("Users table query error:", allUsersError);
+      
+      // Fetch users with positive balances
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("id, username, firstname, lastname, balance")
-        .gte("balance", 0.01) // Only users with at least 0.01 coins
+        .not("balance", "is", null)
+        .gt("balance", 0)
         .order("balance", { ascending: false })
-        .limit(100);
+        .limit(50);
       
-      console.log("Database query result:", { userData, userError });
+      console.log("Leaderboard query result:", { userData, userError });
       
       if (userError) {
-        console.error("Error fetching users:", userError);
+        console.error("Error fetching leaderboard users:", userError);
         throw userError;
       }
       
@@ -38,9 +47,6 @@ const Leaderboard = () => {
       }
       
       console.log(`Found ${userData.length} users with positive balances`);
-      userData.forEach((user, index) => {
-        console.log(`User ${index + 1}: ID=${user.id}, Username=${user.username || user.firstname || 'Anonymous'}, Balance=${user.balance}`);
-      });
       
       // Transform the data for display
       const leaderboardUsers = userData.map((user) => ({
@@ -54,12 +60,16 @@ const Leaderboard = () => {
       console.log("Final leaderboard users:", leaderboardUsers);
       return leaderboardUsers;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
-    retry: 3,
-    retryDelay: 1000,
+    refetchInterval: 10000, // Refresh every 10 seconds
+    retry: 1,
   });
 
-  console.log("Leaderboard render state:", { users, isLoading, error, usersCount: users?.length });
+  console.log("Leaderboard component state:", { 
+    users, 
+    isLoading, 
+    error, 
+    usersCount: users?.length 
+  });
 
   if (isLoading) {
     return (
@@ -88,9 +98,8 @@ const Leaderboard = () => {
     );
   }
 
-  // Check if we have any users to display
-  const hasUsers = users && users.length > 0;
-  console.log("Has users to display:", hasUsers, "Total users:", users?.length);
+  // Debug: Show raw data
+  console.log("About to render users:", users);
 
   return (
     <div className="flex flex-col space-y-6">
@@ -99,7 +108,12 @@ const Leaderboard = () => {
         <p className="text-muted-foreground">Top Knife Coin holders</p>
       </div>
 
-      {!hasUsers ? (
+      {/* Debug info */}
+      <div className="text-xs text-gray-500 p-2 bg-gray-100 rounded">
+        Debug: Found {users?.length || 0} users
+      </div>
+
+      {!users || users.length === 0 ? (
         <div className="text-center p-8 rounded-lg border border-dashed">
           <User className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-medium">No miners yet</h3>
@@ -124,7 +138,7 @@ const Leaderboard = () => {
                     </span>
                   </TableCell>
                   <TableCell className="font-medium">
-                    {user.username || user.firstname || user.lastname || `Miner #${user.id.slice(0, 8)}`}
+                    {user.username || user.firstname || user.lastname || `Miner #${user.id.toString().slice(0, 8)}`}
                   </TableCell>
                   <TableCell className="text-right font-bold text-lg">
                     {user.balance.toLocaleString()} KC
@@ -135,7 +149,7 @@ const Leaderboard = () => {
           </Table>
           
           <div className="p-4 text-center text-sm text-muted-foreground border-t">
-            Showing {users.length} miners • Updates every 30 seconds
+            Showing {users.length} miners • Updates every 10 seconds
           </div>
         </div>
       )}
