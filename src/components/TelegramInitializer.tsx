@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,22 +43,11 @@ const TelegramInitializer = () => {
     async function init() {
       console.log("TelegramInitializer: Starting initialization");
       
-      // FORCE CLEAR ALL WALLET DATA - no exceptions
-      console.log("=== FORCE CLEARING ALL WALLET AND CONNECTION DATA ===");
+      // Only clear mining-related data, keep wallet if it exists
+      console.log("=== CLEARING MINING DATA ONLY ===");
       localStorage.removeItem("kfcBalance");
-      localStorage.removeItem("tonWalletAddress");
       localStorage.removeItem("lastMiningTime");
-      
-      // Also clear any TonConnect stored data
-      const tonConnectKeys = Object.keys(localStorage).filter(key => 
-        key.includes('ton-connect') || key.includes('tonconnect')
-      );
-      tonConnectKeys.forEach(key => {
-        console.log("Clearing TonConnect key:", key);
-        localStorage.removeItem(key);
-      });
-      
-      console.log("=== ALL WALLET DATA CLEARED ===");
+      console.log("=== MINING DATA CLEARED ===");
       
       // Telegram WebApp detection
       const hasTelegramObject = typeof window !== 'undefined' && 
@@ -168,12 +156,12 @@ const TelegramInitializer = () => {
           localStorage.setItem("referrer", referrerId);
         }
 
-        // Create user in database with NO wallet connection
+        // Create/update user in database
         try {
           console.log("=== CREATING/UPDATING USER IN DATABASE ===");
           console.log("Telegram ID:", telegramUserId);
           
-          // First check if user exists
+          // Check if user exists
           const { data: existingUser, error: fetchError } = await supabase
             .from("users")
             .select("id, balance, links")
@@ -186,7 +174,7 @@ const TelegramInitializer = () => {
           
           console.log("Existing user data:", existingUser);
           
-          // Prepare user data
+          // Prepare user data - keep existing wallet connection if it exists
           const userData = {
             id: telegramUserId,
             username: telegramUserName,
@@ -194,8 +182,8 @@ const TelegramInitializer = () => {
             lastname: lastName,
             languagecode: languageCode,
             last_seen_at: new Date().toISOString(),
-            balance: existingUser?.balance || 0, // Keep existing balance if user exists
-            links: null // EXPLICITLY clear wallet connection
+            balance: existingUser?.balance || 0,
+            links: existingUser?.links || null // Keep existing wallet connection
           };
           
           console.log("User data to save:", userData);
@@ -212,19 +200,6 @@ const TelegramInitializer = () => {
             console.error("Error creating/updating user:", insertError);
           } else {
             console.log("Successfully created/updated user:", insertResult);
-            
-            // Verify the user was saved
-            const { data: verifyUser, error: verifyError } = await supabase
-              .from("users")
-              .select("*")
-              .eq("id", telegramUserId)
-              .single();
-              
-            if (verifyError) {
-              console.error("Error verifying user creation:", verifyError);
-            } else {
-              console.log("User verification successful:", verifyUser);
-            }
           }
           
         } catch (err) {
