@@ -17,48 +17,49 @@ const Leaderboard = () => {
     queryFn: async () => {
       console.log("Fetching leaderboard data...");
       
-      // Simplified query to get users with positive balances
+      // Fetch all users with their balances, filtering for positive balances
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("id, username, firstname, lastname, balance")
-        .not("balance", "is", null)
-        .gt("balance", 0)
+        .gte("balance", 0.01) // Only users with at least 0.01 coins
         .order("balance", { ascending: false })
         .limit(100);
+      
+      console.log("Database query result:", { userData, userError });
       
       if (userError) {
         console.error("Error fetching users:", userError);
         throw userError;
       }
       
-      console.log("Raw user data from database:", userData);
-      console.log("Number of users with positive balance:", userData?.length || 0);
-      
       if (!userData || userData.length === 0) {
         console.log("No users found with positive balance");
         return [];
       }
       
-      // Simple transformation to ensure we have the data we need
-      const leaderboardUsers = userData.map((user, index) => {
-        console.log(`User ${index + 1}: ${user.username || user.firstname || 'Anonymous'} - Balance: ${user.balance}`);
-        return {
-          id: user.id,
-          username: user.username,
-          firstname: user.firstname,
-          lastname: user.lastname,
-          balance: Number(user.balance) || 0,
-          walletConnected: false // We'll update this separately if needed
-        };
+      console.log(`Found ${userData.length} users with positive balances`);
+      userData.forEach((user, index) => {
+        console.log(`User ${index + 1}: ID=${user.id}, Username=${user.username || user.firstname || 'Anonymous'}, Balance=${user.balance}`);
       });
+      
+      // Transform the data for display
+      const leaderboardUsers = userData.map((user) => ({
+        id: user.id,
+        username: user.username,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        balance: Number(user.balance) || 0,
+      }));
       
       console.log("Final leaderboard users:", leaderboardUsers);
       return leaderboardUsers;
     },
     refetchInterval: 30000, // Refresh every 30 seconds
+    retry: 3,
+    retryDelay: 1000,
   });
 
-  console.log("Leaderboard render - users:", users, "isLoading:", isLoading, "error:", error);
+  console.log("Leaderboard render state:", { users, isLoading, error, usersCount: users?.length });
 
   if (isLoading) {
     return (
@@ -70,14 +71,16 @@ const Leaderboard = () => {
   }
 
   if (error) {
-    console.error("Error loading leaderboard data:", error);
+    console.error("Leaderboard error:", error);
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <div className="text-destructive mb-4">Error loading leaderboard data</div>
-        <div className="text-sm text-muted-foreground">{error.message}</div>
+        <div className="text-destructive mb-4">Error loading leaderboard</div>
+        <div className="text-sm text-muted-foreground mb-4">
+          {error.message || "Failed to fetch leaderboard data"}
+        </div>
         <button 
           onClick={() => window.location.reload()} 
-          className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
         >
           Retry
         </button>
@@ -87,7 +90,7 @@ const Leaderboard = () => {
 
   // Check if we have any users to display
   const hasUsers = users && users.length > 0;
-  console.log("Has users to display:", hasUsers, "Users count:", users?.length);
+  console.log("Has users to display:", hasUsers, "Total users:", users?.length);
 
   return (
     <div className="flex flex-col space-y-6">
@@ -108,20 +111,20 @@ const Leaderboard = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12 text-center">Rank</TableHead>
-                <TableHead>Username</TableHead>
+                <TableHead>Miner</TableHead>
                 <TableHead className="text-right">Knife Coin Balance</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {users.map((user, index) => (
-                <TableRow key={user.id || index}>
+                <TableRow key={user.id}>
                   <TableCell className="text-center font-medium">
                     <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">
                       {index + 1}
                     </span>
                   </TableCell>
                   <TableCell className="font-medium">
-                    {user.username || user.firstname || user.lastname || "Anonymous"}
+                    {user.username || user.firstname || user.lastname || `Miner #${user.id.slice(0, 8)}`}
                   </TableCell>
                   <TableCell className="text-right font-bold text-lg">
                     {user.balance.toLocaleString()} KC
