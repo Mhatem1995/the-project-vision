@@ -44,25 +44,22 @@ const TelegramInitializer = () => {
     async function init() {
       console.log("TelegramInitializer: Starting initialization");
       
-      // More aggressive Telegram WebApp detection for mobile
+      // Telegram WebApp detection
       const hasTelegramObject = typeof window !== 'undefined' && 
                                window.Telegram && 
                                window.Telegram.WebApp;
       
-      // Check user agent for Telegram
       const isTelegramUserAgent = navigator.userAgent.includes('Telegram') || 
                                   navigator.userAgent.includes('TelegramBot');
       
-      // Check if we're in an iframe (common for Telegram WebApps)
       const isInIframe = window !== window.top;
       
-      // Check for Telegram-specific URL parameters
       const urlParams = new URLSearchParams(window.location.search);
       const hasTelegramParams = urlParams.has('tgWebAppStartParam') || 
                                urlParams.has('tgWebAppData') ||
                                window.location.hash.includes('tgWebAppStartParam');
       
-      console.log("Enhanced Telegram detection:", {
+      console.log("Telegram detection:", {
         hasTelegramObject,
         isTelegramUserAgent,
         isInIframe,
@@ -72,28 +69,22 @@ const TelegramInitializer = () => {
         hasInitData: hasTelegramObject && window.Telegram.WebApp.initData?.length > 0
       });
       
-      // More permissive detection - if any Telegram indicator is present, assume we're in Telegram
       const isTelegramWebApp = Boolean(
         hasTelegramObject && (
-          // Primary indicators
           (window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 0) ||
-          // Secondary indicators for mobile
           isTelegramUserAgent ||
           isInIframe ||
           hasTelegramParams ||
-          // Development mode
           process.env.NODE_ENV === "development"
         )
       );
       
       console.log("Final Telegram WebApp detection result:", isTelegramWebApp);
       
-      // Always set to true if we have ANY Telegram indicators
       if (isTelegramWebApp || isTelegramUserAgent) {
         console.log("Detected Telegram environment - setting flag to true");
         localStorage.setItem("inTelegramWebApp", "true");
         
-        // Store additional platform info
         if (hasTelegramObject) {
           if (window.Telegram.WebApp.platform) {
             localStorage.setItem("telegramPlatform", window.Telegram.WebApp.platform);
@@ -106,7 +97,6 @@ const TelegramInitializer = () => {
         console.log("No Telegram environment detected");
         localStorage.setItem("inTelegramWebApp", "false");
         
-        // Force true in development for testing
         if (process.env.NODE_ENV === "development") {
           console.log("Development mode: forcing Telegram WebApp to true");
           localStorage.setItem("inTelegramWebApp", "true");
@@ -115,22 +105,36 @@ const TelegramInitializer = () => {
 
       let telegramUserId = null;
       let telegramUserName = null;
+      let firstName = null;
+      let lastName = null;
+      let languageCode = null;
 
+      // Get REAL Telegram user data
       if (hasTelegramObject && window.Telegram.WebApp.initDataUnsafe?.user) {
-        const { id, first_name, last_name, username } = window.Telegram.WebApp.initDataUnsafe.user;
+        const user = window.Telegram.WebApp.initDataUnsafe.user;
         
-        // Store as string for compatibility
-        telegramUserId = id.toString();
-        telegramUserName = username || first_name;
-        console.log("Telegram user detected:", { id, first_name, last_name, username });
-      } else {
-        console.log("No Telegram user data found - checking for fallback");
-        // For development or mobile environments without proper initData
-        if (process.env.NODE_ENV === "development" || isTelegramUserAgent) {
-          telegramUserId = "00000000-0000-0000-0000-000000000000";
-          telegramUserName = "MobileUser";
-          console.log("Using fallback user for mobile/development");
-        }
+        // Use the ACTUAL Telegram user ID, not a UUID
+        telegramUserId = user.id.toString();
+        telegramUserName = user.username || user.first_name;
+        firstName = user.first_name || "";
+        lastName = user.last_name || "";
+        languageCode = user.language_code || "";
+        
+        console.log("REAL Telegram user detected:", { 
+          id: telegramUserId, 
+          username: telegramUserName,
+          first_name: firstName,
+          last_name: lastName,
+          language_code: languageCode
+        });
+      } else if (process.env.NODE_ENV === "development") {
+        // For development, use a test Telegram ID (not UUID)
+        telegramUserId = "123456789"; // Real Telegram ID format
+        telegramUserName = "TestUser";
+        firstName = "Test";
+        lastName = "User";
+        languageCode = "en";
+        console.log("Using development test user");
       }
 
       // Save to localStorage if we have a user
@@ -147,8 +151,10 @@ const TelegramInitializer = () => {
           localStorage.setItem("referrer", referrerId);
         }
 
-        // Now ensure user exists in Supabase
+        // Now ensure user exists in Supabase with REAL Telegram ID
         try {
+          console.log("Checking if user exists with Telegram ID:", telegramUserId);
+          
           const { data: existingUser, error: fetchError } = await supabase
             .from("users")
             .select("*")
@@ -160,27 +166,36 @@ const TelegramInitializer = () => {
           }
 
           if (!existingUser) {
-            console.log("Creating new user in database");
-            // Create new user with basic info
-            const { error: insertError } = await supabase.from("users").insert({
-              id: telegramUserId,
-              username: telegramUserName,
-              firstname: window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || "",
-              lastname: window.Telegram?.WebApp?.initDataUnsafe?.user?.last_name || "",
-              languagecode: window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code || "",
-              last_seen_at: new Date().toISOString(),
-              balance: 0
-            });
+            console.log("Creating new user in database with Telegram ID:", telegramUserId);
+            
+            const { data: insertResult, error: insertError } = await supabase
+              .from("users")
+              .insert({
+                id: telegramUserId, // Use actual Telegram ID as primary key
+                username: telegramUserName,
+                firstname: firstName,
+                lastname: lastName,
+                languagecode: languageCode,
+                last_seen_at: new Date().toISOString(),
+                balance: 0
+              });
 
             if (insertError) {
               console.error("Error creating user:", insertError);
+            } else {
+              console.log("Successfully created user:", insertResult);
             }
           } else {
-            console.log("User exists, updating last_seen_at");
-            // Update last_seen_at
+            console.log("User exists, updating last_seen_at for:", telegramUserId);
+            
             const { error: updateError } = await supabase
               .from("users")
-              .update({ last_seen_at: new Date().toISOString() })
+              .update({ 
+                last_seen_at: new Date().toISOString(),
+                username: telegramUserName, // Update username in case it changed
+                firstname: firstName,
+                lastname: lastName
+              })
               .eq("id", telegramUserId);
 
             if (updateError) {
@@ -200,6 +215,8 @@ const TelegramInitializer = () => {
         } catch (err) {
           console.error("Database error:", err);
         }
+      } else {
+        console.warn("No Telegram user ID found - user will not be stored in database");
       }
 
       // Initialize Telegram WebApp if available
