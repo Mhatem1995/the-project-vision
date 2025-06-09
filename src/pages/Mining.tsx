@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, Wallet } from "lucide-react";
+import { Wallet } from "lucide-react";
 import BoostPurchaseDialog from "@/components/BoostPurchaseDialog";
 import BalanceCard from "@/components/mining/BalanceCard";
 import MiningProgress from "@/components/mining/MiningProgress";
@@ -73,16 +73,9 @@ const Mining = () => {
   return (
     <div className="flex flex-col items-center justify-center space-y-8">
       <div className="text-center">
-        <h1 className="text-3xl font-bold mb-2">KFC Mining</h1>
-        <p className="text-muted-foreground">Mine KFC tokens every 8 hours</p>
+        <h1 className="text-3xl font-bold mb-2">Knife Coin Mining</h1>
+        <p className="text-muted-foreground">Mine Knife Coin tokens every 8 hours</p>
       </div>
-      
-      {!isTelegramWebApp && (
-        <div className="bg-amber-100 border-amber-300 border p-4 rounded-md flex items-center w-full max-w-md text-amber-800">
-          <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
-          <p className="text-sm">For best experience, please open this app in Telegram.</p>
-        </div>
-      )}
       
       {isLoading ? (
         <div className="w-full space-y-4">
@@ -92,6 +85,17 @@ const Mining = () => {
         </div>
       ) : (
         <>
+          <BalanceCard
+            balance={balance}
+            activeBoost={activeBoost}
+            onBoostClick={() => setBoostDialogOpen(true)}
+          />
+          
+          <MiningProgress
+            progress={progress}
+            timeRemaining={timeRemaining}
+          />
+
           {!isConnected ? (
             <Button 
               variant="default" 
@@ -108,17 +112,6 @@ const Mining = () => {
               <p className="text-xs font-mono break-all">{formatWalletAddress(walletAddress || "")}</p>
             </div>
           )}
-
-          <BalanceCard
-            balance={balance}
-            activeBoost={activeBoost}
-            onBoostClick={() => setBoostDialogOpen(true)}
-          />
-          
-          <MiningProgress
-            progress={progress}
-            timeRemaining={timeRemaining}
-          />
           
           <FortuneWheel />
 
@@ -129,10 +122,10 @@ const Mining = () => {
             onClick={handleCollect}
           >
             {!canMine 
-              ? 'Connect wallet to mine KFC' 
+              ? 'Connect wallet to mine Knife Coin' 
               : (timeRemaining !== null && timeRemaining > 0) 
                 ? 'Mining in progress...' 
-                : 'Collect KFC'}
+                : 'Collect Knife Coin'}
           </Button>
 
           <BoostPurchaseDialog 

@@ -162,7 +162,7 @@ export const useMining = () => {
     if (!walletAddress) {
       toast({
         title: "Wallet Not Connected",
-        description: "Please connect your TON wallet first to mine KFC.",
+        description: "Please connect your TON wallet first to mine Knife Coin.",
         variant: "destructive" 
       });
       return;
@@ -192,8 +192,8 @@ export const useMining = () => {
     }
     
     toast({
-      title: "KFC Collected!",
-      description: `You earned ${effectiveMiningRate} KFC coins!`,
+      title: "Knife Coin Collected!",
+      description: `You earned ${effectiveMiningRate} Knife Coin tokens!`,
     });
   };
 

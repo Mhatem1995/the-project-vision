@@ -27,7 +27,7 @@ const BalanceCard = ({ balance, activeBoost, onBoostClick }: BalanceCardProps) =
         </TooltipContent>
       </Tooltip>
       <h2 className="text-xl font-semibold mb-2">Your Balance</h2>
-      <p className="text-4xl font-bold">{balance.toFixed(2)} KFC</p>
+      <p className="text-4xl font-bold">{balance.toFixed(2)} Knife Coin</p>
       {activeBoost && (
         <div className="mt-3 text-green-600 text-xs font-semibold">
           🔥 {activeBoost.multiplier}x BOOST ACTIVE • ends {new Date(activeBoost.expires_at).toLocaleString()}
