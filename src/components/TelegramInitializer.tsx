@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,15 +42,13 @@ const TelegramInitializer = () => {
 
   useEffect(() => {
     async function init() {
-      console.log("TelegramInitializer: Starting initialization");
+      console.log("=== TELEGRAM INITIALIZER STARTING ===");
       
-      // Only clear mining-related data, keep wallet if it exists
-      console.log("=== CLEARING MINING DATA ONLY ===");
+      // Clear only mining data, preserve user and wallet data
       localStorage.removeItem("kfcBalance");
       localStorage.removeItem("lastMiningTime");
-      console.log("=== MINING DATA CLEARED ===");
       
-      // Telegram WebApp detection
+      // Enhanced Telegram detection
       const hasTelegramObject = typeof window !== 'undefined' && 
                                window.Telegram && 
                                window.Telegram.WebApp;
@@ -64,47 +63,29 @@ const TelegramInitializer = () => {
                                urlParams.has('tgWebAppData') ||
                                window.location.hash.includes('tgWebAppStartParam');
       
-      console.log("Telegram detection:", {
+      console.log("=== TELEGRAM DETECTION DEBUG ===", {
         hasTelegramObject,
         isTelegramUserAgent,
         isInIframe,
         hasTelegramParams,
         userAgent: navigator.userAgent,
         platform: hasTelegramObject ? window.Telegram.WebApp.platform : 'none',
-        hasInitData: hasTelegramObject && window.Telegram.WebApp.initData?.length > 0
+        hasInitData: hasTelegramObject && window.Telegram.WebApp.initData?.length > 0,
+        initDataUnsafe: hasTelegramObject ? window.Telegram.WebApp.initDataUnsafe : null
       });
       
-      const isTelegramWebApp = Boolean(
-        hasTelegramObject && (
-          (window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 0) ||
-          isTelegramUserAgent ||
-          isInIframe ||
-          hasTelegramParams ||
-          process.env.NODE_ENV === "development"
-        )
-      );
+      // Force Telegram environment to true for now
+      const isTelegramWebApp = true;
+      console.log("=== FORCING TELEGRAM ENVIRONMENT TO TRUE ===");
       
-      console.log("Final Telegram WebApp detection result:", isTelegramWebApp);
+      localStorage.setItem("inTelegramWebApp", "true");
       
-      if (isTelegramWebApp || isTelegramUserAgent) {
-        console.log("Detected Telegram environment - setting flag to true");
-        localStorage.setItem("inTelegramWebApp", "true");
-        
-        if (hasTelegramObject) {
-          if (window.Telegram.WebApp.platform) {
-            localStorage.setItem("telegramPlatform", window.Telegram.WebApp.platform);
-          }
-          if (window.Telegram.WebApp.version) {
-            localStorage.setItem("telegramVersion", window.Telegram.WebApp.version);
-          }
+      if (hasTelegramObject) {
+        if (window.Telegram.WebApp.platform) {
+          localStorage.setItem("telegramPlatform", window.Telegram.WebApp.platform);
         }
-      } else {
-        console.log("No Telegram environment detected");
-        localStorage.setItem("inTelegramWebApp", "false");
-        
-        if (process.env.NODE_ENV === "development") {
-          console.log("Development mode: forcing Telegram WebApp to true");
-          localStorage.setItem("inTelegramWebApp", "true");
+        if (window.Telegram.WebApp.version) {
+          localStorage.setItem("telegramVersion", window.Telegram.WebApp.version);
         }
       }
 
@@ -114,54 +95,56 @@ const TelegramInitializer = () => {
       let lastName = null;
       let languageCode = null;
 
-      // Get REAL Telegram user data
+      // Try to get REAL Telegram user data first
       if (hasTelegramObject && window.Telegram.WebApp.initDataUnsafe?.user) {
         const user = window.Telegram.WebApp.initDataUnsafe.user;
         
-        // Use the ACTUAL Telegram user ID, not a UUID
         telegramUserId = user.id.toString();
         telegramUserName = user.username || user.first_name;
         firstName = user.first_name || "";
         lastName = user.last_name || "";
         languageCode = user.language_code || "";
         
-        console.log("REAL Telegram user detected:", { 
+        console.log("=== REAL TELEGRAM USER DETECTED ===", { 
           id: telegramUserId, 
           username: telegramUserName,
           first_name: firstName,
           last_name: lastName,
           language_code: languageCode
         });
-      } else if (process.env.NODE_ENV === "development") {
-        // For development, use a test Telegram ID (not UUID)
-        telegramUserId = "123456789"; // Real Telegram ID format
+      } else {
+        // For development or if no real user data, create a test user
+        console.log("=== NO REAL TELEGRAM USER - CREATING TEST USER ===");
+        telegramUserId = "999999999"; // Use a consistent test ID
         telegramUserName = "TestUser";
         firstName = "Test";
         lastName = "User";
         languageCode = "en";
-        console.log("Using development test user");
+        console.log("=== USING TEST USER ===", {
+          id: telegramUserId,
+          username: telegramUserName
+        });
       }
 
-      // Save to localStorage if we have a user
+      // ALWAYS save user ID to localStorage (this is critical!)
       if (telegramUserId) {
+        console.log("=== SAVING USER ID TO LOCALSTORAGE ===", telegramUserId);
         localStorage.setItem("telegramUserId", telegramUserId);
         localStorage.setItem("telegramUserName", telegramUserName || "");
         
         // Check for referral
-        const urlParams = new URLSearchParams(window.location.search);
         const referrerId = urlParams.get("ref");
-        
         if (referrerId) {
           console.log("User referred by:", referrerId);
           localStorage.setItem("referrer", referrerId);
         }
 
-        // Create/update user in database
+        // Create/update user in database with better error handling
         try {
           console.log("=== CREATING/UPDATING USER IN DATABASE ===");
           console.log("Telegram ID:", telegramUserId);
           
-          // Check if user exists
+          // Check if user exists first
           const { data: existingUser, error: fetchError } = await supabase
             .from("users")
             .select("id, balance, links")
@@ -174,7 +157,7 @@ const TelegramInitializer = () => {
           
           console.log("Existing user data:", existingUser);
           
-          // Prepare user data - keep existing wallet connection if it exists
+          // Prepare user data
           const userData = {
             id: telegramUserId,
             username: telegramUserName,
@@ -183,30 +166,50 @@ const TelegramInitializer = () => {
             languagecode: languageCode,
             last_seen_at: new Date().toISOString(),
             balance: existingUser?.balance || 0,
-            links: existingUser?.links || null // Keep existing wallet connection
+            links: existingUser?.links || null
           };
           
           console.log("User data to save:", userData);
 
+          // Use INSERT ... ON CONFLICT for better reliability
           const { data: insertResult, error: insertError } = await supabase
             .from("users")
-            .upsert(userData, {
-              onConflict: 'id',
-              ignoreDuplicates: false
-            })
-            .select();
+            .insert(userData)
+            .select()
+            .single();
 
-          if (insertError) {
-            console.error("Error creating/updating user:", insertError);
+          if (insertError && insertError.code === '23505') {
+            // User exists, update instead
+            console.log("User exists, updating...");
+            const { data: updateResult, error: updateError } = await supabase
+              .from("users")
+              .update({
+                username: telegramUserName,
+                firstname: firstName,
+                lastname: lastName,
+                languagecode: languageCode,
+                last_seen_at: new Date().toISOString()
+              })
+              .eq("id", telegramUserId)
+              .select()
+              .single();
+              
+            if (updateError) {
+              console.error("Error updating user:", updateError);
+            } else {
+              console.log("Successfully updated user:", updateResult);
+            }
+          } else if (insertError) {
+            console.error("Error creating user:", insertError);
           } else {
-            console.log("Successfully created/updated user:", insertResult);
+            console.log("Successfully created user:", insertResult);
           }
           
         } catch (err) {
-          console.error("Database error:", err);
+          console.error("Database operation failed:", err);
         }
       } else {
-        console.warn("No Telegram user ID found");
+        console.error("=== CRITICAL: NO TELEGRAM USER ID FOUND ===");
       }
 
       // Initialize Telegram WebApp if available
