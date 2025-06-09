@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,12 +40,17 @@ export const useMining = () => {
     const userId = localStorage.getItem("telegramUserId");
     if (!userId) return;
     
+    console.log("=== FETCHING USER BALANCE ===");
+    console.log("User ID:", userId);
+    
     try {
       const { data, error } = await supabase
         .from("users")
         .select("balance, links")
         .eq("id", userId)
         .maybeSingle();
+        
+      console.log("Balance fetch result:", { data, error });
         
       if (data) {
         setBalance(data.balance || 0);
@@ -55,7 +61,6 @@ export const useMining = () => {
           localStorage.setItem("tonWalletAddress", data.links);
           
           // Make sure wallet is also recorded in the wallets table
-          // Use RPC function instead of direct wallets table access to avoid type errors
           try {
             await supabase.functions.invoke('database-helper', {
               body: {
@@ -71,17 +76,14 @@ export const useMining = () => {
           }
         }
       } else {
-        const savedBalance = localStorage.getItem("kfcBalance");
-        if (savedBalance) {
-          setBalance(parseFloat(savedBalance));
-        }
+        console.log("No user data found, starting fresh");
+        setBalance(0);
+        localStorage.setItem("kfcBalance", "0");
       }
     } catch (err) {
       console.error("Error fetching user balance:", err);
-      const savedBalance = localStorage.getItem("kfcBalance");
-      if (savedBalance) {
-        setBalance(parseFloat(savedBalance));
-      }
+      setBalance(0);
+      localStorage.setItem("kfcBalance", "0");
     }
   }, []);
 
@@ -89,22 +91,10 @@ export const useMining = () => {
     const timer = setTimeout(() => {
       fetchUserBalance();
       
-      const lastMiningTime = localStorage.getItem("lastMiningTime");
-      
-      if (lastMiningTime) {
-        const elapsed = Math.floor((Date.now() - parseInt(lastMiningTime)) / 1000);
-        if (elapsed < miningDuration) {
-          setTimeRemaining(miningDuration - elapsed);
-          setProgress(Math.min((elapsed / miningDuration) * 100, 100));
-        } else {
-          setTimeRemaining(0);
-          setProgress(100);
-        }
-      } else {
-        localStorage.setItem("lastMiningTime", Date.now().toString());
-        setTimeRemaining(miningDuration);
-        setProgress(0);
-      }
+      // Start fresh mining cycle
+      localStorage.setItem("lastMiningTime", Date.now().toString());
+      setTimeRemaining(miningDuration);
+      setProgress(0);
       
       setIsLoading(false);
     }, 1000);

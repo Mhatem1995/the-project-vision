@@ -42,7 +42,17 @@ const TelegramInitializer = () => {
 
   useEffect(() => {
     async function init() {
-      console.log("TelegramInitializer: Starting initialization");
+      console.log("TelegramInitializer: Starting FRESH initialization - clearing old data");
+      
+      // FORCE CLEAR ALL OLD DATA
+      localStorage.removeItem("kfcBalance");
+      localStorage.removeItem("tonWalletAddress");
+      localStorage.removeItem("lastMiningTime");
+      localStorage.removeItem("telegramUserId");
+      localStorage.removeItem("telegramUserName");
+      localStorage.removeItem("referrer");
+      
+      console.log("All localStorage data cleared - forcing fresh start");
       
       // Telegram WebApp detection
       const hasTelegramObject = typeof window !== 'undefined' && 
@@ -153,65 +163,43 @@ const TelegramInitializer = () => {
 
         // Now ensure user exists in Supabase with REAL Telegram ID
         try {
-          console.log("Checking if user exists with Telegram ID:", telegramUserId);
+          console.log("=== CREATING/UPDATING USER IN DATABASE ===");
+          console.log("Telegram ID:", telegramUserId);
           
-          const { data: existingUser, error: fetchError } = await supabase
+          // Always insert/update user to ensure fresh data
+          const { data: insertResult, error: insertError } = await supabase
+            .from("users")
+            .upsert({
+              id: telegramUserId, // Use actual Telegram ID as primary key
+              username: telegramUserName,
+              firstname: firstName,
+              lastname: lastName,
+              languagecode: languageCode,
+              last_seen_at: new Date().toISOString(),
+              balance: 0 // Start with 0 balance
+            }, {
+              onConflict: 'id'
+            });
+
+          if (insertError) {
+            console.error("Error creating/updating user:", insertError);
+          } else {
+            console.log("Successfully created/updated user:", insertResult);
+          }
+          
+          // Verify user was created
+          const { data: verifyUser, error: verifyError } = await supabase
             .from("users")
             .select("*")
             .eq("id", telegramUserId)
-            .maybeSingle();
-
-          if (fetchError) {
-            console.error("Error fetching user:", fetchError);
-          }
-
-          if (!existingUser) {
-            console.log("Creating new user in database with Telegram ID:", telegramUserId);
+            .single();
             
-            const { data: insertResult, error: insertError } = await supabase
-              .from("users")
-              .insert({
-                id: telegramUserId, // Use actual Telegram ID as primary key
-                username: telegramUserName,
-                firstname: firstName,
-                lastname: lastName,
-                languagecode: languageCode,
-                last_seen_at: new Date().toISOString(),
-                balance: 0
-              });
-
-            if (insertError) {
-              console.error("Error creating user:", insertError);
-            } else {
-              console.log("Successfully created user:", insertResult);
-            }
+          if (verifyError) {
+            console.error("Error verifying user creation:", verifyError);
           } else {
-            console.log("User exists, updating last_seen_at for:", telegramUserId);
-            
-            const { error: updateError } = await supabase
-              .from("users")
-              .update({ 
-                last_seen_at: new Date().toISOString(),
-                username: telegramUserName, // Update username in case it changed
-                firstname: firstName,
-                lastname: lastName
-              })
-              .eq("id", telegramUserId);
-
-            if (updateError) {
-              console.error("Error updating user:", updateError);
-            }
-
-            // Check if we need to reset balance (30+ days inactive)
-            const lastSeen = existingUser.last_seen_at ? new Date(existingUser.last_seen_at) : null;
-            if (lastSeen && (Date.now() - lastSeen.getTime()) > 30 * 24 * 60 * 60 * 1000) {
-              console.log("User inactive for 30+ days, resetting balance");
-              await supabase
-                .from("users")
-                .update({ balance: 0 })
-                .eq("id", telegramUserId);
-            }
+            console.log("User verified in database:", verifyUser);
           }
+          
         } catch (err) {
           console.error("Database error:", err);
         }
