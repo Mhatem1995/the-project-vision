@@ -46,6 +46,8 @@ export const handlePaymentTask = async (
     return;
   }
   
+  console.log("handlePaymentTask: Processing payment for user:", userId);
+  
   // Check if user has connected wallet
   const walletAddress = localStorage.getItem("tonWalletAddress");
   if (!walletAddress) {
@@ -70,12 +72,12 @@ export const handlePaymentTask = async (
     console.log("Creating payment record for task:", task.id, "user:", userId, "wallet:", walletAddress);
     
     try {
-      // Record the payment using database-helper edge function
+      // Record the payment using database-helper edge function with proper telegram_id
       const { data, error } = await supabase.functions.invoke('database-helper', {
         body: {
           action: 'insert_payment',
           params: {
-            telegram_id: userId,
+            telegram_id: userId, // Ensure telegram_id is properly passed
             wallet_address: walletAddress,
             amount_paid: task.tonAmount,
             task_type: task.id,
@@ -89,7 +91,7 @@ export const handlePaymentTask = async (
         throw new Error(`Failed to record payment: ${error.message}`);
       }
       
-      console.log("Payment record created successfully:", data);
+      console.log("Payment record created successfully with telegram_id:", userId, "data:", data);
     } catch (paymentError) {
       console.error("Failed to record payment:", paymentError);
       toast({
@@ -154,7 +156,7 @@ export const handlePaymentTask = async (
     // Wait a moment for user to complete payment then start polling
     setTimeout(async () => {
       const taskType = task.isDaily ? "daily_ton_payment" : undefined;
-      console.log("Starting transaction verification for task:", task.id, "type:", taskType);
+      console.log("Starting transaction verification for task:", task.id, "type:", taskType, "user:", userId);
       
       const successful = await pollForTransactionVerification(
         userId,

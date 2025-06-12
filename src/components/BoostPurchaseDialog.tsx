@@ -68,9 +68,9 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     try {
       console.log("Creating boost record for user:", userId, "multiplier:", option.multiplier);
       
-      // Create a boost record (status: pending) - let Supabase auto-generate the UUID
+      // Create a boost record (status: pending) - ensure user_id is properly set
       const { data, error } = await supabase.from("mining_boosts").insert({
-        user_id: userId, // Telegram ID as string
+        user_id: userId, // Telegram ID as string - ensure this is set correctly
         multiplier: option.multiplier,
         price: option.price,
         duration: option.duration,
@@ -88,15 +88,15 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         return;
       }
 
-      console.log("Boost record created with ID:", data.id);
+      console.log("Boost record created with ID:", data.id, "for user:", userId);
 
-      // Record the pending payment - same as TON payment tasks
+      // Record the pending payment - ensure telegram_id is properly passed
       try {
         const { error: paymentError } = await supabase.functions.invoke('database-helper', {
           body: {
             action: 'insert_payment',
             params: {
-              telegram_id: userId,
+              telegram_id: userId, // Ensure telegram_id is properly passed
               wallet_address: walletAddress,
               amount_paid: option.price,
               task_type: "boost",
@@ -108,7 +108,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
         if (paymentError) {
           console.error("Failed to record boost payment:", paymentError);
         } else {
-          console.log("Payment record created for boost");
+          console.log("Payment record created for boost with telegram_id:", userId);
         }
       } catch (err) {
         console.warn("Failed to record boost payment (non-critical):", err);
