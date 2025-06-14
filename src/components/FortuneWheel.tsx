@@ -206,10 +206,10 @@ const FortuneWheel: React.FC = () => {
 
       <JackpotBanner />
 
-      {/* Fixed wheel container with proper positioning and overflow control */}
+      {/* Wheel container with strict containment */}
       <div className="relative w-64 h-64 mx-auto overflow-hidden">
-        {/* Enhanced outer circle with gradient border */}
-        <div className="absolute inset-0 w-full h-full rounded-full border-4 border-gradient-to-r from-primary to-purple-600 bg-gray-900 shadow-2xl"
+        {/* Outer circle background */}
+        <div className="absolute inset-0 w-full h-full rounded-full bg-gray-900 shadow-2xl"
              style={{
                background: 'conic-gradient(from 0deg, #4338ca, #7c3aed, #ec4899, #f59e0b, #10b981, #06b6d4, #4338ca)',
                padding: '4px'
@@ -217,13 +217,10 @@ const FortuneWheel: React.FC = () => {
           <div className="w-full h-full rounded-full bg-gray-900"></div>
         </div>
         
-        {/* Pointer/Arrow - positioned relative to wheel container */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2 w-0 h-0 border-x-8 border-x-transparent border-b-[20px] border-b-primary z-10 drop-shadow-lg" />
-        
-        {/* Spinning wheel */}
+        {/* Spinning wheel - contained within the circle */}
         <div 
           ref={wheelRef}
-          className="absolute inset-0 w-full h-full rounded-full overflow-hidden transition-transform ease-out"
+          className="absolute inset-1 rounded-full overflow-hidden transition-transform ease-out"
           style={{ 
             transform: `rotate(${rotationDegrees}deg)`,
             transformOrigin: 'center center',
@@ -243,8 +240,27 @@ const FortuneWheel: React.FC = () => {
           ))}
         </div>
 
-        {/* Center hub - positioned relative to wheel container */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-gradient-to-br from-white to-gray-200 rounded-full z-20 shadow-lg border-2 border-gray-300"></div>
+        {/* Pointer - positioned at the very top, inside container */}
+        <div 
+          className="absolute w-0 h-0 border-x-4 border-x-transparent border-b-6 border-b-primary drop-shadow-lg"
+          style={{
+            top: '2px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 30
+          }}
+        />
+
+        {/* Center hub - always centered in container */}
+        <div 
+          className="absolute w-6 h-6 bg-gradient-to-br from-white to-gray-200 rounded-full shadow-lg border-2 border-gray-300"
+          style={{
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 30
+          }}
+        />
       </div>
     </div>
   );
