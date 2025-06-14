@@ -65,28 +65,30 @@ const WheelSegment: React.FC<WheelSegmentProps> = ({
           background: `linear-gradient(135deg, ${color} 0%, ${color}dd 100%)`,
         }}
       >
-        {/* Prize text positioned along the segment */}
+        {/* Prize text positioned along the segment - moved closer to center for better visibility */}
         <div 
           className="absolute flex items-center justify-center"
           style={{ 
-            transform: `rotate(${halfSegmentAngle}deg) translateY(-80px)`,
+            transform: `rotate(${halfSegmentAngle}deg) translateY(-50px)`,
             transformOrigin: 'center center',
-            width: '100px',
-            height: '50px',
+            width: '140px',
+            height: '60px',
           }}
         >
           <span 
             className={cn(
-              "text-white font-bold text-sm text-center leading-tight",
-              "drop-shadow-lg px-2 py-1 rounded"
+              "text-white font-bold text-center leading-tight",
+              "drop-shadow-lg px-3 py-2 rounded-md"
             )}
             style={{ 
-              textShadow: '2px 2px 4px rgba(0,0,0,0.9)',
+              textShadow: '2px 2px 6px rgba(0,0,0,1)',
               transform: `rotate(-${halfSegmentAngle}deg)`,
               fontFamily: 'system-ui, -apple-system, sans-serif',
-              backgroundColor: 'rgba(0,0,0,0.3)',
-              fontSize: prize.amount === 0 ? '10px' : '12px',
-              fontWeight: 'bold'
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              fontSize: prize.amount === 0 ? '14px' : '16px',
+              fontWeight: '800',
+              border: '2px solid rgba(255,255,255,0.3)',
+              whiteSpace: 'nowrap'
             }}
           >
             {formatPrizeText()}
