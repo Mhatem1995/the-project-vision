@@ -37,22 +37,17 @@ export const useTonConnect = () => useContext(TonConnectContext);
 
 // Simplified and more reliable Telegram WebApp detection
 const detectTelegramWebApp = () => {
-  // Check localStorage first (set by TelegramInitializer)
   const storedValue = localStorage.getItem("inTelegramWebApp");
   if (storedValue === "true") {
-    console.log("TonConnect: Using stored Telegram WebApp detection: true");
     return true;
   }
   
-  // Check user agent as a strong indicator
   const isTelegramUserAgent = navigator.userAgent.includes('Telegram');
   if (isTelegramUserAgent) {
-    console.log("TonConnect: Detected Telegram via user agent");
     localStorage.setItem("inTelegramWebApp", "true");
     return true;
   }
   
-  // Fallback detection
   const hasTelegramObject = Boolean(
     typeof window !== "undefined" &&
     window.Telegram &&
@@ -60,8 +55,6 @@ const detectTelegramWebApp = () => {
   );
   
   const result = hasTelegramObject || process.env.NODE_ENV === "development";
-  
-  console.log("TonConnect: Fallback detection result:", result);
   
   if (result) {
     localStorage.setItem("inTelegramWebApp", "true");
@@ -80,136 +73,121 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
 
   // Initialize TonConnect
   useEffect(() => {
+    // Prevent double initialization
+    if (window._tonConnectUI) {
+      console.log("TonConnect already initialized, reusing existing instance");
+      setTonConnectUI(window._tonConnectUI);
+      return;
+    }
+
     console.log("Initializing TonConnect UI...");
 
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
     
-    // Options for TonConnectUI with our custom manifest URL
-    const options = {
-      manifestUrl: tonConnectOptions.manifestUrl,
-      // Use embedded wallet in Telegram when available
-      preferredWallets: isTgWebApp ? ['telegram-wallet', 'tonkeeper'] : []
-    };
+    try {
+      const options = {
+        manifestUrl: tonConnectOptions.manifestUrl,
+        preferredWallets: isTgWebApp ? ['telegram-wallet', 'tonkeeper'] : []
+      };
 
-    console.log("TonConnect options:", options);
-    const connector = new TonConnectUI(options);
-    
-    // Make TonConnect instance globally available
-    window._tonConnectUI = connector;
-    
-    setTonConnectUI(connector);
-
-    // Set up listener for connection changes
-    const unsubscribe = connector.onStatusChange(async (wallet) => {
-      console.log("Wallet status changed:", wallet ? "connected" : "disconnected");
+      console.log("TonConnect options:", options);
+      const connector = new TonConnectUI(options);
       
-      if (wallet) {
-        setIsConnected(true);
+      // Make TonConnect instance globally available
+      window._tonConnectUI = connector;
+      setTonConnectUI(connector);
+
+      // Set up listener for connection changes
+      const unsubscribe = connector.onStatusChange(async (wallet) => {
+        console.log("Wallet status changed:", wallet ? "connected" : "disconnected");
         
-        // Get the wallet address - use the raw address format for consistency
-        const address = wallet.account.address;
-        console.log("Connected wallet address (raw):", address);
-        
-        setWalletAddress(address);
-        localStorage.setItem("tonWalletAddress", address);
-        
-        // Update user in database
-        const userId = localStorage.getItem("telegramUserId");
-        if (userId) {
-          console.log("Saving wallet connection for user:", userId, "address:", address);
+        if (wallet) {
+          setIsConnected(true);
           
-          // Save to wallets table
-          console.log("Saving to wallets table...");
-          const { error: walletError } = await supabase.functions.invoke('database-helper', {
-            body: {
-              action: 'save_wallet_connection',
-              params: {
-                telegram_id: userId,
-                wallet_address: address
+          const address = wallet.account.address;
+          console.log("Connected wallet address:", address);
+          
+          setWalletAddress(address);
+          localStorage.setItem("tonWalletAddress", address);
+          
+          // Ensure user exists in database first
+          const userId = localStorage.getItem("telegramUserId");
+          if (userId) {
+            console.log("Ensuring user exists and saving wallet for:", userId);
+            
+            try {
+              // First, ensure user exists
+              const { error: userError } = await supabase
+                .from("users")
+                .upsert({ 
+                  id: userId,
+                  links: address 
+                }, { 
+                  onConflict: 'id',
+                  ignoreDuplicates: false 
+                });
+                
+              if (userError) {
+                console.warn("User upsert warning (might be normal):", userError);
               }
-            }
-          });
-          
-          if (walletError) {
-            console.error("Error storing wallet connection in wallets table:", walletError);
-          } else {
-            console.log("Successfully stored wallet connection in wallets table");
-          }
-
-          // Also save to users table for backward compatibility
-          console.log("Updating user record with wallet address...");
-          const { error: userError } = await supabase.from("users")
-            .upsert({ 
-              id: userId, 
-              links: address 
-            }, { 
-              onConflict: 'id',
-              ignoreDuplicates: false 
-            });
               
-          if (userError) {
-            console.error("Error updating user wallet in users table:", userError);
-          } else {
-            console.log("Successfully updated wallet address in users table");
+              // Then save wallet connection
+              const { error: walletError } = await supabase.functions.invoke('database-helper', {
+                body: {
+                  action: 'save_wallet_connection',
+                  params: {
+                    telegram_id: userId,
+                    wallet_address: address
+                  }
+                }
+              });
+              
+              if (walletError) {
+                console.error("Error saving wallet connection:", walletError);
+              } else {
+                console.log("Wallet connection saved successfully");
+              }
+
+              toast({
+                title: "Wallet Connected",
+                description: "Your TON wallet has been connected successfully.",
+              });
+              
+            } catch (err) {
+              console.error("Error in wallet connection process:", err);
+            }
           }
-
-          // Verify the wallet was saved correctly
-          console.log("Verifying wallet was saved...");
-          const { data: verifyWallet } = await supabase
-            .from("wallets")
-            .select("wallet_address")
-            .eq("telegram_id", userId)
-            .limit(1)
-            .maybeSingle();
-          
-          console.log("Wallet verification result:", verifyWallet);
-
-          toast({
-            title: "Wallet Connected",
-            description: "Your TON wallet has been connected and saved successfully.",
-          });
-          
         } else {
-          console.warn("No telegram user ID found in local storage");
-          toast({
-            title: "Warning",
-            description: "Wallet connected but user ID not found",
-            variant: "default"
-          });
+          setIsConnected(false);
+          setWalletAddress(null);
+          localStorage.removeItem("tonWalletAddress");
+          console.log("Wallet disconnected");
         }
-      } else {
-        setIsConnected(false);
-        setWalletAddress(null);
-        localStorage.removeItem("tonWalletAddress");
-        
-        console.log("Wallet disconnected");
-      }
-    });
+      });
 
-    // Check for existing session on load
-    const savedAddress = localStorage.getItem("tonWalletAddress");
-    if (savedAddress) {
-      console.log("Found saved wallet address in localStorage:", savedAddress);
-      setWalletAddress(savedAddress);
-      if (connector.connected) {
-        console.log("Wallet is already connected");
+      // Check for existing session
+      const savedAddress = localStorage.getItem("tonWalletAddress");
+      if (savedAddress && connector.connected) {
+        console.log("Restoring existing wallet connection:", savedAddress);
+        setWalletAddress(savedAddress);
         setIsConnected(true);
       }
-    }
 
-    return () => {
-      unsubscribe();
-    };
+      return () => {
+        unsubscribe();
+      };
+    } catch (error) {
+      console.error("Error initializing TonConnect:", error);
+    }
   }, [toast]);
 
-  // Simplified detection check - no more polling
   useEffect(() => {
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
   }, []);
 
-  // Connect function that opens the wallet modal
+  // Connect function
   const connect = () => {
     if (tonConnectUI) {
       console.log("Opening TON Connect modal...");
@@ -218,7 +196,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       console.error("TonConnect UI not initialized");
       toast({
         title: "Connection Error",
-        description: "Wallet connection service not initialized",
+        description: "Wallet connection service not ready. Please try again.",
         variant: "destructive"
       });
     }
