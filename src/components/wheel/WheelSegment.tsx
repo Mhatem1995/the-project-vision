@@ -47,6 +47,13 @@ const WheelSegment: React.FC<WheelSegmentProps> = ({
     return `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
   };
 
+  // Calculate text position - place it at 70% of the radius from center
+  const textRadius = 70;
+  const textAngle = 0; // Text will be positioned at the middle of the segment (0 degrees relative to segment)
+  const textAngleRad = (textAngle * Math.PI) / 180;
+  const textX = 128 + textRadius * Math.cos(textAngleRad);
+  const textY = 128 + textRadius * Math.sin(textAngleRad);
+
   return (
     <div 
       className="absolute w-full h-full"
@@ -69,11 +76,13 @@ const WheelSegment: React.FC<WheelSegmentProps> = ({
         />
       </svg>
       
-      {/* Prize text positioned at the center of the segment radius */}
+      {/* Prize text positioned at calculated position within segment */}
       <div 
-        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+        className="absolute"
         style={{ 
-          transform: `translate(-50%, -50%) translateY(-60px)`,
+          left: `${textX}px`,
+          top: `${textY}px`,
+          transform: 'translate(-50%, -50%)',
         }}
       >
         <div
