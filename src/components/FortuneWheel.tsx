@@ -206,9 +206,10 @@ const FortuneWheel: React.FC = () => {
 
       <JackpotBanner />
 
-      <div className="relative w-64 h-64 mx-auto">
+      {/* Fixed wheel container with proper positioning and overflow control */}
+      <div className="relative w-64 h-64 mx-auto overflow-hidden">
         {/* Enhanced outer circle with gradient border */}
-        <div className="absolute w-full h-full rounded-full border-4 border-gradient-to-r from-primary to-purple-600 bg-gray-900 shadow-2xl z-0"
+        <div className="absolute inset-0 w-full h-full rounded-full border-4 border-gradient-to-r from-primary to-purple-600 bg-gray-900 shadow-2xl"
              style={{
                background: 'conic-gradient(from 0deg, #4338ca, #7c3aed, #ec4899, #f59e0b, #10b981, #06b6d4, #4338ca)',
                padding: '4px'
@@ -216,15 +217,13 @@ const FortuneWheel: React.FC = () => {
           <div className="w-full h-full rounded-full bg-gray-900"></div>
         </div>
         
-        {/* Pointer/Arrow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 w-0 h-0 border-x-8 border-x-transparent border-b-[20px] border-b-primary z-20 drop-shadow-lg" />
+        {/* Pointer/Arrow - positioned relative to wheel container */}
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2 w-0 h-0 border-x-8 border-x-transparent border-b-[20px] border-b-primary z-10 drop-shadow-lg" />
         
-        {/* Center hub */}
-        <div className="absolute left-1/2 top-1/2 w-8 h-8 bg-gradient-to-br from-white to-gray-200 rounded-full -translate-x-1/2 -translate-y-1/2 z-20 shadow-lg border-2 border-gray-300"></div>
-        
+        {/* Spinning wheel */}
         <div 
           ref={wheelRef}
-          className="absolute w-full h-full rounded-full overflow-hidden transition-transform ease-out"
+          className="absolute inset-0 w-full h-full rounded-full overflow-hidden transition-transform ease-out"
           style={{ 
             transform: `rotate(${rotationDegrees}deg)`,
             transformOrigin: 'center center',
@@ -243,6 +242,9 @@ const FortuneWheel: React.FC = () => {
             />
           ))}
         </div>
+
+        {/* Center hub - positioned relative to wheel container */}
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-gradient-to-br from-white to-gray-200 rounded-full z-20 shadow-lg border-2 border-gray-300"></div>
       </div>
     </div>
   );
