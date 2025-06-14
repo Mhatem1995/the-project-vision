@@ -3,6 +3,12 @@ import { useEffect, useState } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
 
+// Generates a valid UUID (stub for test/dev)
+function getDevUuid() {
+  // Example fixed dev UUID for testing - replace as needed
+  return "11111111-1111-1111-1111-111111111111";
+}
+
 declare global {
   interface Window {
     Telegram: {
@@ -11,7 +17,7 @@ declare global {
         initDataUnsafe: {
           query_id?: string;
           user?: {
-            id: number;
+            id: string | number;
             first_name: string;
             last_name?: string;
             username?: string;
@@ -43,64 +49,81 @@ const TelegramInitializer = () => {
   useEffect(() => {
     async function init() {
       console.log("TelegramInitializer: Starting initialization");
-      
-      // Check for development mode
       const isDevelopment = process.env.NODE_ENV === "development" || window.location.hostname === "localhost";
       console.log("Development mode:", isDevelopment);
-      
+
       // Set Telegram WebApp status
       localStorage.setItem("inTelegramWebApp", "true");
-      
+
+      // Clear old IDs for test/dev
+      if (isDevelopment) {
+        localStorage.removeItem("telegramUserId");
+        localStorage.removeItem("telegramUserName");
+        localStorage.removeItem("tonWalletAddress");
+      }
+
       let telegramUserId = null;
       let telegramUserName = null;
+      let firstName = "";
+      let lastName = "";
+      let languageCode = "";
 
       // Check for actual Telegram data first
-      const hasTelegramObject = typeof window !== 'undefined' && 
-                               window.Telegram && 
-                               window.Telegram.WebApp;
+      const hasTelegramObject =
+        typeof window !== "undefined" &&
+        window.Telegram &&
+        window.Telegram.WebApp;
 
       if (hasTelegramObject && window.Telegram.WebApp.initDataUnsafe?.user) {
-        const { id, first_name, last_name, username } = window.Telegram.WebApp.initDataUnsafe.user;
-        telegramUserId = id.toString();
-        telegramUserName = username || first_name;
-        console.log("Real Telegram user detected:", { id, first_name, last_name, username });
+        const user = window.Telegram.WebApp.initDataUnsafe.user;
+        telegramUserId = user.id.toString();
+        telegramUserName = user.username || user.first_name;
+        firstName = user.first_name || "";
+        lastName = user.last_name || "";
+        languageCode = user.language_code || "";
+        console.log("Real Telegram user detected:", user);
+      } else if (isDevelopment) {
+        // Use dev UUID for test/dev only and warn in console
+        telegramUserId = getDevUuid();
+        telegramUserName = "DevUser";
+        firstName = "Dev";
+        lastName = "User";
+        languageCode = "en";
+        console.warn("USING DEV TEST USER! Replace with real Telegram integration in production!");
       } else {
-        // Use test user for development/testing - but DON'T simulate wallet connection
-        telegramUserId = "test-user-123";
-        telegramUserName = "TestUser";
-        console.log("Using test user for development");
+        // In prod but no Telegram user? Do not proceed!
+        setLoading(false);
+        window.Telegram?.WebApp?.showAlert?.("Telegram user not found. Please access from Telegram Bot.");
+        return;
       }
 
       // Save user info to localStorage
       if (telegramUserId) {
         localStorage.setItem("telegramUserId", telegramUserId);
         localStorage.setItem("telegramUserName", telegramUserName || "");
-        
-        console.log("Creating/updating user in database:", telegramUserId);
+      }
 
-        // Use the database helper to ensure user exists
-        try {
-          const { error } = await supabase.functions.invoke('database-helper', {
-            body: {
-              action: 'ensure_user_exists',
-              params: {
-                user_id: telegramUserId,
-                username: telegramUserName,
-                firstname: window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || "",
-                lastname: window.Telegram?.WebApp?.initDataUnsafe?.user?.last_name || "",
-                languagecode: window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code || ""
-              }
+      // Ensure user exists in database
+      try {
+        const { error, data } = await supabase.functions.invoke("database-helper", {
+          body: {
+            action: "ensure_user_exists",
+            params: {
+              user_id: telegramUserId,
+              username: telegramUserName,
+              firstname: firstName,
+              lastname: lastName,
+              languagecode: languageCode,
             }
-          });
-
-          if (error) {
-            console.error("Error ensuring user exists:", error);
-          } else {
-            console.log("User ensured in database successfully");
           }
-        } catch (err) {
-          console.error("Database operation error:", err);
+        });
+        if (error) {
+          console.error("Error ensuring user exists:", error);
+        } else {
+          console.log("User ensured in database successfully", data);
         }
+      } catch (err) {
+        console.error("Database operation error:", err);
       }
 
       // Initialize Telegram WebApp if available
