@@ -44,161 +44,62 @@ const TelegramInitializer = () => {
     async function init() {
       console.log("TelegramInitializer: Starting initialization");
       
-      // More aggressive Telegram WebApp detection for mobile
-      const hasTelegramObject = typeof window !== 'undefined' && 
-                               window.Telegram && 
-                               window.Telegram.WebApp;
+      // Force development mode for testing
+      const isDevelopment = process.env.NODE_ENV === "development" || window.location.hostname === "localhost";
+      console.log("Development mode:", isDevelopment);
       
-      // Check user agent for Telegram
-      const isTelegramUserAgent = navigator.userAgent.includes('Telegram') || 
-                                  navigator.userAgent.includes('TelegramBot');
+      // Always set to true for testing
+      localStorage.setItem("inTelegramWebApp", "true");
       
-      // Check if we're in an iframe (common for Telegram WebApps)
-      const isInIframe = window !== window.top;
-      
-      // Check for Telegram-specific URL parameters
-      const urlParams = new URLSearchParams(window.location.search);
-      const hasTelegramParams = urlParams.has('tgWebAppStartParam') || 
-                               urlParams.has('tgWebAppData') ||
-                               window.location.hash.includes('tgWebAppStartParam');
-      
-      console.log("Enhanced Telegram detection:", {
-        hasTelegramObject,
-        isTelegramUserAgent,
-        isInIframe,
-        hasTelegramParams,
-        userAgent: navigator.userAgent,
-        platform: hasTelegramObject ? window.Telegram.WebApp.platform : 'none',
-        hasInitData: hasTelegramObject && window.Telegram.WebApp.initData?.length > 0
-      });
-      
-      // More permissive detection - if any Telegram indicator is present, assume we're in Telegram
-      const isTelegramWebApp = Boolean(
-        hasTelegramObject && (
-          // Primary indicators
-          (window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 0) ||
-          // Secondary indicators for mobile
-          isTelegramUserAgent ||
-          isInIframe ||
-          hasTelegramParams ||
-          // Development mode
-          process.env.NODE_ENV === "development"
-        )
-      );
-      
-      console.log("Final Telegram WebApp detection result:", isTelegramWebApp);
-      
-      // Always set to true if we have ANY Telegram indicators
-      if (isTelegramWebApp || isTelegramUserAgent) {
-        console.log("Detected Telegram environment - setting flag to true");
-        localStorage.setItem("inTelegramWebApp", "true");
-        
-        // Store additional platform info
-        if (hasTelegramObject) {
-          if (window.Telegram.WebApp.platform) {
-            localStorage.setItem("telegramPlatform", window.Telegram.WebApp.platform);
-          }
-          if (window.Telegram.WebApp.version) {
-            localStorage.setItem("telegramVersion", window.Telegram.WebApp.version);
-          }
-        }
-      } else {
-        console.log("No Telegram environment detected");
-        localStorage.setItem("inTelegramWebApp", "false");
-        
-        // Force true in development for testing
-        if (process.env.NODE_ENV === "development") {
-          console.log("Development mode: forcing Telegram WebApp to true");
-          localStorage.setItem("inTelegramWebApp", "true");
-        }
-      }
-
       let telegramUserId = null;
       let telegramUserName = null;
 
+      // Check for actual Telegram data first
+      const hasTelegramObject = typeof window !== 'undefined' && 
+                               window.Telegram && 
+                               window.Telegram.WebApp;
+
       if (hasTelegramObject && window.Telegram.WebApp.initDataUnsafe?.user) {
         const { id, first_name, last_name, username } = window.Telegram.WebApp.initDataUnsafe.user;
-        
-        // Store as string for compatibility
         telegramUserId = id.toString();
         telegramUserName = username || first_name;
-        console.log("Telegram user detected:", { id, first_name, last_name, username });
+        console.log("Real Telegram user detected:", { id, first_name, last_name, username });
       } else {
-        console.log("No Telegram user data found - checking for fallback");
-        // For development or mobile environments without proper initData
-        if (process.env.NODE_ENV === "development" || isTelegramUserAgent) {
-          telegramUserId = "00000000-0000-0000-0000-000000000000";
-          telegramUserName = "MobileUser";
-          console.log("Using fallback user for mobile/development");
-        }
+        // Use test user for development/testing
+        telegramUserId = "test-user-123";
+        telegramUserName = "TestUser";
+        console.log("Using test user for development");
       }
 
-      // Save to localStorage if we have a user
+      // Save to localStorage
       if (telegramUserId) {
         localStorage.setItem("telegramUserId", telegramUserId);
         localStorage.setItem("telegramUserName", telegramUserName || "");
         
-        // Check for referral
-        const urlParams = new URLSearchParams(window.location.search);
-        const referrerId = urlParams.get("ref");
-        
-        if (referrerId) {
-          console.log("User referred by:", referrerId);
-          localStorage.setItem("referrer", referrerId);
-        }
+        console.log("Creating/updating user in database:", telegramUserId);
 
-        // Now ensure user exists in Supabase
+        // Use the database helper to ensure user exists
         try {
-          const { data: existingUser, error: fetchError } = await supabase
-            .from("users")
-            .select("*")
-            .eq("id", telegramUserId)
-            .maybeSingle();
-
-          if (fetchError) {
-            console.error("Error fetching user:", fetchError);
-          }
-
-          if (!existingUser) {
-            console.log("Creating new user in database");
-            // Create new user with basic info
-            const { error: insertError } = await supabase.from("users").insert({
-              id: telegramUserId,
-              username: telegramUserName,
-              firstname: window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || "",
-              lastname: window.Telegram?.WebApp?.initDataUnsafe?.user?.last_name || "",
-              languagecode: window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code || "",
-              last_seen_at: new Date().toISOString(),
-              balance: 0
-            });
-
-            if (insertError) {
-              console.error("Error creating user:", insertError);
+          const { error } = await supabase.functions.invoke('database-helper', {
+            body: {
+              action: 'ensure_user_exists',
+              params: {
+                user_id: telegramUserId,
+                username: telegramUserName,
+                firstname: window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || "",
+                lastname: window.Telegram?.WebApp?.initDataUnsafe?.user?.last_name || "",
+                languagecode: window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code || ""
+              }
             }
+          });
+
+          if (error) {
+            console.error("Error ensuring user exists:", error);
           } else {
-            console.log("User exists, updating last_seen_at");
-            // Update last_seen_at
-            const { error: updateError } = await supabase
-              .from("users")
-              .update({ last_seen_at: new Date().toISOString() })
-              .eq("id", telegramUserId);
-
-            if (updateError) {
-              console.error("Error updating user:", updateError);
-            }
-
-            // Check if we need to reset balance (30+ days inactive)
-            const lastSeen = existingUser.last_seen_at ? new Date(existingUser.last_seen_at) : null;
-            if (lastSeen && (Date.now() - lastSeen.getTime()) > 30 * 24 * 60 * 60 * 1000) {
-              console.log("User inactive for 30+ days, resetting balance");
-              await supabase
-                .from("users")
-                .update({ balance: 0 })
-                .eq("id", telegramUserId);
-            }
+            console.log("User ensured in database successfully");
           }
         } catch (err) {
-          console.error("Database error:", err);
+          console.error("Database operation error:", err);
         }
       }
 
