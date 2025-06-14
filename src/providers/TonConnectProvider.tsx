@@ -77,6 +77,15 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     if (window._tonConnectUI) {
       console.log("TonConnect already initialized, reusing existing instance");
       setTonConnectUI(window._tonConnectUI);
+      
+      // Check if already connected
+      if (window._tonConnectUI.connected && window._tonConnectUI.wallet) {
+        const address = window._tonConnectUI.wallet.account.address;
+        console.log("Existing wallet connection found:", address);
+        setIsConnected(true);
+        setWalletAddress(address);
+        localStorage.setItem("tonWalletAddress", address);
+      }
       return;
     }
 
@@ -117,22 +126,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
             console.log("Ensuring user exists and saving wallet for:", userId);
             
             try {
-              // First, ensure user exists
-              const { error: userError } = await supabase
-                .from("users")
-                .upsert({ 
-                  id: userId,
-                  links: address 
-                }, { 
-                  onConflict: 'id',
-                  ignoreDuplicates: false 
-                });
-                
-              if (userError) {
-                console.warn("User upsert warning (might be normal):", userError);
-              }
-              
-              // Then save wallet connection
+              // Save wallet connection
               const { error: walletError } = await supabase.functions.invoke('database-helper', {
                 body: {
                   action: 'save_wallet_connection',
@@ -166,12 +160,18 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         }
       });
 
-      // Check for existing session
-      const savedAddress = localStorage.getItem("tonWalletAddress");
-      if (savedAddress && connector.connected) {
-        console.log("Restoring existing wallet connection:", savedAddress);
-        setWalletAddress(savedAddress);
+      // Check for existing session - but don't auto-restore without actual connection
+      if (connector.connected && connector.wallet) {
+        const address = connector.wallet.account.address;
+        console.log("Restoring existing wallet connection:", address);
+        setWalletAddress(address);
         setIsConnected(true);
+        localStorage.setItem("tonWalletAddress", address);
+      } else {
+        // Clear any stale wallet data if no actual connection exists
+        localStorage.removeItem("tonWalletAddress");
+        setIsConnected(false);
+        setWalletAddress(null);
       }
 
       return () => {

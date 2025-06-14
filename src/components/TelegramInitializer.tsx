@@ -44,11 +44,11 @@ const TelegramInitializer = () => {
     async function init() {
       console.log("TelegramInitializer: Starting initialization");
       
-      // Force development mode for testing
+      // Check for development mode
       const isDevelopment = process.env.NODE_ENV === "development" || window.location.hostname === "localhost";
       console.log("Development mode:", isDevelopment);
       
-      // Always set to true for testing
+      // Set Telegram WebApp status
       localStorage.setItem("inTelegramWebApp", "true");
       
       let telegramUserId = null;
@@ -65,13 +65,13 @@ const TelegramInitializer = () => {
         telegramUserName = username || first_name;
         console.log("Real Telegram user detected:", { id, first_name, last_name, username });
       } else {
-        // Use test user for development/testing
+        // Use test user for development/testing - but DON'T simulate wallet connection
         telegramUserId = "test-user-123";
         telegramUserName = "TestUser";
         console.log("Using test user for development");
       }
 
-      // Save to localStorage
+      // Save user info to localStorage
       if (telegramUserId) {
         localStorage.setItem("telegramUserId", telegramUserId);
         localStorage.setItem("telegramUserName", telegramUserName || "");
