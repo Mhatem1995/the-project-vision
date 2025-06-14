@@ -71,7 +71,7 @@ const Mining = () => {
   const canMine = !!walletAddress;
 
   return (
-    <div className="flex flex-col items-center justify-center space-y-8">
+    <div className="flex flex-col items-center justify-center space-y-6 pb-8">
       <div className="text-center">
         <h1 className="text-3xl font-bold mb-2">Knife Coin Mining</h1>
         <p className="text-muted-foreground">Mine Knife Coin tokens every 8 hours</p>
@@ -129,7 +129,10 @@ const Mining = () => {
             </Button>
           </div>
           
-          <FortuneWheel />
+          {/* Fortune Wheel with proper bottom margin */}
+          <div className="w-full mb-6">
+            <FortuneWheel />
+          </div>
 
           <BoostPurchaseDialog 
             open={boostDialogOpen} 
