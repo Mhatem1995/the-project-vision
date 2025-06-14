@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
@@ -107,7 +106,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       if (wallet) {
         setIsConnected(true);
         
-        // Get the wallet address - use the raw address format
+        // Get the wallet address - use the raw address format for consistency
         const address = wallet.account.address;
         console.log("Connected wallet address (raw):", address);
         
@@ -119,56 +118,57 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         if (userId) {
           console.log("Saving wallet connection for user:", userId, "address:", address);
           
-          // Save to both wallets table AND users table for redundancy
-          try {
-            // Save to wallets table first
-            console.log("Calling database-helper to save wallet connection");
-            const { error: walletError } = await supabase.functions.invoke('database-helper', {
-              body: {
-                action: 'save_wallet_connection',
-                params: {
-                  telegram_id: userId,
-                  wallet_address: address
-                }
+          // First, ensure the wallet is saved in the wallets table
+          console.log("Saving to wallets table...");
+          const { error: walletError } = await supabase.functions.invoke('database-helper', {
+            body: {
+              action: 'save_wallet_connection',
+              params: {
+                telegram_id: userId,
+                wallet_address: address
               }
-            });
-            
-            if (walletError) {
-              console.error("Error storing wallet connection in wallets table:", walletError);
-            } else {
-              console.log("Successfully stored wallet connection in wallets table");
             }
-
-            // Also save to users table for backward compatibility
-            console.log("Updating user record with wallet address");
-            const { error: userError } = await supabase.from("users")
-              .upsert({ 
-                id: userId, 
-                links: address 
-              }, { 
-                onConflict: 'id',
-                ignoreDuplicates: false 
-              });
-              
-            if (userError) {
-              console.error("Error updating user wallet in users table:", userError);
-            } else {
-              console.log("Successfully updated wallet address in users table");
-            }
-
-            toast({
-              title: "Wallet Connected",
-              description: "Your TON wallet has been connected and saved successfully.",
-            });
-            
-          } catch (err) {
-            console.error("Error saving wallet connection:", err);
-            toast({
-              title: "Warning",
-              description: "Wallet connected but failed to save connection properly",
-              variant: "default"
-            });
+          });
+          
+          if (walletError) {
+            console.error("Error storing wallet connection in wallets table:", walletError);
+          } else {
+            console.log("Successfully stored wallet connection in wallets table");
           }
+
+          // Also save to users table for backward compatibility
+          console.log("Updating user record with wallet address...");
+          const { error: userError } = await supabase.from("users")
+            .upsert({ 
+              id: userId, 
+              links: address 
+            }, { 
+              onConflict: 'id',
+              ignoreDuplicates: false 
+            });
+              
+          if (userError) {
+            console.error("Error updating user wallet in users table:", userError);
+          } else {
+            console.log("Successfully updated wallet address in users table");
+          }
+
+          // Verify the wallet was saved correctly
+          console.log("Verifying wallet was saved...");
+          const { data: verifyWallet } = await supabase
+            .from("wallets")
+            .select("wallet_address")
+            .eq("telegram_id", userId)
+            .limit(1)
+            .maybeSingle();
+          
+          console.log("Wallet verification result:", verifyWallet);
+
+          toast({
+            title: "Wallet Connected",
+            description: "Your TON wallet has been connected and saved successfully.",
+          });
+          
         } else {
           console.warn("No telegram user ID found in local storage");
           toast({

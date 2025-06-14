@@ -57,7 +57,7 @@ export const verifyTonTransaction = async (
   }
 };
 
-// Poll for transaction completion
+// Poll for transaction completion with better timing
 export const pollForTransactionVerification = async (
   userId: string,
   amount: number,
@@ -67,11 +67,13 @@ export const pollForTransactionVerification = async (
 ): Promise<boolean> => {
   return new Promise((resolve) => {
     let attempts = 0;
+    const maxAttempts = 20; // Increased from default
+    const checkDelay = 8000; // Increased to 8 seconds
     
     // Show initial toast
     toast({
       title: "Waiting for payment confirmation",
-      description: "This may take a moment...",
+      description: "This may take up to 2 minutes. Please don't close the app.",
     });
     
     console.log("Starting transaction polling for:", { 
@@ -80,13 +82,13 @@ export const pollForTransactionVerification = async (
       taskId, 
       boostId, 
       taskType,
-      maxAttempts: TRANSACTION_VERIFICATION.MAX_ATTEMPTS,
-      checkDelay: TRANSACTION_VERIFICATION.CHECK_DELAY_MS
+      maxAttempts,
+      checkDelay
     });
     
     const checkInterval = setInterval(async () => {
       attempts++;
-      console.log(`Attempt ${attempts}/${TRANSACTION_VERIFICATION.MAX_ATTEMPTS} to verify transaction`);
+      console.log(`Verification attempt ${attempts}/${maxAttempts}`);
       
       const result = await verifyTonTransaction(userId, amount, taskId, boostId, taskType);
       
@@ -98,7 +100,7 @@ export const pollForTransactionVerification = async (
           description: "Your transaction has been verified.",
         });
         resolve(true);
-      } else if (attempts >= TRANSACTION_VERIFICATION.MAX_ATTEMPTS) {
+      } else if (attempts >= maxAttempts) {
         clearInterval(checkInterval);
         console.error("Transaction verification timed out after", attempts, "attempts:", result.message);
         toast({
@@ -108,9 +110,17 @@ export const pollForTransactionVerification = async (
         });
         resolve(false);
       } else {
-        console.log(`Verification attempt ${attempts} failed, retrying...`);
+        console.log(`Verification attempt ${attempts} failed, retrying in ${checkDelay/1000}s...`);
+        
+        // Show progress updates
+        if (attempts % 3 === 0) {
+          toast({
+            title: "Still checking...",
+            description: `Attempt ${attempts}/${maxAttempts}. Please wait.`,
+          });
+        }
       }
-    }, TRANSACTION_VERIFICATION.CHECK_DELAY_MS);
+    }, checkDelay);
   });
 };
 

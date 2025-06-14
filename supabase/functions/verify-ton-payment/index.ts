@@ -127,87 +127,117 @@ serve(async (req: Request) => {
     let matchingTx: any = null;
     let senderAddress: string | null = null;
     
-    // Check transactions using tonapi.io
+    // Check transactions using tonapi.io with improved logic
     try {
       console.log("Checking transactions using tonapi.io...");
-      const tonapiResponse = await fetch(`https://tonapi.io/v2/accounts/${userWalletAddress}/transactions?limit=20`, {
-        headers: {
-          'Authorization': `Bearer ${tonApiKey}`
-        }
-      });
       
-      if (tonapiResponse.ok) {
-        const data = await tonapiResponse.json();
-        console.log(`Found ${data.transactions?.length || 0} transactions in tonapi.io response`);
+      // Convert wallet address to different formats for better matching
+      let searchWallets = [userWalletAddress];
+      
+      // If wallet starts with "0:", also try without the "0:" prefix
+      if (userWalletAddress.startsWith("0:")) {
+        const withoutPrefix = userWalletAddress.substring(2);
+        searchWallets.push(withoutPrefix);
+      }
+      
+      // Try EQ format if not already
+      if (!userWalletAddress.startsWith("EQ") && !userWalletAddress.startsWith("UQ")) {
+        const eqFormat = "EQ" + (userWalletAddress.startsWith("0:") ? userWalletAddress.substring(2) : userWalletAddress);
+        searchWallets.push(eqFormat);
+      }
+      
+      console.log("Searching with wallet formats:", searchWallets);
+      
+      for (const walletAddr of searchWallets) {
+        console.log(`Trying wallet format: ${walletAddr}`);
         
-        const transactions = data.transactions || [];
-        
-        // Find matching transaction (sent to our wallet with correct amount)
-        matchingTx = transactions.find((tx: any) => {
-          // Check if this is a transaction to our wallet
-          const isToOurWallet = tx.out_msgs?.some((msg: any) => 
-            msg.destination === tonWalletAddress
-          );
-          
-          if (!isToOurWallet) return false;
-          
-          // Check for matching amount in any output message
-          const hasMatchingAmount = tx.out_msgs?.some((msg: any) => {
-            const diff = Math.abs(msg.value - expectedAmountNano);
-            const tolerance = Math.max(10000000, expectedAmountNano * 0.01); // 1% tolerance or 0.01 TON
-            const isMatch = diff < tolerance;
-            if (isMatch) {
-              console.log(`Found matching amount: ${msg.value} (expected ${expectedAmountNano}), diff: ${diff}`);
-            }
-            return isMatch;
-          });
-          
-          // Check if the message comment matches our expected comment if one was provided
-          let hasMatchingComment = true;
-          if (expectedComment) {
-            hasMatchingComment = tx.out_msgs?.some((msg: any) => {
-              if (!msg.message) return false;
-              if (typeof msg.message === 'string') {
-                const isMatch = msg.message.includes(expectedComment);
-                if (isMatch) {
-                  console.log(`Found matching comment: "${msg.message}" includes "${expectedComment}"`);
-                }
-                return isMatch;
-              }
-              return false;
-            });
+        const tonapiResponse = await fetch(`https://tonapi.io/v2/accounts/${walletAddr}/transactions?limit=50`, {
+          headers: {
+            'Authorization': `Bearer ${tonApiKey}`
           }
-          
-          // Check if transaction is recent (within last 30 minutes)
-          const txTime = new Date(tx.utime * 1000);
-          const timeDiff = Date.now() - txTime.getTime();
-          const isRecent = timeDiff < 30 * 60 * 1000;
-          
-          if (!isRecent) {
-            console.log(`Transaction from ${txTime.toISOString()} is too old (${Math.floor(timeDiff/1000/60)} minutes ago)`);
-          }
-          
-          const isMatch = isToOurWallet && hasMatchingAmount && hasMatchingComment && isRecent;
-          if (isMatch) {
-            console.log("Found matching transaction:", tx.hash);
-            senderAddress = userWalletAddress; // We know this is the sender
-          }
-          
-          return isMatch;
         });
         
-        if (matchingTx) {
-          console.log(`Transaction match found with hash: ${matchingTx.hash}, sender: ${senderAddress}`);
+        if (tonapiResponse.ok) {
+          const data = await tonapiResponse.json();
+          console.log(`Found ${data.transactions?.length || 0} transactions for ${walletAddr}`);
+          
+          const transactions = data.transactions || [];
+          
+          // Find matching transaction with improved logic
+          matchingTx = transactions.find((tx: any) => {
+            // Check if this is an outgoing transaction
+            const isOutgoing = tx.out_msgs && tx.out_msgs.length > 0;
+            if (!isOutgoing) return false;
+            
+            // Check for messages to our wallet address
+            const hasMatchingDestination = tx.out_msgs.some((msg: any) => {
+              const destination = msg.destination || msg.address;
+              return destination === tonWalletAddress || 
+                     destination === `0:${tonWalletAddress.substring(2)}` ||
+                     destination === `EQ${tonWalletAddress.substring(2)}` ||
+                     destination === `UQ${tonWalletAddress.substring(2)}`;
+            });
+            
+            if (!hasMatchingDestination) {
+              console.log("Transaction destination doesn't match our wallet");
+              return false;
+            }
+            
+            // Check for matching amount with tolerance
+            const hasMatchingAmount = tx.out_msgs.some((msg: any) => {
+              const msgValue = parseInt(msg.value || "0");
+              const diff = Math.abs(msgValue - expectedAmountNano);
+              const tolerance = Math.max(1000000, expectedAmountNano * 0.02); // 2% tolerance or 0.001 TON
+              
+              console.log(`Comparing amounts: msg=${msgValue}, expected=${expectedAmountNano}, diff=${diff}, tolerance=${tolerance}`);
+              
+              return diff < tolerance;
+            });
+            
+            if (!hasMatchingAmount) {
+              console.log("Transaction amount doesn't match");
+              return false;
+            }
+            
+            // Check comment if provided
+            if (expectedComment) {
+              const hasMatchingComment = tx.out_msgs.some((msg: any) => {
+                if (!msg.message) return false;
+                const msgText = typeof msg.message === 'string' ? msg.message : 
+                               msg.message.body ? msg.message.body : '';
+                return msgText.includes(expectedComment);
+              });
+              
+              if (!hasMatchingComment) {
+                console.log("Transaction comment doesn't match");
+                return false;
+              }
+            }
+            
+            // Check if transaction is recent (within last 60 minutes)
+            const txTime = new Date(tx.utime * 1000);
+            const timeDiff = Date.now() - txTime.getTime();
+            const isRecent = timeDiff < 60 * 60 * 1000; // 60 minutes
+            
+            if (!isRecent) {
+              console.log(`Transaction from ${txTime.toISOString()} is too old (${Math.floor(timeDiff/1000/60)} minutes ago)`);
+              return false;
+            }
+            
+            console.log("Found matching transaction:", tx.hash || tx.transaction_id);
+            senderAddress = walletAddr;
+            return true;
+          });
+          
+          if (matchingTx) {
+            console.log("Transaction found, breaking search");
+            break;
+          }
         } else {
-          console.log("No matching transaction found in tonapi.io response");
-          console.log("Debug: Expected amount (nano):", expectedAmountNano);
-          console.log("Debug: Expected comment:", expectedComment);
-          console.log("Debug: User wallet:", userWalletAddress);
-          console.log("Debug: Our wallet:", tonWalletAddress);
+          console.log(`tonapi.io request failed for ${walletAddr}:`, tonapiResponse.status);
         }
-      } else {
-        console.log("tonapi.io request failed:", tonapiResponse.status, await tonapiResponse.text());
       }
+      
     } catch (error) {
       console.log("Error with tonapi.io:", error);
     }
@@ -245,10 +275,10 @@ serve(async (req: Request) => {
     
     // Process verified transaction
     const txHash = matchingTx.hash || matchingTx.transaction_id;
-    console.log(`Transaction match found with hash: ${txHash}`);
+    console.log(`Transaction verified with hash: ${txHash}`);
     
-    // Update payment record with transaction hash AND telegram_id
-    console.log("Updating payment record with transaction hash and telegram_id");
+    // Update payment record with transaction hash
+    console.log("Updating payment record with transaction hash");
     const { error: paymentUpdateError } = await supabaseAdmin
       .from("payments")
       .update({ 
@@ -263,7 +293,7 @@ serve(async (req: Request) => {
     if (paymentUpdateError) {
       console.error("Error updating payment record:", paymentUpdateError);
     } else {
-      console.log("Payment record updated successfully with telegram_id and wallet_address");
+      console.log("Payment record updated successfully");
     }
       
     return await processVerifiedTransaction(
