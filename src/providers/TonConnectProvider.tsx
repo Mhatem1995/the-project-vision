@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,25 +31,19 @@ const TonConnectContext = createContext<TonConnectContextType>({
 export const useTonConnect = () => useContext(TonConnectContext);
 
 const detectTelegramWebApp = () => {
+  // Only enable Telegram WebApp detection if we're truly inside Telegram
   const storedValue = localStorage.getItem("inTelegramWebApp");
   if (storedValue === "true") {
     return true;
   }
-  const isTelegramUserAgent = navigator.userAgent.includes('Telegram');
-  if (isTelegramUserAgent) {
-    localStorage.setItem("inTelegramWebApp", "true");
-    return true;
+  if (typeof window !== "undefined") {
+    const hasTelegramObject = !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe?.user);
+    if (hasTelegramObject) {
+      localStorage.setItem("inTelegramWebApp", "true");
+      return true;
+    }
   }
-  const hasTelegramObject = Boolean(
-    typeof window !== "undefined" &&
-    window.Telegram &&
-    window.Telegram.WebApp
-  );
-  const result = hasTelegramObject || process.env.NODE_ENV === "development";
-  if (result) {
-    localStorage.setItem("inTelegramWebApp", "true");
-  }
-  return result;
+  return false;
 };
 
 export const TonConnectProvider = ({ children }: { children: React.ReactNode }) => {
@@ -60,7 +53,6 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
   const { toast } = useToast();
 
-  // Utility to completely clear wallet connection state from localStorage/UI
   const clearWalletState = () => {
     setIsConnected(false);
     setWalletAddress(null);
@@ -69,11 +61,11 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   };
 
   useEffect(() => {
-    // Prevent double initialization
+    // No more dev/test fallback - only real connection logic
     if (window._tonConnectUI) {
-      console.log("TonConnect already initialized, reusing existing instance");
       setTonConnectUI(window._tonConnectUI);
 
+      // Only set connection if REAL wallet is connected
       if (window._tonConnectUI.connected && window._tonConnectUI.wallet) {
         const address = window._tonConnectUI.wallet.account.address;
         setIsConnected(true);
@@ -84,8 +76,6 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       }
       return;
     }
-
-    console.log("Initializing TonConnect UI...");
 
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
@@ -103,13 +93,12 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       // Listen to wallet status changes
       const unsubscribe = connector.onStatusChange(async (wallet) => {
         if (wallet) {
-          // Wallet connected event
           setIsConnected(true);
           const address = wallet.account.address;
           setWalletAddress(address);
           localStorage.setItem("tonWalletAddress", address);
 
-          // Ensure user exists in database
+          // Persist wallet to DB for this real user's Telegram ID (as TEXT)
           const userId = localStorage.getItem("telegramUserId");
           if (userId) {
             try {
@@ -125,6 +114,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
               if (walletError) {
                 console.error("Error saving wallet connection:", walletError);
               }
+              // Only show wallet connected toast if newly connected
               toast({
                 title: "Wallet Connected",
                 description: "Your TON wallet has been connected successfully.",
@@ -134,7 +124,6 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
             }
           }
         } else {
-          // Wallet disconnected event
           clearWalletState();
           toast({
             title: "Wallet Disconnected",
