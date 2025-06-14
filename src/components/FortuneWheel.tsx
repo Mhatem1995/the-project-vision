@@ -12,7 +12,7 @@ const PRIZES = [
   { type: 'KFC', amount: 10, probability: 0.3, color: '#4ECDC4' },
   { type: 'KFC', amount: 50, probability: 0.2, color: '#45B7D1' },
   { type: 'TON', amount: 100, probability: 0.09, color: '#96CEB4' },
-  { type: 'TON', amount: 10, probability: 0.01, color: '#FFEEAD' }
+  { type: 'TON', amount: 0, probability: 0.01, color: '#FFEEAD' } // "Try Again"
 ];
 
 const FortuneWheel: React.FC = () => {
@@ -96,11 +96,20 @@ const FortuneWheel: React.FC = () => {
     const userId = localStorage.getItem("telegramUserId");
     const prize = selectPrize();
 
-    const rotations = 5 + Math.floor(Math.random() * 3);
-    const prizeIndex = PRIZES.findIndex(p => p.type === prize.type && p.amount === prize.amount);
-    const targetDegree = rotations * 360 + (360 / PRIZES.length) * prizeIndex;
+    // Enhanced spin animation with deceleration
+    const baseRotations = 5; // Full rotations
+    const extraRotation = Math.random() * 2; // Random extra rotation (0-2 full rotations)
+    const totalRotations = baseRotations + extraRotation;
     
-    setRotationDegrees(targetDegree);
+    // Calculate target segment
+    const prizeIndex = PRIZES.findIndex(p => p.type === prize.type && p.amount === prize.amount);
+    const segmentAngle = 360 / PRIZES.length;
+    const targetAngle = prizeIndex * segmentAngle + (segmentAngle / 2); // Center of segment
+    
+    // Add total rotations and target angle
+    const finalRotation = totalRotations * 360 + targetAngle;
+    
+    setRotationDegrees(prev => prev + finalRotation);
 
     try {
       if (!freePinAvailable) {
@@ -136,12 +145,17 @@ const FortuneWheel: React.FC = () => {
 
       setTimeout(() => {
         setSpinning(false);
+        const prizeMessage = prize.amount === 0 
+          ? "Better luck next time!" 
+          : prize.type === 'KFC' 
+            ? `You won ${prize.amount} KFC!` 
+            : `Congratulations! You won ${prize.amount} TON!`;
+            
         toast({
           title: "Fortune Wheel Spin",
-          description: prize.type === 'KFC' 
-            ? `You won ${prize.amount} KFC!` 
-            : `Congratulations! You won ${prize.amount} TON!`
+          description: prizeMessage
         });
+        
         if (!freePinAvailable) {
           setCookies(cookies - 1);
         }
@@ -152,7 +166,7 @@ const FortuneWheel: React.FC = () => {
         }).then(({ data }) => {
           setFreePinAvailable(!!data);
         });
-      }, 5000);
+      }, 4000); // Reduced from 5000ms to match animation duration
     } catch (error) {
       setSpinning(false);
       toast({
@@ -193,30 +207,42 @@ const FortuneWheel: React.FC = () => {
       <JackpotBanner />
 
       <div className="relative w-64 h-64 mx-auto">
-        {/* Outer circle wheel border */}
-        <div className="absolute w-full h-full rounded-full border-4 border-gray-800 bg-gray-900 z-0"></div>
+        {/* Enhanced outer circle with gradient border */}
+        <div className="absolute w-full h-full rounded-full border-4 border-gradient-to-r from-primary to-purple-600 bg-gray-900 shadow-2xl z-0"
+             style={{
+               background: 'conic-gradient(from 0deg, #4338ca, #7c3aed, #ec4899, #f59e0b, #10b981, #06b6d4, #4338ca)',
+               padding: '4px'
+             }}>
+          <div className="w-full h-full rounded-full bg-gray-900"></div>
+        </div>
         
-        {/* Center dot */}
-        <div className="absolute left-1/2 top-1/2 w-4 h-4 bg-white rounded-full -translate-x-1/2 -translate-y-1/2 z-20"></div>
+        {/* Pointer/Arrow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 w-0 h-0 border-x-8 border-x-transparent border-b-[20px] border-b-primary z-20 drop-shadow-lg" />
+        
+        {/* Center hub */}
+        <div className="absolute left-1/2 top-1/2 w-8 h-8 bg-gradient-to-br from-white to-gray-200 rounded-full -translate-x-1/2 -translate-y-1/2 z-20 shadow-lg border-2 border-gray-300"></div>
         
         <div 
           ref={wheelRef}
-          className="absolute w-full h-full transition-transform duration-[5000ms] ease-out rounded-full overflow-hidden"
+          className="absolute w-full h-full rounded-full overflow-hidden transition-transform ease-out"
           style={{ 
             transform: `rotate(${rotationDegrees}deg)`,
             transformOrigin: 'center center',
+            transitionDuration: spinning ? '4000ms' : '0ms',
+            transitionTimingFunction: spinning ? 'cubic-bezier(0.17, 0.67, 0.12, 0.99)' : 'ease',
           }}
         >
           {PRIZES.map((prize, index) => (
             <WheelSegment
-              key={`${prize.type}-${prize.amount}`}
+              key={`${prize.type}-${prize.amount}-${index}`}
               rotate={(360 / PRIZES.length) * index}
               prize={prize}
               color={prize.color}
+              totalSegments={PRIZES.length}
+              index={index}
             />
           ))}
         </div>
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 w-0 h-0 border-x-8 border-x-transparent border-b-[16px] border-b-primary z-10" />
       </div>
     </div>
   );
