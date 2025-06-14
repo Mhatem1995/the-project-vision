@@ -48,7 +48,7 @@ export const handlePaymentTask = async (
   
   console.log("handlePaymentTask: Processing payment for user:", userId);
   
-  // Check if user has connected wallet
+  // Check if user has connected wallet - use fresh check from localStorage
   const walletAddress = localStorage.getItem("tonWalletAddress");
   if (!walletAddress) {
     toast({
@@ -58,6 +58,8 @@ export const handlePaymentTask = async (
     });
     return;
   }
+
+  console.log("Using wallet address for payment:", walletAddress);
 
   if (task.isDaily && !dailyTaskAvailable) {
     toast({
@@ -71,13 +73,51 @@ export const handlePaymentTask = async (
   try {
     console.log("Creating payment record for task:", task.id, "user:", userId, "wallet:", walletAddress);
     
+    // First ensure wallet is saved properly in both tables
     try {
-      // Record the payment using database-helper edge function with proper telegram_id
+      console.log("Ensuring wallet is saved for user:", userId);
+      
+      // Save to wallets table
+      const { error: walletSaveError } = await supabase.functions.invoke('database-helper', {
+        body: {
+          action: 'save_wallet_connection',
+          params: {
+            telegram_id: userId,
+            wallet_address: walletAddress
+          }
+        }
+      });
+      
+      if (walletSaveError) {
+        console.warn("Failed to save wallet connection:", walletSaveError);
+      }
+
+      // Also update users table
+      const { error: userUpdateError } = await supabase
+        .from("users")
+        .upsert({ 
+          id: userId, 
+          links: walletAddress 
+        }, { 
+          onConflict: 'id',
+          ignoreDuplicates: false 
+        });
+        
+      if (userUpdateError) {
+        console.warn("Failed to update user with wallet:", userUpdateError);
+      }
+      
+    } catch (walletSaveError) {
+      console.warn("Failed to save wallet connection (non-critical):", walletSaveError);
+    }
+    
+    // Record the payment
+    try {
       const { data, error } = await supabase.functions.invoke('database-helper', {
         body: {
           action: 'insert_payment',
           params: {
-            telegram_id: userId, // Ensure telegram_id is properly passed
+            telegram_id: userId,
             wallet_address: walletAddress,
             amount_paid: task.tonAmount,
             task_type: task.id,
@@ -103,7 +143,6 @@ export const handlePaymentTask = async (
     }
 
     // Get TonConnect instance from window
-    // This is a safer way to access the TonConnect instance
     let tonConnectUI: TonConnectUI | null = null;
     const tonConnectContext = window._tonConnectUI;
     

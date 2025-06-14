@@ -64,11 +64,12 @@ serve(async (req: Request) => {
       );
     }
 
-    // Get user's wallet address - first try from wallets table
+    // Get user's wallet address - try multiple sources for reliability
     let userWalletAddress: string | null = null;
     
-    // Try to get from wallets table first
     console.log(`Searching for wallet address for user ID: ${userId}`);
+    
+    // Try wallets table first (most reliable)
     const { data: walletData, error: walletError } = await supabaseAdmin
       .from("wallets")
       .select("wallet_address")
@@ -81,8 +82,8 @@ serve(async (req: Request) => {
       userWalletAddress = walletData.wallet_address;
       console.log(`Found wallet address in wallets table: ${userWalletAddress}`);
     } else {
-      // Fall back to users table
       console.log("Wallet not found in wallets table, checking users.links");
+      // Fall back to users table
       const { data: userData, error: userError } = await supabaseAdmin
         .from("users")
         .select("links")
@@ -96,12 +97,17 @@ serve(async (req: Request) => {
     }
 
     if (!userWalletAddress) {
-      console.log("User wallet not found:", walletError || "No wallet connected");
+      console.log("User wallet not found - this is the main issue!");
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "User wallet not found",
-          error: walletError?.message || "No wallet address found for this user"
+          message: "User wallet not found. Please reconnect your wallet.",
+          error: "No wallet address found for this user. Please disconnect and reconnect your TON wallet.",
+          debug: {
+            userId,
+            walletTableResult: walletData,
+            walletTableError: walletError?.message
+          }
         }),
         {
           status: 404,
@@ -114,7 +120,6 @@ serve(async (req: Request) => {
     
     // Format amount for comparison (convert to nanoTONs)
     const expectedAmountNano = Math.floor(amount * 1000000000);
-    // Handle boost comments properly - they use UUID format
     const expectedComment = comment || (boostId ? `boost_${boostId}` : taskId ? `task${taskId}` : "");
     
     console.log(`Looking for transaction with: amount=${expectedAmountNano} nanoTON, comment=${expectedComment || "(none)"}`);
@@ -122,7 +127,7 @@ serve(async (req: Request) => {
     let matchingTx: any = null;
     let senderAddress: string | null = null;
     
-    // First, try using tonapi.io
+    // Check transactions using tonapi.io
     try {
       console.log("Checking transactions using tonapi.io...");
       const tonapiResponse = await fetch(`https://tonapi.io/v2/accounts/${userWalletAddress}/transactions?limit=20`, {
@@ -149,7 +154,8 @@ serve(async (req: Request) => {
           // Check for matching amount in any output message
           const hasMatchingAmount = tx.out_msgs?.some((msg: any) => {
             const diff = Math.abs(msg.value - expectedAmountNano);
-            const isMatch = diff < 10000000; // Allow small rounding differences
+            const tolerance = Math.max(10000000, expectedAmountNano * 0.01); // 1% tolerance or 0.01 TON
+            const isMatch = diff < tolerance;
             if (isMatch) {
               console.log(`Found matching amount: ${msg.value} (expected ${expectedAmountNano}), diff: ${diff}`);
             }
@@ -184,8 +190,7 @@ serve(async (req: Request) => {
           const isMatch = isToOurWallet && hasMatchingAmount && hasMatchingComment && isRecent;
           if (isMatch) {
             console.log("Found matching transaction:", tx.hash);
-            // Capture sender address from the transaction
-            senderAddress = tx.account?.address || userWalletAddress;
+            senderAddress = userWalletAddress; // We know this is the sender
           }
           
           return isMatch;
@@ -195,102 +200,40 @@ serve(async (req: Request) => {
           console.log(`Transaction match found with hash: ${matchingTx.hash}, sender: ${senderAddress}`);
         } else {
           console.log("No matching transaction found in tonapi.io response");
+          console.log("Debug: Expected amount (nano):", expectedAmountNano);
+          console.log("Debug: Expected comment:", expectedComment);
+          console.log("Debug: User wallet:", userWalletAddress);
+          console.log("Debug: Our wallet:", tonWalletAddress);
         }
       } else {
-        console.log("tonapi.io request failed:", tonapiResponse.status);
+        console.log("tonapi.io request failed:", tonapiResponse.status, await tonapiResponse.text());
       }
     } catch (error) {
       console.log("Error with tonapi.io:", error);
     }
     
-    // If tonapi.io fails, try toncenter API as fallback
     if (!matchingTx) {
-      try {
-        console.log("Checking transactions using toncenter API...");
-        const toncenterUrl = `https://toncenter.com/api/v2/getTransactions?address=${userWalletAddress}&limit=20&to_lt=0&archival=false`;
-        const toncenterResponse = await fetch(toncenterUrl, {
-          headers: {
-            'X-API-Key': tonApiKey
-          }
-        });
-        
-        if (toncenterResponse.ok) {
-          const data = await toncenterResponse.json();
-          console.log(`Found ${data.result?.length || 0} transactions in toncenter response`);
-          
-          if (data.ok && data.result && Array.isArray(data.result)) {
-            const transactions = data.result;
-            
-            // Find matching transaction (sent to our wallet with correct amount)
-            matchingTx = transactions.find((tx: any) => {
-              if (!tx.out_msgs || !tx.out_msgs.length) return false;
-              
-              // Look for outgoing message to our wallet
-              const matchingMsg = tx.out_msgs.find((msg: any) => {
-                const isToOurWallet = msg.destination === tonWalletAddress;
-                if (!isToOurWallet) return false;
-                
-                const msgValue = parseInt(msg.value);
-                const diff = Math.abs(msgValue - expectedAmountNano);
-                const hasMatchingAmount = diff < 10000000;
-                
-                if (hasMatchingAmount) {
-                  console.log(`Found matching amount: ${msgValue} (expected ${expectedAmountNano}), diff: ${diff}`);
-                }
-                
-                // Check comment if expected
-                let hasMatchingComment = true;
-                if (expectedComment && msg.message) {
-                  hasMatchingComment = msg.message.includes(expectedComment);
-                  if (hasMatchingComment) {
-                    console.log(`Found matching comment: "${msg.message}" includes "${expectedComment}"`);
-                  }
-                }
-                
-                return isToOurWallet && hasMatchingAmount && hasMatchingComment;
-              });
-              
-              // Check if transaction is recent (within last 30 minutes)
-              const txTime = tx.utime ? new Date(tx.utime * 1000) : null;
-              const timeDiff = txTime ? Date.now() - txTime.getTime() : 0;
-              const isRecent = txTime && (timeDiff < 30 * 60 * 1000);
-              
-              if (!isRecent && txTime) {
-                console.log(`Transaction from ${txTime.toISOString()} is too old (${Math.floor(timeDiff/1000/60)} minutes ago)`);
-              }
-              
-              const isMatch = !!matchingMsg && isRecent;
-              if (isMatch) {
-                console.log("Found matching transaction in toncenter:", tx.transaction_id);
-                // For toncenter, use the user wallet address as sender
-                senderAddress = userWalletAddress;
-              }
-              
-              return isMatch;
-            });
-          }
-        } else {
-          console.log("toncenter request failed:", toncenterResponse.status);
-        }
-      } catch (error) {
-        console.log("Error with toncenter:", error);
-      }
-    }
-    
-    if (!matchingTx) {
-      // No matching transaction found in either API
-      console.log("No matching transaction found in any APIs");
+      // No matching transaction found
+      console.log("No matching transaction found");
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "No matching transaction found",
+          message: "No matching transaction found. Please ensure you sent the correct amount to the correct address.",
           expected: {
-            amount: Math.floor(amount * 1000000000),
+            amount: expectedAmountNano,
+            amountTON: amount,
             receiver: tonWalletAddress,
+            sender: userWalletAddress,
             comment: expectedComment || "(none)",
             userId: userId,
             taskId: taskId,
             boostId: boostId
+          },
+          debug: {
+            userWallet: userWalletAddress,
+            ourWallet: tonWalletAddress,
+            expectedAmountNano,
+            expectedComment
           }
         }),
         {
@@ -310,11 +253,11 @@ serve(async (req: Request) => {
       .from("payments")
       .update({ 
         transaction_hash: txHash,
-        telegram_id: userId, // Ensure telegram_id is stored
-        wallet_address: senderAddress || userWalletAddress // Store sender address
+        telegram_id: userId,
+        wallet_address: senderAddress || userWalletAddress
       })
       .eq("telegram_id", userId)
-      .eq("task_type", taskType || "boost")
+      .eq("task_type", taskType || taskId || "boost")
       .is("transaction_hash", null);
     
     if (paymentUpdateError) {
@@ -337,7 +280,11 @@ serve(async (req: Request) => {
   } catch (error) {
     console.error("Unexpected error:", error);
     return new Response(
-      JSON.stringify({ success: false, message: error.message }),
+      JSON.stringify({ 
+        success: false, 
+        message: error.message,
+        debug: "Check edge function logs for details"
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -369,11 +316,11 @@ async function processVerifiedTransaction(
       .update({
         status: "confirmed",
         ton_tx: txHash,
-        user_id: userId, // Ensure user_id (telegram_id) is stored
-        expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), // 24 hours from now
+        user_id: userId,
+        expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
       })
       .eq("id", boostId)
-      .eq("user_id", userId) // Ensure we're updating the right user's boost
+      .eq("user_id", userId)
       .select();
     
     if (updateError) {
@@ -430,7 +377,6 @@ async function processVerifiedTransaction(
       }
     } catch (err) {
       console.error("Error handling task completion:", err);
-      // Continue anyway since the main transaction was successful
     }
     
     if (taskId === "6") {
@@ -459,7 +405,6 @@ async function processVerifiedTransaction(
       console.log("Added fortune cookies successfully");
     } else {
       // Regular task - add KFC balance
-      // First get the task reward amount
       let reward = 0;
       switch (taskId) {
         case "3": reward = 100; break;
@@ -541,7 +486,6 @@ async function processVerifiedTransaction(
       }
     } catch (err) {
       console.error("Failed to record daily task:", err);
-      // Continue anyway since the main transaction was successful
     }
   }
   
