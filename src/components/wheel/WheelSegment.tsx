@@ -69,25 +69,26 @@ const WheelSegment: React.FC<WheelSegmentProps> = ({
         />
       </svg>
       
-      {/* Prize text positioned in the middle of the segment */}
+      {/* Prize text positioned in the center of the segment */}
       <div 
         className="absolute inset-0 flex items-center justify-center"
         style={{ 
-          transform: `translateY(-60px)`,
+          transform: `rotate(${halfSegmentAngle}deg) translateY(-40px)`,
           transformOrigin: 'center center',
         }}
       >
         <div
           className={cn(
-            "bg-black/70 text-white font-bold text-center",
-            "px-3 py-2 rounded-lg border-2 border-white/30"
+            "bg-black/80 text-white font-bold text-center",
+            "px-2 py-1 rounded-md border border-white/40"
           )}
           style={{ 
-            textShadow: '2px 2px 4px rgba(0,0,0,1)',
-            fontSize: prize.amount === 0 ? '14px' : '16px',
-            fontWeight: '800',
+            transform: `rotate(-${halfSegmentAngle}deg)`,
+            textShadow: '1px 1px 2px rgba(0,0,0,1)',
+            fontSize: prize.amount === 0 ? '12px' : '14px',
+            fontWeight: '700',
             whiteSpace: 'nowrap',
-            minWidth: '80px'
+            minWidth: '60px'
           }}
         >
           {formatPrizeText()}
