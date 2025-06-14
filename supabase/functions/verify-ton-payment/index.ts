@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -150,7 +149,9 @@ serve(async (req: Request) => {
       searchedWallets.push(walletAddr);
       
       try {
-        const tonapiResponse = await fetch(`https://tonapi.io/v2/accounts/${walletAddr}/transactions?limit=100`, {
+        const tonapiUrl = `https://tonapi.io/v2/accounts/${walletAddr}/transactions?limit=100`;
+        debugLog(`Requesting TON API:`, tonapiUrl);
+        const tonapiResponse = await fetch(tonapiUrl, {
           headers: { 'Authorization': `Bearer ${tonApiKey}` }
         });
         
@@ -174,7 +175,8 @@ serve(async (req: Request) => {
           const maxAge = 2 * 60 * 60 * 1000; // 2 hours
           
           if (timeDiff > maxAge) {
-            continue; // Skip old transactions
+            debugLog(`Skipping TX as it is older than 2 hours`, { txHash: tx.hash || tx.transaction_id, txTime: txTime.toISOString() });
+            continue;
           }
           
           debugLog(`Checking tx ${tx.hash || tx.transaction_id} from ${txTime.toISOString()}`);
@@ -243,11 +245,11 @@ serve(async (req: Request) => {
     }
     
     if (!matchingTx) {
-      debugLog("❌ NO MATCHING TRANSACTION FOUND");
+      debugLog("❌ NO MATCHING TRANSACTION FOUND after checking all variants. Provide this info to the user.");
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: "No matching transaction found. Please ensure you sent the correct amount.",
+        JSON.stringify({
+          success: false,
+          message: "No matching transaction found. Please ensure you sent the correct amount to the correct address WITH the required comment. If the problem persists, contact support.",
           debug: {
             userWallet: userWalletAddress,
             searchedWallets,
