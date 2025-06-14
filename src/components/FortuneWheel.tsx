@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -206,10 +205,20 @@ const FortuneWheel: React.FC = () => {
 
       <JackpotBanner />
 
-      {/* Wheel container with strict containment */}
-      <div className="relative w-64 h-64 mx-auto overflow-hidden">
+      {/* Wheel container - Using position relative and overflow hidden to contain all elements */}
+      <div className="relative w-64 h-64 mx-auto">
+        {/* Fixed pointer that always shows at the top of the wheel */}
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -mt-2 z-20">
+          <div 
+            className="w-0 h-0 border-l-[10px] border-r-[10px] border-b-[15px] border-l-transparent border-r-transparent border-b-primary"
+            style={{
+              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
+            }}
+          />
+        </div>
+        
         {/* Outer circle background */}
-        <div className="absolute inset-0 w-full h-full rounded-full bg-gray-900 shadow-2xl"
+        <div className="absolute inset-0 w-full h-full rounded-full overflow-hidden"
              style={{
                background: 'conic-gradient(from 0deg, #4338ca, #7c3aed, #ec4899, #f59e0b, #10b981, #06b6d4, #4338ca)',
                padding: '4px'
@@ -240,26 +249,9 @@ const FortuneWheel: React.FC = () => {
           ))}
         </div>
 
-        {/* Pointer - positioned at the very top, inside container */}
+        {/* Center hub - The white dot in the center, fixed position */}
         <div 
-          className="absolute w-0 h-0 border-x-4 border-x-transparent border-b-6 border-b-primary drop-shadow-lg"
-          style={{
-            top: '2px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 30
-          }}
-        />
-
-        {/* Center hub - always centered in container */}
-        <div 
-          className="absolute w-6 h-6 bg-gradient-to-br from-white to-gray-200 rounded-full shadow-lg border-2 border-gray-300"
-          style={{
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 30
-          }}
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-gradient-to-br from-white to-gray-200 rounded-full shadow-lg border-2 border-gray-300 z-10"
         />
       </div>
     </div>
