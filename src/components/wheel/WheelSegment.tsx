@@ -69,21 +69,24 @@ const WheelSegment: React.FC<WheelSegmentProps> = ({
         <div 
           className="absolute flex items-center justify-center"
           style={{ 
-            transform: `rotate(${halfSegmentAngle}deg) translateY(-70px)`,
+            transform: `rotate(${halfSegmentAngle}deg) translateY(-80px)`,
             transformOrigin: 'center center',
-            width: '120px',
-            height: '40px',
+            width: '100px',
+            height: '50px',
           }}
         >
           <span 
             className={cn(
-              "text-white font-bold text-xs text-center leading-tight",
-              "drop-shadow-lg"
+              "text-white font-bold text-sm text-center leading-tight",
+              "drop-shadow-lg px-2 py-1 rounded"
             )}
             style={{ 
-              textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+              textShadow: '2px 2px 4px rgba(0,0,0,0.9)',
               transform: `rotate(-${halfSegmentAngle}deg)`,
               fontFamily: 'system-ui, -apple-system, sans-serif',
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              fontSize: prize.amount === 0 ? '10px' : '12px',
+              fontWeight: 'bold'
             }}
           >
             {formatPrizeText()}

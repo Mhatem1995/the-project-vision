@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -100,10 +101,12 @@ const FortuneWheel: React.FC = () => {
     const extraRotation = Math.random() * 2; // Random extra rotation (0-2 full rotations)
     const totalRotations = baseRotations + extraRotation;
     
-    // Calculate target segment
+    // Calculate target segment - pointer should point to the winning segment
     const prizeIndex = PRIZES.findIndex(p => p.type === prize.type && p.amount === prize.amount);
     const segmentAngle = 360 / PRIZES.length;
-    const targetAngle = prizeIndex * segmentAngle + (segmentAngle / 2); // Center of segment
+    // Since pointer is at top (12 o'clock), we need to position the winning segment at the top
+    // The wheel rotates clockwise, so we calculate the angle to bring the winning segment to the top
+    const targetAngle = 360 - (prizeIndex * segmentAngle + segmentAngle / 2);
     
     // Add total rotations and target angle
     const finalRotation = totalRotations * 360 + targetAngle;
@@ -206,13 +209,13 @@ const FortuneWheel: React.FC = () => {
       <JackpotBanner />
 
       {/* Wheel container - Using position relative and overflow hidden to contain all elements */}
-      <div className="relative w-64 h-64 mx-auto">
-        {/* Fixed pointer that always shows at the top of the wheel */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -mt-2 z-20">
+      <div className="relative w-64 h-64 mx-auto overflow-hidden">
+        {/* Fixed pointer that always shows at the top of the wheel - pointing down into the wheel */}
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-30" style={{ marginTop: '-2px' }}>
           <div 
-            className="w-0 h-0 border-l-[10px] border-r-[10px] border-b-[15px] border-l-transparent border-r-transparent border-b-primary"
+            className="w-0 h-0 border-l-[12px] border-r-[12px] border-b-[20px] border-l-transparent border-r-transparent border-b-red-600"
             style={{
-              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))',
             }}
           />
         </div>
@@ -251,7 +254,7 @@ const FortuneWheel: React.FC = () => {
 
         {/* Center hub - The white dot in the center, fixed position */}
         <div 
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-gradient-to-br from-white to-gray-200 rounded-full shadow-lg border-2 border-gray-300 z-10"
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-gradient-to-br from-white to-gray-200 rounded-full shadow-lg border-2 border-gray-300 z-20"
         />
       </div>
     </div>
