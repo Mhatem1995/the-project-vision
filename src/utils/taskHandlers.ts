@@ -48,7 +48,7 @@ export const handlePaymentTask = async (
   
   console.log("handlePaymentTask: Processing payment for user:", userId);
   
-  // Check if user has connected wallet - use fresh check from localStorage
+  // Check if user has connected wallet
   const walletAddress = localStorage.getItem("tonWalletAddress");
   if (!walletAddress) {
     toast({
@@ -73,7 +73,7 @@ export const handlePaymentTask = async (
   try {
     console.log("Creating payment record for task:", task.id, "user:", userId, "wallet:", walletAddress);
     
-    // First ensure wallet is saved properly in both tables
+    // Ensure wallet is saved properly in database
     try {
       console.log("Ensuring wallet is saved for user:", userId);
       
@@ -90,6 +90,8 @@ export const handlePaymentTask = async (
       
       if (walletSaveError) {
         console.warn("Failed to save wallet connection:", walletSaveError);
+      } else {
+        console.log("Wallet connection saved successfully");
       }
 
       // Also update users table
@@ -105,13 +107,15 @@ export const handlePaymentTask = async (
         
       if (userUpdateError) {
         console.warn("Failed to update user with wallet:", userUpdateError);
+      } else {
+        console.log("User table updated with wallet address");
       }
       
     } catch (walletSaveError) {
       console.warn("Failed to save wallet connection (non-critical):", walletSaveError);
     }
     
-    // Record the payment
+    // Record the payment before transaction
     try {
       const { data, error } = await supabase.functions.invoke('database-helper', {
         body: {
@@ -131,7 +135,7 @@ export const handlePaymentTask = async (
         throw new Error(`Failed to record payment: ${error.message}`);
       }
       
-      console.log("Payment record created successfully with telegram_id:", userId, "data:", data);
+      console.log("Payment record created successfully:", data);
     } catch (paymentError) {
       console.error("Failed to record payment:", paymentError);
       toast({
@@ -142,57 +146,55 @@ export const handlePaymentTask = async (
       return;
     }
 
-    // Get TonConnect instance from window
-    let tonConnectUI: TonConnectUI | null = null;
-    const tonConnectContext = window._tonConnectUI;
-    
-    if (tonConnectContext && typeof tonConnectContext === 'object') {
-      tonConnectUI = tonConnectContext as TonConnectUI;
-    }
+    // Get TonConnect instance
+    const tonConnectUI = window._tonConnectUI;
 
     if (!tonConnectUI || typeof tonConnectUI.sendTransaction !== 'function') {
-      console.error("TonConnect UI not available or missing sendTransaction method");
+      console.error("TonConnect UI not available");
       toast({
         title: "Wallet Connection Error",
-        description: "Unable to open payment wallet. Please try reconnecting your wallet.",
+        description: "Unable to connect to wallet. Please reconnect your wallet and try again.",
         variant: "destructive"
       });
       return;
     }
 
-    // Use TonConnect to send transaction
+    // Send transaction using TonConnect
     try {
       console.log(`Sending TON payment for ${task.tonAmount} TON using TonConnect`);
+      
+      const amountInNano = Math.floor(task.tonAmount * 1000000000);
+      const comment = `task${task.id}`;
       
       await tonConnectUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 600, // expires in 10 mins
         messages: [
           {
             address: tonWalletAddress,
-            amount: (task.tonAmount * 1e9).toString(), // Convert to nanoTON
-            payload: `task${task.id}`, // Task ID in payload for traceability
+            amount: amountInNano.toString(),
+            payload: comment,
           }
         ]
       });
       
-      console.log("TonConnect transaction initiated for task payment");
+      console.log("TonConnect transaction initiated successfully");
+      
+      toast({
+        title: "Payment Initiated",
+        description: "Transaction sent! We're verifying your payment...",
+      });
+      
     } catch (txError) {
       console.error("Error initiating TonConnect transaction:", txError);
       toast({
-        title: "Transaction Error",
-        description: "Failed to open wallet for payment. Please try again.",
+        title: "Transaction Error", 
+        description: "Failed to send transaction. Please try again.",
         variant: "destructive"
       });
       return;
     }
 
-    // Start transaction verification process
-    toast({
-      title: "Payment Initiated",
-      description: "Complete the payment in your wallet app. We'll verify your transaction automatically.",
-    });
-    
-    // Wait a moment for user to complete payment then start polling
+    // Start transaction verification immediately
     setTimeout(async () => {
       const taskType = task.isDaily ? "daily_ton_payment" : undefined;
       console.log("Starting transaction verification for task:", task.id, "type:", taskType, "user:", userId);
@@ -223,7 +225,7 @@ export const handlePaymentTask = async (
           onDailyTaskComplete();
         }
       }
-    }, 3000);
+    }, 2000); // Start verification after 2 seconds
   } catch (err) {
     console.error("Error in handlePaymentTask:", err);
     toast({

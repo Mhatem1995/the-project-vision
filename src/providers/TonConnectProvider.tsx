@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
@@ -118,7 +119,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         if (userId) {
           console.log("Saving wallet connection for user:", userId, "address:", address);
           
-          // First, ensure the wallet is saved in the wallets table
+          // Save to wallets table
           console.log("Saving to wallets table...");
           const { error: walletError } = await supabase.functions.invoke('database-helper', {
             body: {

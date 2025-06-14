@@ -57,7 +57,7 @@ export const verifyTonTransaction = async (
   }
 };
 
-// Poll for transaction completion with better timing
+// Poll for transaction completion with better timing and more attempts
 export const pollForTransactionVerification = async (
   userId: string,
   amount: number,
@@ -67,13 +67,13 @@ export const pollForTransactionVerification = async (
 ): Promise<boolean> => {
   return new Promise((resolve) => {
     let attempts = 0;
-    const maxAttempts = 20; // Increased from default
-    const checkDelay = 8000; // Increased to 8 seconds
+    const maxAttempts = 30; // Increased to 30 attempts
+    const checkDelay = 6000; // 6 seconds between checks
     
     // Show initial toast
     toast({
       title: "Waiting for payment confirmation",
-      description: "This may take up to 2 minutes. Please don't close the app.",
+      description: "This may take up to 3 minutes. Please don't close the app.",
     });
     
     console.log("Starting transaction polling for:", { 
@@ -113,7 +113,7 @@ export const pollForTransactionVerification = async (
         console.log(`Verification attempt ${attempts} failed, retrying in ${checkDelay/1000}s...`);
         
         // Show progress updates
-        if (attempts % 3 === 0) {
+        if (attempts % 5 === 0) {
           toast({
             title: "Still checking...",
             description: `Attempt ${attempts}/${maxAttempts}. Please wait.`,
@@ -131,96 +131,80 @@ export const formatWalletAddress = (address: string): string => {
 };
 
 /**
- * Open TON payment in Telegram wallet - Enhanced for mobile Telegram
+ * Open TON payment - Enhanced to work in both Telegram and browser environments
  */
 export const openTonPayment = (amount: number, taskId?: string): void => {
-  // Enhanced Telegram detection for mobile
-  const isTelegramApp = Boolean(
-    typeof window !== 'undefined' && 
-    (
-      // Check for Telegram object
-      (window.Telegram?.WebApp?.initData) ||
-      // Check user agent
-      navigator.userAgent.includes('Telegram') ||
-      // Check stored flag
-      localStorage.getItem("inTelegramWebApp") === "true"
-    )
-  );
+  console.log("Opening TON payment for amount:", amount, "taskId:", taskId);
 
-  console.log("Opening TON payment with enhanced detection:", {
-    isTelegramApp,
-    amount,
-    taskId,
-    userAgent: navigator.userAgent,
-    hasTelegramObject: Boolean(window.Telegram?.WebApp),
-    hasInitData: Boolean(window.Telegram?.WebApp?.initData),
-    storedFlag: localStorage.getItem("inTelegramWebApp")
-  });
-
-  if (isTelegramApp) {
+  // Check if we have TonConnect available (works in both environments)
+  const tonConnectUI = window._tonConnectUI;
+  
+  if (tonConnectUI && typeof tonConnectUI.sendTransaction === 'function') {
+    console.log("Using TonConnect to send transaction");
+    
+    // Use TonConnect to send the transaction directly
     const amountInNano = Math.floor(amount * 1000000000);
-    // Use consistent comment format for both tasks and boosts
     const comment = taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '';
     
-    // Create multiple payment URL formats to ensure compatibility
-    const tonPaymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amountInNano}&text=${encodeURIComponent(comment)}`;
-    const httpsPaymentUrl = `https://app.tonkeeper.com/transfer/${tonWalletAddress}?amount=${amountInNano}&text=${encodeURIComponent(comment)}`;
-    
-    console.log(`Opening TON payment for ${amount} TON`, {
-      tonPaymentUrl,
-      httpsPaymentUrl,
-      walletAddress: tonWalletAddress,
-      amountInNano,
-      comment,
-      taskId
-    });
-    
-    // Try multiple methods to open the payment
-    if (window.Telegram?.WebApp?.openLink) {
-      console.log("Using Telegram WebApp openLink");
-      // Try ton:// protocol first
-      try {
-        window.Telegram.WebApp.openLink(tonPaymentUrl);
-        console.log("Successfully opened ton:// payment URL");
-      } catch (error) {
-        console.log("ton:// failed, trying https:// fallback");
-        try {
-          window.Telegram.WebApp.openLink(httpsPaymentUrl);
-          console.log("Successfully opened https:// payment URL");
-        } catch (fallbackError) {
-          console.error("Both payment URL attempts failed:", error, fallbackError);
-          toast({
-            title: "Payment URL Error",
-            description: "Could not open payment. Please try again.",
-            variant: "destructive"
-          });
-        }
-      }
-    } else {
-      console.log("Telegram WebApp openLink not available, using window.open");
-      // Fallback to window.open
-      try {
-        const opened = window.open(tonPaymentUrl, '_blank');
-        if (!opened) {
-          // If ton:// doesn't work, try https://
-          window.open(httpsPaymentUrl, '_blank');
-        }
-        console.log("Payment URL opened via window.open");
-      } catch (error) {
-        console.error("window.open failed:", error);
+    try {
+      tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 600, // expires in 10 mins
+        messages: [
+          {
+            address: tonWalletAddress,
+            amount: amountInNano.toString(),
+            payload: comment,
+          }
+        ]
+      }).then(() => {
+        console.log("TonConnect transaction sent successfully");
         toast({
-          title: "Payment Error", 
-          description: "Could not open payment. Please check your wallet app.",
+          title: "Transaction sent",
+          description: "Please confirm the transaction in your wallet",
+        });
+      }).catch((error) => {
+        console.error("TonConnect transaction failed:", error);
+        toast({
+          title: "Transaction failed",
+          description: "Failed to send transaction. Please try again.",
           variant: "destructive"
         });
-      }
+      });
+    } catch (error) {
+      console.error("Error sending TonConnect transaction:", error);
+      toast({
+        title: "Error",
+        description: "Failed to initiate transaction",
+        variant: "destructive"
+      });
     }
   } else {
-    console.warn("Not in Telegram WebApp environment, cannot open TON payment");
-    toast({
-      title: "Not in Telegram",
-      description: "Please open this app in Telegram to make payments",
-      variant: "destructive"
-    });
+    // Fallback: Try to open payment URL (for Telegram environments)
+    const isTelegramApp = Boolean(
+      typeof window !== 'undefined' && 
+      (
+        (window.Telegram?.WebApp?.initData) ||
+        navigator.userAgent.includes('Telegram') ||
+        localStorage.getItem("inTelegramWebApp") === "true"
+      )
+    );
+
+    if (isTelegramApp) {
+      const amountInNano = Math.floor(amount * 1000000000);
+      const comment = taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '';
+      const tonPaymentUrl = `ton://transfer/${tonWalletAddress}?amount=${amountInNano}&text=${encodeURIComponent(comment)}`;
+      
+      if (window.Telegram?.WebApp?.openLink) {
+        window.Telegram.WebApp.openLink(tonPaymentUrl);
+      } else {
+        window.open(tonPaymentUrl, '_blank');
+      }
+    } else {
+      toast({
+        title: "Wallet not connected",
+        description: "Please connect your TON wallet first",
+        variant: "destructive"
+      });
+    }
   }
 };
