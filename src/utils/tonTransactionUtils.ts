@@ -3,6 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { tonWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
 import { toast } from "@/hooks/use-toast";
 
+// Debug logging function
+const debugLog = (message: string, data?: any) => {
+  console.log(`🔍 [TON DEBUG] ${message}`, data || "");
+};
+
 // Verify transaction directly via Supabase function
 export const verifyTonTransaction = async (
   userId: string,
@@ -12,7 +17,7 @@ export const verifyTonTransaction = async (
   taskType?: string
 ): Promise<{ success: boolean; transactionHash?: string; message?: string }> => {
   try {
-    console.log("🔍 Verifying TON payment:", {
+    debugLog("Starting TON payment verification", {
       userId,
       amount: expectedAmount,
       taskId,
@@ -31,8 +36,10 @@ export const verifyTonTransaction = async (
       }
     });
     
+    debugLog("Supabase function response", { data, error });
+    
     if (data?.success) {
-      console.log("✅ Payment verified:", data);
+      debugLog("✅ Payment verified successfully", data);
       return {
         success: true,
         transactionHash: data.transaction?.hash,
@@ -40,13 +47,13 @@ export const verifyTonTransaction = async (
       };
     }
     
-    console.log("❌ Payment verification failed:", error || data);
+    debugLog("❌ Payment verification failed", { error, data });
     return {
       success: false,
       message: data?.message || error?.message || "Could not verify transaction"
     };
   } catch (err) {
-    console.error("❌ Error verifying TON transaction:", err);
+    debugLog("❌ Error in verifyTonTransaction", err);
     return {
       success: false,
       message: err instanceof Error ? err.message : "Unknown verification error"
@@ -64,10 +71,10 @@ export const pollForTransactionVerification = async (
 ): Promise<boolean> => {
   return new Promise((resolve) => {
     let attempts = 0;
-    const maxAttempts = 40; // 40 attempts
-    const checkDelay = 10000; // 10 seconds between checks
+    const maxAttempts = 30; // 30 attempts
+    const checkDelay = 8000; // 8 seconds between checks
     
-    console.log(`🔄 Starting transaction polling:`, { 
+    debugLog("Starting transaction polling", { 
       userId, 
       amount, 
       taskId, 
@@ -80,18 +87,18 @@ export const pollForTransactionVerification = async (
     // Show initial toast
     toast({
       title: "🔍 Checking for payment...",
-      description: "Please wait while we verify your transaction. This can take up to 5 minutes.",
+      description: "Please wait while we verify your transaction. This can take up to 4 minutes.",
     });
     
     const checkInterval = setInterval(async () => {
       attempts++;
-      console.log(`🔄 Verification attempt ${attempts}/${maxAttempts}`);
+      debugLog(`Verification attempt ${attempts}/${maxAttempts}`);
       
       const result = await verifyTonTransaction(userId, amount, taskId, boostId, taskType);
       
       if (result.success) {
         clearInterval(checkInterval);
-        console.log("✅ Transaction verified successfully!");
+        debugLog("✅ Transaction verified successfully!");
         
         toast({
           title: "✅ Payment confirmed!",
@@ -100,18 +107,19 @@ export const pollForTransactionVerification = async (
         resolve(true);
       } else if (attempts >= maxAttempts) {
         clearInterval(checkInterval);
-        console.error(`❌ Transaction verification timed out after ${attempts} attempts`);
+        debugLog(`❌ Transaction verification timed out after ${attempts} attempts`);
         
         toast({
           title: "⏱️ Verification timeout",
-          description: "We couldn't find your transaction. If you made the payment, please contact support.",
+          description: "We couldn't find your transaction. Please check the console logs and contact support.",
           variant: "destructive"
         });
         resolve(false);
       } else {
-        // Show progress updates every 5 attempts
-        if (attempts % 5 === 0) {
+        // Show progress updates every 3 attempts
+        if (attempts % 3 === 0) {
           const remainingTime = Math.ceil((maxAttempts - attempts) * checkDelay / 60000);
+          debugLog(`Still checking... attempt ${attempts}/${maxAttempts}`);
           toast({
             title: `🔍 Still checking... (${attempts}/${maxAttempts})`,
             description: `We'll keep checking for about ${remainingTime} more minutes.`,
@@ -128,51 +136,64 @@ export const formatWalletAddress = (address: string): string => {
   return `${address.slice(0, 6)}...${address.slice(-6)}`;
 };
 
-// Enhanced TON payment function
+// Enhanced TON payment function with extensive debugging
 export const openTonPayment = (amount: number, taskId?: string): void => {
-  console.log("💰 Opening TON payment:", { amount, taskId });
+  debugLog("Opening TON payment", { amount, taskId });
 
   const tonConnectUI = window._tonConnectUI;
   
-  if (tonConnectUI && typeof tonConnectUI.sendTransaction === 'function') {
-    const amountInNano = Math.floor(amount * 1000000000);
-    const comment = taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '';
-    
-    console.log("📤 Sending transaction:", {
-      address: tonWalletAddress,
-      amount: amountInNano,
-      comment
-    });
-    
-    tonConnectUI.sendTransaction({
-      validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
-      messages: [
-        {
-          address: tonWalletAddress,
-          amount: amountInNano.toString(),
-          payload: comment,
-        }
-      ]
-    }).then(() => {
-      console.log("✅ Transaction sent successfully");
-      toast({
-        title: "📤 Transaction sent",
-        description: "Please confirm the transaction in your wallet app.",
-      });
-    }).catch((error) => {
-      console.error("❌ Transaction failed:", error);
-      toast({
-        title: "❌ Transaction failed",
-        description: "Failed to send transaction. Please try again.",
-        variant: "destructive"
-      });
-    });
-  } else {
-    console.error("❌ TonConnect UI not available");
+  if (!tonConnectUI) {
+    debugLog("❌ TonConnect UI not found on window");
     toast({
       title: "❌ Wallet not connected",
-      description: "Please connect your TON wallet first.",
+      description: "TonConnect UI not initialized. Please refresh and try again.",
       variant: "destructive"
     });
+    return;
   }
+  
+  if (typeof tonConnectUI.sendTransaction !== 'function') {
+    debugLog("❌ sendTransaction method not available");
+    toast({
+      title: "❌ Wallet error",
+      description: "sendTransaction method not available. Please reconnect your wallet.",
+      variant: "destructive"
+    });
+    return;
+  }
+  
+  const amountInNano = Math.floor(amount * 1000000000);
+  const comment = taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '';
+  
+  debugLog("Sending transaction", {
+    address: tonWalletAddress,
+    amount: amountInNano,
+    comment,
+    tonConnectUIExists: !!tonConnectUI,
+    sendTransactionExists: typeof tonConnectUI.sendTransaction
+  });
+  
+  tonConnectUI.sendTransaction({
+    validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
+    messages: [
+      {
+        address: tonWalletAddress,
+        amount: amountInNano.toString(),
+        payload: comment,
+      }
+    ]
+  }).then(() => {
+    debugLog("✅ Transaction sent successfully");
+    toast({
+      title: "📤 Transaction sent",
+      description: "Please confirm the transaction in your wallet app.",
+    });
+  }).catch((error) => {
+    debugLog("❌ Transaction failed", error);
+    toast({
+      title: "❌ Transaction failed",
+      description: `Failed to send transaction: ${error?.message || "Unknown error"}`,
+      variant: "destructive"
+    });
+  });
 };

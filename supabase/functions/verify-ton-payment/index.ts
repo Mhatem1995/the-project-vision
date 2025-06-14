@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -15,21 +16,26 @@ interface TransactionVerifyRequest {
   comment?: string;
 }
 
+// Debug logging function for edge function
+const debugLog = (message: string, data?: any) => {
+  console.log(`🔍 [EDGE DEBUG] ${message}`, data || "");
+};
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log("=== TRANSACTION VERIFICATION START ===");
+    debugLog("=== TRANSACTION VERIFICATION START ===");
     
     const requestBody = await req.json();
-    console.log("Request body:", JSON.stringify(requestBody, null, 2));
+    debugLog("Request body received", requestBody);
     
     const { userId, amount, taskId, boostId, taskType, comment } = requestBody as TransactionVerifyRequest;
 
     if (!userId || !amount || ((!taskId && !boostId))) {
-      console.log("❌ Missing required parameters");
+      debugLog("❌ Missing required parameters", { userId: !!userId, amount: !!amount, taskId: !!taskId, boostId: !!boostId });
       return new Response(
         JSON.stringify({ success: false, message: "Missing required parameters" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -46,14 +52,14 @@ serve(async (req: Request) => {
     const tonApiKey = Deno.env.get("TON_API_KEY");
     
     if (!tonApiKey) {
-      console.log("❌ TON_API_KEY not configured");
+      debugLog("❌ TON_API_KEY not configured");
       return new Response(
         JSON.stringify({ success: false, message: "TON API key not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`🔍 Looking for wallet for user: ${userId}`);
+    debugLog(`Looking for wallet for user: ${userId}`);
     
     // Get user's wallet address with multiple fallbacks
     let userWalletAddress: string | null = null;
@@ -67,11 +73,13 @@ serve(async (req: Request) => {
       .limit(1)
       .maybeSingle();
       
+    debugLog("Wallets table query result", { walletData, walletError });
+      
     if (walletData?.wallet_address) {
       userWalletAddress = walletData.wallet_address;
-      console.log(`✅ Found wallet in wallets table: ${userWalletAddress}`);
+      debugLog(`✅ Found wallet in wallets table: ${userWalletAddress}`);
     } else {
-      console.log("⚠️ No wallet in wallets table, checking users table...");
+      debugLog("⚠️ No wallet in wallets table, checking users table...");
       
       // Fallback to users table
       const { data: userData, error: userError } = await supabaseAdmin
@@ -80,20 +88,27 @@ serve(async (req: Request) => {
         .eq("id", userId)
         .maybeSingle();
 
+      debugLog("Users table query result", { userData, userError });
+
       if (userData?.links) {
         userWalletAddress = userData.links;
-        console.log(`✅ Found wallet in users table: ${userWalletAddress}`);
+        debugLog(`✅ Found wallet in users table: ${userWalletAddress}`);
       }
     }
 
     if (!userWalletAddress) {
-      console.log("❌ No wallet found for user!");
+      debugLog("❌ No wallet found for user!");
       return new Response(
         JSON.stringify({ 
           success: false, 
           message: "User wallet not found. Please reconnect your wallet.",
           error: "WALLET_NOT_FOUND",
-          debug: { userId, walletTableResult: walletData, walletTableError: walletError?.message }
+          debug: { 
+            userId, 
+            walletTableResult: walletData, 
+            walletTableError: walletError?.message,
+            usersTableChecked: true
+          }
         }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -103,11 +118,13 @@ serve(async (req: Request) => {
     const expectedAmountNano = Math.floor(amount * 1000000000);
     const expectedComment = comment || (boostId ? `boost_${boostId}` : taskId ? `task${taskId}` : "");
     
-    console.log(`🔍 Searching for transaction:`);
-    console.log(`   From: ${userWalletAddress}`);
-    console.log(`   To: ${tonWalletAddress}`);
-    console.log(`   Amount: ${expectedAmountNano} nanoTON (${amount} TON)`);
-    console.log(`   Comment: ${expectedComment || "(any)"}`);
+    debugLog(`Searching for transaction:`, {
+      from: userWalletAddress,
+      to: tonWalletAddress,
+      amount: expectedAmountNano,
+      amountTON: amount,
+      comment: expectedComment || "(any)"
+    });
     
     let matchingTx: any = null;
     let searchedWallets: string[] = [];
@@ -125,11 +142,11 @@ serve(async (req: Request) => {
       walletFormats.push("UQ" + baseAddr);
     }
     
-    console.log(`🔍 Will search with wallet formats:`, walletFormats);
+    debugLog(`Will search with wallet formats:`, walletFormats);
     
     // Search transactions for each wallet format
     for (const walletAddr of walletFormats) {
-      console.log(`🔍 Checking transactions for: ${walletAddr}`);
+      debugLog(`Checking transactions for: ${walletAddr}`);
       searchedWallets.push(walletAddr);
       
       try {
@@ -138,13 +155,13 @@ serve(async (req: Request) => {
         });
         
         if (!tonapiResponse.ok) {
-          console.log(`❌ API request failed for ${walletAddr}: ${tonapiResponse.status}`);
+          debugLog(`❌ API request failed for ${walletAddr}: ${tonapiResponse.status} ${tonapiResponse.statusText}`);
           continue;
         }
         
         const data = await tonapiResponse.json();
         const transactions = data.transactions || [];
-        console.log(`📊 Found ${transactions.length} transactions for ${walletAddr}`);
+        debugLog(`Found ${transactions.length} transactions for ${walletAddr}`);
         
         // Look for matching transaction
         for (const tx of transactions) {
@@ -160,12 +177,19 @@ serve(async (req: Request) => {
             continue; // Skip old transactions
           }
           
-          console.log(`🔍 Checking tx ${tx.hash || tx.transaction_id} from ${txTime.toISOString()}`);
+          debugLog(`Checking tx ${tx.hash || tx.transaction_id} from ${txTime.toISOString()}`);
           
           // Check each outgoing message
           for (const msg of tx.out_msgs) {
             const destination = msg.destination || msg.address;
             const msgValue = parseInt(msg.value || "0");
+            
+            debugLog(`Message details:`, {
+              destination,
+              msgValue,
+              expectedAmountNano,
+              ourWallet: tonWalletAddress
+            });
             
             // Check destination
             const isToOurWallet = destination === tonWalletAddress || 
@@ -173,14 +197,17 @@ serve(async (req: Request) => {
                                 destination === `EQ${tonWalletAddress.substring(2)}` ||
                                 destination === `UQ${tonWalletAddress.substring(2)}`;
             
-            if (!isToOurWallet) continue;
+            if (!isToOurWallet) {
+              debugLog(`❌ Destination mismatch: ${destination} vs ${tonWalletAddress}`);
+              continue;
+            }
             
-            // Check amount (with 5% tolerance)
+            // Check amount (with 10% tolerance for fees)
             const amountDiff = Math.abs(msgValue - expectedAmountNano);
-            const tolerance = Math.max(50000000, expectedAmountNano * 0.05); // 0.05 TON or 5%
+            const tolerance = Math.max(100000000, expectedAmountNano * 0.1); // 0.1 TON or 10%
             
             if (amountDiff > tolerance) {
-              console.log(`❌ Amount mismatch: ${msgValue} vs ${expectedAmountNano} (diff: ${amountDiff}, tolerance: ${tolerance})`);
+              debugLog(`❌ Amount mismatch: ${msgValue} vs ${expectedAmountNano} (diff: ${amountDiff}, tolerance: ${tolerance})`);
               continue;
             }
             
@@ -189,16 +216,17 @@ serve(async (req: Request) => {
               const msgText = typeof msg.message === 'string' ? msg.message : 
                              msg.message?.body ? msg.message.body : '';
               if (!msgText.includes(expectedComment)) {
-                console.log(`❌ Comment mismatch: "${msgText}" doesn't contain "${expectedComment}"`);
+                debugLog(`❌ Comment mismatch: "${msgText}" doesn't contain "${expectedComment}"`);
                 continue;
               }
             }
             
-            console.log(`✅ FOUND MATCHING TRANSACTION!`);
-            console.log(`   Hash: ${tx.hash || tx.transaction_id}`);
-            console.log(`   Amount: ${msgValue} nanoTON`);
-            console.log(`   Time: ${txTime.toISOString()}`);
-            console.log(`   To: ${destination}`);
+            debugLog(`✅ FOUND MATCHING TRANSACTION!`, {
+              hash: tx.hash || tx.transaction_id,
+              amount: msgValue,
+              time: txTime.toISOString(),
+              to: destination
+            });
             
             matchingTx = tx;
             break;
@@ -210,12 +238,12 @@ serve(async (req: Request) => {
         if (matchingTx) break;
         
       } catch (error) {
-        console.log(`❌ Error fetching transactions for ${walletAddr}:`, error);
+        debugLog(`❌ Error fetching transactions for ${walletAddr}:`, error);
       }
     }
     
     if (!matchingTx) {
-      console.log("❌ NO MATCHING TRANSACTION FOUND");
+      debugLog("❌ NO MATCHING TRANSACTION FOUND");
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -235,7 +263,7 @@ serve(async (req: Request) => {
     
     // Process verified transaction
     const txHash = matchingTx.hash || matchingTx.transaction_id;
-    console.log(`✅ Processing verified transaction: ${txHash}`);
+    debugLog(`✅ Processing verified transaction: ${txHash}`);
     
     // Update payment record
     const { error: paymentUpdateError } = await supabaseAdmin
@@ -249,7 +277,9 @@ serve(async (req: Request) => {
       .is("transaction_hash", null);
     
     if (paymentUpdateError) {
-      console.error("❌ Error updating payment record:", paymentUpdateError);
+      debugLog("❌ Error updating payment record:", paymentUpdateError);
+    } else {
+      debugLog("✅ Payment record updated successfully");
     }
       
     return await processVerifiedTransaction(
@@ -264,7 +294,7 @@ serve(async (req: Request) => {
     );
 
   } catch (error) {
-    console.error("❌ Unexpected error:", error);
+    debugLog("❌ Unexpected error:", error);
     return new Response(
       JSON.stringify({ 
         success: false, 
@@ -286,13 +316,16 @@ async function processVerifiedTransaction(
   corsHeaders: any = {},
   senderAddress?: string
 ) {
-  console.log(`✅ Processing verified transaction ${txHash} for user ${userId}`);
-  console.log(`Task ID: ${taskId || "none"}, Boost ID: ${boostId || "none"}, Task Type: ${taskType || "none"}`);
-  console.log(`Sender address: ${senderAddress || "unknown"}`);
+  debugLog(`Processing verified transaction ${txHash} for user ${userId}`, {
+    taskId: taskId || "none",
+    boostId: boostId || "none", 
+    taskType: taskType || "none",
+    senderAddress: senderAddress || "unknown"
+  });
   
   // Handle boost payment confirmation if boostId provided
   if (boostId) {
-    console.log(`Confirming boost ${boostId} for user ${userId}`);
+    debugLog(`Confirming boost ${boostId} for user ${userId}`);
     
     const { data, error: updateError } = await supabaseAdmin
       .from("mining_boosts")
@@ -307,7 +340,7 @@ async function processVerifiedTransaction(
       .select();
     
     if (updateError) {
-      console.error("❌ Failed to confirm boost:", updateError);
+      debugLog("❌ Failed to confirm boost:", updateError);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -321,13 +354,13 @@ async function processVerifiedTransaction(
       );
     }
     
-    console.log("Boost confirmed successfully:", data);
+    debugLog("✅ Boost confirmed successfully:", data);
   }
   
   // Handle task completion if taskId provided
   if (taskId) {
     try {
-      console.log(`Processing task ${taskId} completion for user ${userId}`);
+      debugLog(`Processing task ${taskId} completion for user ${userId}`);
       
       // Check if task already exists in tasks_completed
       const { data: existingTask } = await supabaseAdmin
@@ -337,9 +370,11 @@ async function processVerifiedTransaction(
         .eq("task_id", taskId)
         .maybeSingle();
       
+      debugLog("Existing task check result:", existingTask);
+      
       // If not already completed, add record
       if (!existingTask) {
-        console.log("Adding task completion record");
+        debugLog("Adding task completion record");
         const { error: taskError } = await supabaseAdmin
           .from("tasks_completed")
           .insert({
@@ -351,27 +386,27 @@ async function processVerifiedTransaction(
           });
           
         if (taskError) {
-          console.error("Error recording task completion:", taskError);
+          debugLog("❌ Error recording task completion:", taskError);
         } else {
-          console.log("Task completion record added successfully");
+          debugLog("✅ Task completion record added successfully");
         }
       } else {
-        console.log("Task already completed previously");
+        debugLog("Task already completed previously");
       }
     } catch (err) {
-      console.error("Error handling task completion:", err);
+      debugLog("❌ Error handling task completion:", err);
     }
     
     if (taskId === "6") {
       // Special case: fortune cookies
-      console.log("Processing fortune cookies purchase");
+      debugLog("Processing fortune cookies purchase");
       const { data: cookieResult, error: cookieError } = await supabaseAdmin.rpc('add_fortune_cookies', { 
         p_user_id: userId, 
         p_cookie_count: 10 
       });
       
       if (cookieError) {
-        console.error("Failed to add fortune cookies:", cookieError);
+        debugLog("❌ Failed to add fortune cookies:", cookieError);
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -385,7 +420,7 @@ async function processVerifiedTransaction(
         );
       }
       
-      console.log("Added fortune cookies successfully");
+      debugLog("✅ Added fortune cookies successfully");
     } else {
       // Regular task - add KFC balance
       let reward = 0;
@@ -397,7 +432,7 @@ async function processVerifiedTransaction(
       }
       
       if (reward > 0) {
-        console.log(`Processing reward of ${reward} KFC for task ${taskId}`);
+        debugLog(`Processing reward of ${reward} KFC for task ${taskId}`);
         
         // Get current balance
         const { data: currentUser, error: balanceError } = await supabaseAdmin
@@ -406,8 +441,10 @@ async function processVerifiedTransaction(
           .eq("id", userId)
           .maybeSingle();
           
+        debugLog("Current user balance query:", { currentUser, balanceError });
+          
         if (balanceError) {
-          console.error("Failed to get user balance:", balanceError);
+          debugLog("❌ Failed to get user balance:", balanceError);
           return new Response(
             JSON.stringify({ 
               success: false, 
@@ -424,7 +461,7 @@ async function processVerifiedTransaction(
         // Update balance
         const currentBalance = currentUser?.balance || 0;
         const newBalance = currentBalance + reward;
-        console.log(`Updating user balance from ${currentBalance} to ${newBalance}`);
+        debugLog(`Updating user balance from ${currentBalance} to ${newBalance}`);
         
         const { error: updateError } = await supabaseAdmin
           .from("users")
@@ -432,7 +469,7 @@ async function processVerifiedTransaction(
           .eq("id", userId);
           
         if (updateError) {
-          console.error("Failed to update balance:", updateError);
+          debugLog("❌ Failed to update balance:", updateError);
           return new Response(
             JSON.stringify({ 
               success: false, 
@@ -446,7 +483,7 @@ async function processVerifiedTransaction(
           );
         }
         
-        console.log("Balance updated successfully");
+        debugLog("✅ Balance updated successfully");
       }
     }
   }
@@ -454,7 +491,7 @@ async function processVerifiedTransaction(
   // Record daily task completion if needed
   if (taskType === "daily_ton_payment") {
     try {
-      console.log(`Recording daily task completion for ${userId}, type: ${taskType}`);
+      debugLog(`Recording daily task completion for ${userId}, type: ${taskType}`);
       const { error: dailyTaskError } = await supabaseAdmin
         .from("daily_tasks")
         .insert([{
@@ -463,12 +500,12 @@ async function processVerifiedTransaction(
         }]);
       
       if (dailyTaskError) {
-        console.error("Failed to record daily task:", dailyTaskError);
+        debugLog("❌ Failed to record daily task:", dailyTaskError);
       } else {
-        console.log("Daily task recorded successfully");
+        debugLog("✅ Daily task recorded successfully");
       }
     } catch (err) {
-      console.error("Failed to record daily task:", err);
+      debugLog("❌ Failed to record daily task:", err);
     }
   }
   

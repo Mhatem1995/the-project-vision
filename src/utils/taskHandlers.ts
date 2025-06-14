@@ -3,7 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
 import { pollForTransactionVerification } from "@/utils/tonTransactionUtils";
 import { tonWalletAddress } from "@/integrations/ton/TonConnectConfig";
-import { TonConnectUI } from "@tonconnect/ui";
+
+// Debug logging function
+const debugLog = (message: string, data?: any) => {
+  console.log(`🔍 [TASK DEBUG] ${message}`, data || "");
+};
 
 export const handleCollabTask = (
   taskId: string,
@@ -38,6 +42,7 @@ export const handlePaymentTask = async (
 
   const userId = localStorage.getItem("telegramUserId");
   if (!userId) {
+    debugLog("❌ No user ID found in localStorage");
     toast({
       title: "Error",
       description: "User not found. Please refresh the page.",
@@ -46,11 +51,12 @@ export const handlePaymentTask = async (
     return;
   }
   
-  console.log("handlePaymentTask: Processing payment for user:", userId);
+  debugLog("Processing payment task", { userId, taskId: task.id, amount: task.tonAmount });
   
   // Check if user has connected wallet
   const walletAddress = localStorage.getItem("tonWalletAddress");
   if (!walletAddress) {
+    debugLog("❌ No wallet address found in localStorage");
     toast({
       title: "Wallet Not Connected",
       description: "Please connect your TON wallet first to complete this task.",
@@ -59,9 +65,10 @@ export const handlePaymentTask = async (
     return;
   }
 
-  console.log("Using wallet address for payment:", walletAddress);
+  debugLog("Using wallet address", walletAddress);
 
   if (task.isDaily && !dailyTaskAvailable) {
+    debugLog("❌ Daily task not available");
     toast({
       title: "Daily Task Unavailable",
       description: "This task can only be completed once every 24 hours.",
@@ -71,11 +78,11 @@ export const handlePaymentTask = async (
   }
 
   try {
-    console.log("Creating payment record for task:", task.id, "user:", userId, "wallet:", walletAddress);
+    debugLog("Creating payment record", { taskId: task.id, userId, walletAddress });
     
     // Ensure wallet is saved properly in database
     try {
-      console.log("Ensuring wallet is saved for user:", userId);
+      debugLog("Saving wallet connection for user", userId);
       
       // Save to wallets table
       const { error: walletSaveError } = await supabase.functions.invoke('database-helper', {
@@ -89,9 +96,9 @@ export const handlePaymentTask = async (
       });
       
       if (walletSaveError) {
-        console.warn("Failed to save wallet connection:", walletSaveError);
+        debugLog("⚠️ Failed to save wallet connection", walletSaveError);
       } else {
-        console.log("Wallet connection saved successfully");
+        debugLog("✅ Wallet connection saved successfully");
       }
 
       // Also update users table
@@ -106,13 +113,13 @@ export const handlePaymentTask = async (
         });
         
       if (userUpdateError) {
-        console.warn("Failed to update user with wallet:", userUpdateError);
+        debugLog("⚠️ Failed to update user with wallet", userUpdateError);
       } else {
-        console.log("User table updated with wallet address");
+        debugLog("✅ User table updated with wallet address");
       }
       
     } catch (walletSaveError) {
-      console.warn("Failed to save wallet connection (non-critical):", walletSaveError);
+      debugLog("⚠️ Wallet save error (non-critical)", walletSaveError);
     }
     
     // Record the payment before transaction
@@ -131,13 +138,13 @@ export const handlePaymentTask = async (
       });
       
       if (error) {
-        console.error("Failed to record payment:", error);
+        debugLog("❌ Failed to record payment", error);
         throw new Error(`Failed to record payment: ${error.message}`);
       }
       
-      console.log("Payment record created successfully:", data);
+      debugLog("✅ Payment record created successfully", data);
     } catch (paymentError) {
-      console.error("Failed to record payment:", paymentError);
+      debugLog("❌ Payment record error", paymentError);
       toast({
         title: "Error",
         description: paymentError instanceof Error ? paymentError.message : "Failed to record payment. Please try again.",
@@ -150,7 +157,10 @@ export const handlePaymentTask = async (
     const tonConnectUI = window._tonConnectUI;
 
     if (!tonConnectUI || typeof tonConnectUI.sendTransaction !== 'function') {
-      console.error("TonConnect UI not available");
+      debugLog("❌ TonConnect UI not available", {
+        tonConnectUIExists: !!tonConnectUI,
+        sendTransactionExists: tonConnectUI ? typeof tonConnectUI.sendTransaction : 'n/a'
+      });
       toast({
         title: "Wallet Connection Error",
         description: "Unable to connect to wallet. Please reconnect your wallet and try again.",
@@ -161,7 +171,7 @@ export const handlePaymentTask = async (
 
     // Send transaction using TonConnect
     try {
-      console.log(`Sending TON payment for ${task.tonAmount} TON using TonConnect`);
+      debugLog(`Sending TON payment for ${task.tonAmount} TON using TonConnect`);
       
       const amountInNano = Math.floor(task.tonAmount * 1000000000);
       const comment = `task${task.id}`;
@@ -177,7 +187,7 @@ export const handlePaymentTask = async (
         ]
       });
       
-      console.log("TonConnect transaction initiated successfully");
+      debugLog("✅ TonConnect transaction initiated successfully");
       
       toast({
         title: "Payment Initiated",
@@ -185,7 +195,7 @@ export const handlePaymentTask = async (
       });
       
     } catch (txError) {
-      console.error("Error initiating TonConnect transaction:", txError);
+      debugLog("❌ Error initiating TonConnect transaction", txError);
       toast({
         title: "Transaction Error", 
         description: "Failed to send transaction. Please try again.",
@@ -197,7 +207,7 @@ export const handlePaymentTask = async (
     // Start transaction verification immediately
     setTimeout(async () => {
       const taskType = task.isDaily ? "daily_ton_payment" : undefined;
-      console.log("Starting transaction verification for task:", task.id, "type:", taskType, "user:", userId);
+      debugLog("Starting transaction verification", { taskId: task.id, taskType, userId });
       
       const successful = await pollForTransactionVerification(
         userId,
@@ -227,7 +237,7 @@ export const handlePaymentTask = async (
       }
     }, 2000); // Start verification after 2 seconds
   } catch (err) {
-    console.error("Error in handlePaymentTask:", err);
+    debugLog("❌ Error in handlePaymentTask", err);
     toast({
       title: "Error",
       description: err instanceof Error ? err.message : "An unexpected error occurred",
