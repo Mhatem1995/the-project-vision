@@ -1,6 +1,7 @@
 
 import React from "react";
 import BottomNav from "./BottomNav";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -8,10 +9,12 @@ interface AppLayoutProps {
 
 const AppLayout = ({ children }: AppLayoutProps) => {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="container mx-auto px-4 pb-16">
-        <main className="pt-4">{children}</main>
-      </div>
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <ScrollArea className="flex-1">
+        <main className="min-h-screen">
+          {children}
+        </main>
+      </ScrollArea>
       <BottomNav />
     </div>
   );

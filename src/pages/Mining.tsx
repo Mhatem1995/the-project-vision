@@ -71,75 +71,77 @@ const Mining = () => {
   const canMine = !!walletAddress;
 
   return (
-    <div className="flex flex-col items-center justify-center space-y-6 pb-8">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold mb-2">Knife Coin Mining</h1>
-        <p className="text-muted-foreground">Mine Knife Coin tokens every 8 hours</p>
-      </div>
-      
-      {isLoading ? (
-        <div className="w-full space-y-4">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-12 w-full" />
+    <div className="min-h-screen pb-24">
+      <div className="flex flex-col items-center justify-start space-y-6 px-4 py-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold mb-2">Knife Coin Mining</h1>
+          <p className="text-muted-foreground">Mine Knife Coin tokens every 8 hours</p>
         </div>
-      ) : (
-        <>
-          <BalanceCard
-            balance={balance}
-            activeBoost={activeBoost}
-            onBoostClick={() => setBoostDialogOpen(true)}
-          />
-          
-          <MiningProgress
-            progress={progress}
-            timeRemaining={timeRemaining}
-          />
-
-          {/* Wallet connection section and mining button - positioned right after mining progress */}
-          <div className="w-full max-w-md space-y-4">
-            {!isConnected ? (
-              <Button 
-                variant="default" 
-                onClick={handleConnectWallet}
-                disabled={isConnecting}
-                className="w-full"
-              >
-                <Wallet className="mr-2 h-4 w-4" />
-                {isConnecting ? 'Connecting...' : 'Connect TON Wallet'}
-              </Button>
-            ) : (
-              <div className="bg-card p-4 rounded-lg border border-border">
-                <p className="text-sm text-muted-foreground mb-1">Connected Wallet:</p>
-                <p className="text-xs font-mono break-all">{formatWalletAddress(walletAddress || "")}</p>
-              </div>
-            )}
+        
+        {isLoading ? (
+          <div className="w-full space-y-4">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : (
+          <>
+            <BalanceCard
+              balance={balance}
+              activeBoost={activeBoost}
+              onBoostClick={() => setBoostDialogOpen(true)}
+            />
             
-            <Button 
-              className="w-full" 
-              size="lg"
-              disabled={(timeRemaining !== null && timeRemaining > 0) || !canMine}
-              onClick={handleCollect}
-            >
-              {!canMine 
-                ? 'Connect wallet to mine Knife Coin' 
-                : (timeRemaining !== null && timeRemaining > 0) 
-                  ? 'Mining in progress...' 
-                  : 'Collect Knife Coin'}
-            </Button>
-          </div>
-          
-          {/* Fortune Wheel with proper bottom margin */}
-          <div className="w-full mb-6">
-            <FortuneWheel />
-          </div>
+            <MiningProgress
+              progress={progress}
+              timeRemaining={timeRemaining}
+            />
 
-          <BoostPurchaseDialog 
-            open={boostDialogOpen} 
-            onOpenChange={setBoostDialogOpen} 
-          />
-        </>
-      )}
+            {/* Wallet connection section and mining button - positioned right after mining progress */}
+            <div className="w-full max-w-md space-y-4">
+              {!isConnected ? (
+                <Button 
+                  variant="default" 
+                  onClick={handleConnectWallet}
+                  disabled={isConnecting}
+                  className="w-full"
+                >
+                  <Wallet className="mr-2 h-4 w-4" />
+                  {isConnecting ? 'Connecting...' : 'Connect TON Wallet'}
+                </Button>
+              ) : (
+                <div className="bg-card p-4 rounded-lg border border-border">
+                  <p className="text-sm text-muted-foreground mb-1">Connected Wallet:</p>
+                  <p className="text-xs font-mono break-all">{formatWalletAddress(walletAddress || "")}</p>
+                </div>
+              )}
+              
+              <Button 
+                className="w-full" 
+                size="lg"
+                disabled={(timeRemaining !== null && timeRemaining > 0) || !canMine}
+                onClick={handleCollect}
+              >
+                {!canMine 
+                  ? 'Connect wallet to mine Knife Coin' 
+                  : (timeRemaining !== null && timeRemaining > 0) 
+                    ? 'Mining in progress...' 
+                    : 'Collect Knife Coin'}
+              </Button>
+            </div>
+            
+            {/* Fortune Wheel with proper spacing */}
+            <div className="w-full max-w-md mx-auto mt-8">
+              <FortuneWheel />
+            </div>
+
+            <BoostPurchaseDialog 
+              open={boostDialogOpen} 
+              onOpenChange={setBoostDialogOpen} 
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 };
