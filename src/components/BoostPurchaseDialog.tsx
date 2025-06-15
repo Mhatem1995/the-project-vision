@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import BoostPaymentVerificationDialog from "./BoostPaymentVerificationDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useTonConnect } from "@/providers/TonConnectProvider";
-import { tonWalletAddress } from "@/integrations/ton/TonConnectConfig";
+import { getConnectedWalletAddress } from "@/integrations/ton/TonConnectConfig";
 import { openTonPayment } from "@/utils/tonTransactionUtils";
 
 const boostOptions = [
@@ -55,7 +55,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     console.log("Processing boost purchase for user:", userId);
 
     // Ensure wallet is connected
-    const walletAddress = localStorage.getItem("tonWalletAddress");
+    const walletAddress = getConnectedWalletAddress();
     if (!walletAddress || !isConnected) {
       toast({
         title: "Wallet Not Connected",
@@ -147,6 +147,9 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     }
   };
 
+  // Get the real connected wallet address for display
+  const connectedWalletAddress = getConnectedWalletAddress();
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleDialogChange}>
@@ -176,12 +179,14 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
               </div>
             ))}
           </div>
-          <div className="text-xs text-muted-foreground mt-2 text-center">
-            <>Send payment to: <span className="font-mono break-all">{tonWalletAddress}</span></>
-          </div>
+          {connectedWalletAddress && (
+            <div className="text-xs text-muted-foreground mt-2 text-center">
+              <>Send payment to: <span className="font-mono break-all">{connectedWalletAddress}</span></>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
-      {pendingBoost && (
+      {pendingBoost && connectedWalletAddress && (
         <BoostPaymentVerificationDialog
           open={verifyDialog}
           onOpenChange={(open) => {
@@ -191,7 +196,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
             }
           }}
           boost={pendingBoost}
-          tonWallet={tonWalletAddress}
+          tonWallet={connectedWalletAddress}
         />
       )}
     </>
