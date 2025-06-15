@@ -1,7 +1,7 @@
-
 import { Button } from "@/components/ui/button";
 import { Check, ExternalLink, Clock, Wallet } from "lucide-react";
 import type { Task } from "@/types/task";
+import { useTonConnect } from "@/providers/TonConnectProvider";
 
 interface TaskItemProps {
   task: Task;
@@ -18,6 +18,7 @@ export const TaskItem = ({
   onPaymentSubmit,
   walletConnected = true
 }: TaskItemProps) => {
+  const { disconnect, isConnected } = useTonConnect();
   return (
     <div className="bg-card p-4 rounded-md shadow-sm flex items-start justify-between">
       <div>
@@ -48,25 +49,33 @@ export const TaskItem = ({
               </Button>
             </>
           ) : (
-            <Button 
-              size="sm"
-              onClick={() => onPaymentSubmit(task)}
-              disabled={(task.isDaily && !dailyTaskAvailable) || !walletConnected}
-            >
-              {task.isDaily && !dailyTaskAvailable ? (
-                <>
-                  <Clock className="mr-2 h-4 w-4" />
-                  Cooldown
-                </>
-              ) : !walletConnected ? (
-                <>
-                  <Wallet className="mr-2 h-4 w-4" />
-                  Connect Wallet
-                </>
-              ) : (
-                `Pay ${task.tonAmount} TON`
+            <>
+              <Button 
+                size="sm"
+                onClick={() => onPaymentSubmit(task)}
+                disabled={(task.isDaily && !dailyTaskAvailable) || !walletConnected}
+              >
+                {task.isDaily && !dailyTaskAvailable ? (
+                  <>
+                    <Clock className="mr-2 h-4 w-4" />
+                    Cooldown
+                  </>
+                ) : !walletConnected ? (
+                  <>
+                    <Wallet className="mr-2 h-4 w-4" />
+                    Connect Wallet
+                  </>
+                ) : (
+                  `Pay ${task.tonAmount} TON`
+                )}
+              </Button>
+              {/* Disconnect button for wallet */}
+              {isConnected && (
+                <Button size="xs" variant="destructive" className="mt-1" onClick={disconnect}>
+                  Disconnect Wallet
+                </Button>
               )}
-            </Button>
+            </>
           )}
         </div>
       )}

@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,105 +14,46 @@ const Leaderboard = () => {
   const { data: users, isLoading, error } = useQuery({
     queryKey: ["leaderboard"],
     queryFn: async () => {
-      console.log("Fetching leaderboard data...");
-      
-      // First try to get users with balance from database
+      // Fetch users - always real data with text id
       const { data: userData, error: userError } = await supabase
         .from("users")
-        .select("id, username, firstname, balance")
+        .select("id, username, firstname, balance, links")
         .order("balance", { ascending: false })
         .limit(50);
-      
+
       if (userError) {
-        console.error("Error fetching users:", userError);
         throw userError;
       }
-      
-      console.log("User data retrieved:", userData?.length || 0, "users");
-      
-      // Create a map for wallet connections
-      const walletMap = new Map();
-      
-      // Try to get wallet connections from database helper
-      try {
-        console.log("Getting wallet connections from database helper");
-        const { data: connections, error: connectionsError } = await supabase.functions.invoke('database-helper', {
-          body: {
-            action: 'get_wallet_connections'
+
+      // Get wallets table for primary address
+      const { data: walletsData, error: walletsError } = await supabase
+        .from("wallets")
+        .select("telegram_id, wallet_address");
+
+      let walletMap = new Map();
+      if (walletsData) {
+        walletsData.forEach((item: any) => {
+          if (item && item.telegram_id && item.wallet_address) {
+            walletMap.set(item.telegram_id, item.wallet_address);
           }
         });
-        
-        if (connectionsError) {
-          console.error("Error fetching wallet connections:", connectionsError);
-        } else if (connections?.success && Array.isArray(connections.connections)) {
-          console.log("Wallet connections retrieved:", connections.connections.length);
-          connections.connections.forEach((item: any) => {
-            if (item && item.telegram_id && item.wallet_address) {
-              walletMap.set(item.telegram_id, item.wallet_address);
-            }
-          });
-        }
-      } catch (err) {
-        console.error("Error calling get_wallet_connections:", err);
       }
-      
-      // Fallback: Try to get wallet connections directly from the wallets table
-      if (walletMap.size === 0) {
-        try {
-          console.log("Fallback: Getting wallet connections directly from wallets table");
-          const { data: walletsData, error: walletsError } = await supabase
-            .from("wallets")
-            .select("telegram_id, wallet_address");
-            
-          if (walletsError) {
-            console.error("Error fetching wallets directly:", walletsError);
-          } else if (walletsData && Array.isArray(walletsData)) {
-            console.log("Wallet connections from wallets table:", walletsData.length);
-            walletsData.forEach((item: any) => {
-              if (item && item.telegram_id && item.wallet_address) {
-                walletMap.set(item.telegram_id, item.wallet_address);
-              }
-            });
-          }
-        } catch (err) {
-          console.error("Error fetching wallet connections:", err);
+      // Always merge with links field for fallback
+      userData?.forEach((user: any) => {
+        if (user.id && user.links && !walletMap.has(user.id)) {
+          walletMap.set(user.id, user.links);
         }
-      }
-      
-      console.log("Total wallet connections found:", walletMap.size);
-      
-      // Also check users table for wallet addresses (for backward compatibility)
-      try {
-        console.log("Getting wallet connections from users.links field");
-        const { data: usersWithLinks } = await supabase
-          .from("users")
-          .select("id, links")
-          .not("links", "is", null);
-          
-        if (usersWithLinks && Array.isArray(usersWithLinks)) {
-          console.log("Users with wallet in links field:", usersWithLinks.length);
-          usersWithLinks.forEach((user: any) => {
-            if (user.id && user.links && !walletMap.has(user.id)) {
-              walletMap.set(user.id, user.links);
-            }
-          });
-        }
-      } catch (err) {
-        console.error("Error fetching users with links:", err);
-      }
-      
-      // Enhance user data with wallet info
+      });
+
+      // Compose users for table
       const enhancedUsers = userData && Array.isArray(userData) ? userData.map(user => {
-        const hasWallet = walletMap.has(user.id);
-        console.log(`User ${user.id}: has wallet = ${hasWallet}, balance = ${user.balance}`);
+        const hasWallet = walletMap.has(user.id) && walletMap.get(user.id);
         return {
           ...user,
-          // Check if wallet is connected based on wallet map
-          walletConnected: hasWallet
+          walletConnected: !!hasWallet
         };
       }) : [];
       
-      console.log("Final leaderboard data:", enhancedUsers.length, "users");
       return enhancedUsers;
     },
     refetchInterval: 30000, // Refresh every 30 seconds

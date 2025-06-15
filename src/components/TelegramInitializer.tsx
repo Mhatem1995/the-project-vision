@@ -42,42 +42,55 @@ const TelegramInitializer = () => {
 
   useEffect(() => {
     async function init() {
-      // Try to extract Telegram info if possible, otherwise proceed
-      const hasTelegram = typeof window !== "undefined" && window.Telegram && window.Telegram.WebApp;
-      const telegramUser = hasTelegram && window.Telegram.WebApp.initDataUnsafe?.user;
-      const rawInitData = hasTelegram && window.Telegram.WebApp.initDataUnsafe;
-      const initData = hasTelegram && window.Telegram.WebApp.initData;
+      // Extract Telegram info clearly and save to localStorage always, not just in Telegram browser
+      let userId: string | null = null;
+      let telegramUserName: string | null = null;
+      let firstName: string | null = null;
+      let lastName: string | null = null;
+      let languageCode: string | null = null;
 
-      const debugInfo = {
-        windowTelegramExists: !!window.Telegram,
-        webAppExists: !!(window.Telegram && window.Telegram.WebApp),
-        initData,
-        initDataUnsafe: rawInitData,
-        telegramUser,
-        userIdType: telegramUser && typeof telegramUser.id,
-        userId: telegramUser && telegramUser.id,
-      };
+      if (typeof window !== "undefined") {
+        // Try Telegram context first
+        const hasTelegram = window.Telegram && window.Telegram.WebApp;
+        const tgUser = hasTelegram ? window.Telegram.WebApp.initDataUnsafe?.user : null;
 
-      setDebug(debugInfo);
-      console.log("[TG-DEBUG] Telegram JS object and context:", debugInfo);
+        if (tgUser && tgUser.id) {
+          userId = tgUser.id.toString();
+          telegramUserName = tgUser.username || tgUser.first_name || "";
+          firstName = tgUser.first_name || "";
+          lastName = tgUser.last_name || "";
+          languageCode = tgUser.language_code || "";
+        }
+        // Else fallback: user forced to set in dev or web (simulate)
+        if (!userId) {
+          // Prompt user just once if missing
+          userId = localStorage.getItem("telegramUserId");
+          if (!userId) {
+            userId = prompt("Enter your Telegram ID (include the @):") || "";
+          }
+        }
+        // If @ not included, autocorrect
+        if (userId && !userId.startsWith("@")) {
+          userId = "@" + userId;
+        }
+        telegramUserName = telegramUserName || localStorage.getItem("telegramUserName") || "";
+        firstName = firstName || "";
+        lastName = lastName || "";
+        languageCode = languageCode || "";
 
-      // Save Telegram info if present
-      if (hasTelegram && telegramUser) {
-        localStorage.setItem("inTelegramWebApp", "true");
-        const telegramUserId = telegramUser.id.toString();
-        const telegramUserName = telegramUser.username || telegramUser.first_name || "";
-        const firstName = telegramUser.first_name || "";
-        const lastName = telegramUser.last_name || "";
-        const languageCode = telegramUser.language_code || "";
-        localStorage.setItem("telegramUserId", telegramUserId);
-        localStorage.setItem("telegramUserName", telegramUserName);
+        // Save always
+        localStorage.setItem("telegramUserId", userId ?? "");
+        localStorage.setItem("telegramUserName", telegramUserName ?? "");
+      }
 
-        try {
-          const { error, data } = await supabase.functions.invoke("database-helper", {
+      // Always store/ensure user in DB
+      try {
+        if (userId) {
+          await supabase.functions.invoke("database-helper", {
             body: {
               action: "ensure_user_exists",
               params: {
-                user_id: telegramUserId,
+                user_id: userId,
                 username: telegramUserName,
                 firstname: firstName,
                 lastname: lastName,
@@ -85,25 +98,10 @@ const TelegramInitializer = () => {
               }
             }
           });
-          if (error) {
-            console.error("[TG-DEBUG] Error ensuring user exists:", error);
-          } else {
-            console.log("[TG-DEBUG] User ensured in database successfully", data);
-          }
-        } catch (err) {
-          // Don't block; just log error if needed
-          console.error("[TG-DEBUG] Database operation error:", err);
         }
-
-        try {
-          window.Telegram.WebApp.ready();
-          window.Telegram.WebApp.expand();
-        } catch (e) {
-          // No-op for safety
-        }
+      } catch (err) {
+        console.error("[TG-DEBUG] Database operation error:", err);
       }
-      // Otherwise: proceed as usual, do not block or alert the user
-
       setLoading(false);
     }
     init();

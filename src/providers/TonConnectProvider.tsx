@@ -173,6 +173,11 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       tonConnectUI.disconnect();
     }
     clearWalletState();
+    toast({
+      title: "Wallet Disconnected",
+      description: "You have disconnected your wallet.",
+      variant: "destructive"
+    });
   };
 
   return (
