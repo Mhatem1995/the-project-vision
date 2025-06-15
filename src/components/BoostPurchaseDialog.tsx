@@ -1,4 +1,3 @@
-
 import {
   Dialog,
   DialogContent,
@@ -40,7 +39,6 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
   const { isConnected } = useTonConnect();
 
   const handlePurchase = async (option: BoostOption) => {
-    // Get Telegram user ID - same as TON payment tasks
     const userId = localStorage.getItem("telegramUserId");
     if (!userId) {
       console.error("No Telegram user ID found in localStorage");
@@ -51,11 +49,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       });
       return;
     }
-
-    console.log("Processing boost purchase for user:", userId);
-
-    // Ensure wallet is connected
-    const walletAddress = getConnectedWalletAddress();
+    const walletAddress = localStorage.getItem("tonWalletAddress");
     if (!walletAddress || !isConnected) {
       toast({
         title: "Wallet Not Connected",
@@ -64,19 +58,15 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       });
       return;
     }
-
     try {
-      console.log("Creating boost record for user:", userId, "multiplier:", option.multiplier);
-      
-      // Create a boost record (status: pending) - ensure user_id is properly set
       const { data, error } = await supabase.from("mining_boosts").insert({
-        user_id: userId, // Telegram ID as string - ensure this is set correctly
+        user_id: userId,
         multiplier: option.multiplier,
         price: option.price,
         duration: option.duration,
         status: "pending",
         expires_at: new Date(Date.now() + option.duration * 60 * 60 * 1000).toISOString()
-      }).select().single();
+      }).select().maybeSingle();
 
       if (error || !data) {
         console.error("Error creating boost record:", error);
@@ -90,13 +80,12 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
 
       console.log("Boost record created with ID:", data.id, "for user:", userId);
 
-      // Record the pending payment - ensure telegram_id is properly passed
       try {
-        const { error: paymentError } = await supabase.functions.invoke('database-helper', {
+        await supabase.functions.invoke('database-helper', {
           body: {
             action: 'insert_payment',
             params: {
-              telegram_id: userId, // Ensure telegram_id is properly passed
+              telegram_id: userId,
               wallet_address: walletAddress,
               amount_paid: option.price,
               task_type: "boost",
@@ -104,30 +93,17 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
             }
           }
         });
-        
-        if (paymentError) {
-          console.error("Failed to record boost payment:", paymentError);
-        } else {
-          console.log("Payment record created for boost with telegram_id:", userId);
-        }
       } catch (err) {
         console.warn("Failed to record boost payment (non-critical):", err);
       }
 
-      // Show verification dialog first
       setPendingBoost(data);
       setVerifyDialog(true);
       onOpenChange(false);
 
-      // CRITICAL: Add delay before opening payment to ensure dialog is shown
-      console.log(`About to open TON payment for ${option.price} TON boost with ID: ${data.id}`);
-      
-      // Wait a moment for the dialog to render, then open payment
       setTimeout(() => {
-        console.log("Opening TON payment with delay...");
-        openTonPayment(option.price, data.id); // Use the UUID boost ID
-      }, 500); // 500ms delay to ensure dialog is visible first
-
+        openTonPayment(option.price, data.id); // always uses the real boost id
+      }, 500);
     } catch (e) {
       console.error("Unexpected error in handlePurchase:", e);
       toast({
@@ -138,7 +114,6 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     }
   };
 
-  // Handle dialog close: reset states
   const handleDialogChange = (value: boolean) => {
     onOpenChange(value);
     if (!value) {
@@ -147,7 +122,6 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     }
   };
 
-  // Get the real connected wallet address to check if wallet is connected
   const connectedWalletAddress = getConnectedWalletAddress();
 
   return (

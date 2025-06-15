@@ -60,12 +60,12 @@ serve(async (req: Request) => {
 
     debugLog(`Looking for wallet for user: ${userId}`);
     
-    // Get user's wallet address ONLY from the wallets table for security and consistency
+    // --- REAL WALLET ADDRESS QUERY ---
     const { data: walletData, error: walletError } = await supabaseAdmin
       .from("wallets")
       .select("wallet_address")
       .eq("telegram_id", userId)
-      .single(); // Use .single() as telegram_id is now unique
+      .single(); // Use .single() as telegram_id is unique
       
     debugLog("Wallets table query result", { walletData, walletError });
       

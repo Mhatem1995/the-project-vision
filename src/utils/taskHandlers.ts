@@ -62,8 +62,16 @@ export const handlePaymentTask = async (
     dailyTaskAvailable 
   });
   
-  // Get the real connected wallet address using the improved getter
-  const walletAddress = getConnectedWalletAddress();
+  // Get walletAddress from localStorage, fallback to TonConnect as backup
+  let walletAddress = localStorage.getItem("tonWalletAddress");
+  if (!walletAddress) {
+    // fallback: try window._tonConnectUI (TonConnectUI is stored on window)
+    walletAddress = (window as any)._tonConnectUI?.wallet?.account?.address || null;
+    if (walletAddress) {
+      localStorage.setItem("tonWalletAddress", walletAddress);
+    }
+  }
+
   if (!walletAddress) {
     debugLog("❌ No real wallet address found");
     toast({

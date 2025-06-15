@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
@@ -29,16 +28,24 @@ export const useTonConnectSetup = (toast: any) => {
   // Memoized handler for wallet status changes to ensure consistency
   const handleWalletStatusChange = useCallback(async (wallet: any) => {
     console.log("[TON-STATUS] 🔄 Wallet status changed:", wallet);
-    
+
     if (wallet && wallet.account && wallet.account.address) {
       const realAddress = wallet.account.address;
       console.log("[TON-STATUS] ✅ REAL wallet connected, SAVING:", realAddress);
-      
       setIsConnected(true);
       setWalletAddress(realAddress);
-      
-      // Save the REAL address to localStorage and Supabase (which now performs an upsert)
-      await saveRealWalletAddress(realAddress, toast);
+
+      // Save to localStorage
+      localStorage.setItem("tonWalletAddress", realAddress);
+
+      // Save to Supabase wallets table (upsert)
+      const userId = localStorage.getItem("telegramUserId");
+      if (userId && realAddress) {
+        await supabase.from("wallets").upsert({
+          telegram_id: userId,
+          wallet_address: realAddress
+        });
+      }
     } else if (wallet === null) {
       console.log("[TON-STATUS] ❌ Wallet disconnected, clearing local storage and state.");
       setIsConnected(false);
