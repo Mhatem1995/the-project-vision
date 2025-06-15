@@ -16,7 +16,7 @@ const Mining = () => {
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   
   // TON Connect integration using our hook - this will now have the REAL address
-  const { isConnected, walletAddress, connect, disconnect, isTelegramWebApp } = useTonConnect();
+  const { isConnected, walletAddress, connect, disconnect } = useTonConnect();
   
   const {
     balance,
@@ -28,14 +28,13 @@ const Mining = () => {
   } = useMining();
 
   useEffect(() => {
-    console.log("Mining page: Real Telegram WebApp status:", isTelegramWebApp);
     console.log("Mining page: REAL wallet connection status:", {
       isConnected,
       walletAddress,
       addressLength: walletAddress?.length,
       isValidFormat: walletAddress ? /^(UQ|EQ)[A-Za-z0-9_-]{46}$/.test(walletAddress) : false
     });
-  }, [isTelegramWebApp, isConnected, walletAddress]);
+  }, [isConnected, walletAddress]);
 
   const handleConnectWallet = async () => {
     console.log("Connect real TON wallet clicked");

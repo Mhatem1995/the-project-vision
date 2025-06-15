@@ -139,13 +139,16 @@ export const formatWalletAddress = (address: string): string => {
 };
 
 // Enhanced TON payment function - use REAL wallet address and allow custom comment
-export const openTonPayment = (amount: number, taskId?: string, customComment?: string): void => {
+export const openTonPayment = (
+  tonConnectUI: any, // Pass the TonConnectUI object as argument
+  amount: number,
+  taskId?: string,
+  customComment?: string
+): void => {
   debugLog("Opening TON payment", { amount, taskId, customComment });
 
-  const tonConnectUI = window._tonConnectUI;
-  
   if (!tonConnectUI) {
-    debugLog("❌ TonConnect UI not found on window");
+    debugLog("❌ TonConnect UI instance not provided");
     toast({
       title: "❌ Wallet not connected",
       description: "TonConnect UI not initialized. Please refresh and try again.",
@@ -153,7 +156,7 @@ export const openTonPayment = (amount: number, taskId?: string, customComment?: 
     });
     return;
   }
-  
+
   if (typeof tonConnectUI.sendTransaction !== 'function') {
     debugLog("❌ sendTransaction method not available");
     toast({
@@ -176,11 +179,11 @@ export const openTonPayment = (amount: number, taskId?: string, customComment?: 
     });
     return;
   }
-  
+
   const amountInNano = Math.floor(amount * 1000000000);
   const comment = customComment ?? (taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '');
   const receivingWallet = RECEIVING_WALLET_ADDRESS; // Always your Tonkeeper wallet
-  
+
   debugLog("Sending transaction from Telegram Wallet to receiving wallet", {
     fromAddress: realWalletAddress,
     toAddress: receivingWallet,
@@ -189,7 +192,7 @@ export const openTonPayment = (amount: number, taskId?: string, customComment?: 
     tonConnectUIExists: !!tonConnectUI,
     sendTransactionExists: typeof tonConnectUI.sendTransaction
   });
-  
+
   tonConnectUI.sendTransaction({
     validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
     messages: [
