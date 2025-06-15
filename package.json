@@ -46,6 +46,7 @@
     "@tonconnect/sdk": "^3.0.0",
     "@tonconnect/ui": "^2.0.1",
     "@tonconnect/ui-react": "^2.1.0",
+    "buffer": "^6.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
