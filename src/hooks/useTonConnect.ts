@@ -1,4 +1,3 @@
-
 import { useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { useEffect } from "react";
 
@@ -58,6 +57,19 @@ export const useTonConnect = (): UseTonConnectReturn => {
 
   // Only connected if address in UQ format present
   const isConnected = !!walletAddress;
+
+  // FORCE DISCONNECT if something in storage is NOT UQ... to force re-connect
+  useEffect(() => {
+    const localStorageAddress = localStorage.getItem("tonWalletAddress");
+    // If there is an address but it is not UQ-format, disconnect and clear it
+    if (localStorageAddress && !/^UQ[A-Za-z0-9_-]{40,}$/.test(localStorageAddress)) {
+      localStorage.removeItem("tonWalletAddress");
+      localStorage.removeItem("tonWalletProvider");
+      if (tonConnectUI?.disconnect) {
+        tonConnectUI.disconnect();
+      }
+    }
+  }, [tonConnectUI]);
 
   useEffect(() => {
     if (walletAddress) {
