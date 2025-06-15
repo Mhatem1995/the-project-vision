@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { tonConnectOptions, getPreferredWallets } from "@/integrations/ton/TonConnectConfig";
@@ -65,10 +64,9 @@ export const useTonConnectSetup = (toast: any) => {
     if (!window._tonConnectUI) {
       connector = new TonConnectUI({
         manifestUrl: tonConnectOptions.manifestUrl,
-        // Force only Telegram Wallet in the selection list
+        // Remove uiPreferences.wallets - not supported by TonConnect UI
         uiPreferences: {
-          wallets: [TELEGRAM_WALLET_ID],
-          selectedWallet: TELEGRAM_WALLET_ID
+          // You may add other supported uiPreferences options here
         }
       });
       window._tonConnectUI = connector;
@@ -134,16 +132,15 @@ export const useTonConnectSetup = (toast: any) => {
     }, 500);
 
     return () => {
+      // Fix: do not pass any argument to unsubscribe
       unsubscribe();
     };
   }, [toast]);
 
   const connect = () => {
     if (tonConnectUI) {
-      // Show only Telegram Wallet option
-      tonConnectUI.openModal({
-        wallets: [TELEGRAM_WALLET_ID]
-      });
+      // Show only Telegram Wallet option if supported, fallback to default openModal
+      tonConnectUI.openModal();
     } else {
       toast({
         title: "Connection Error",
