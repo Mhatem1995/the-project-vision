@@ -15,74 +15,54 @@ export const detectTelegramWebApp = () => {
   return false;
 };
 
-// Extract wallet address ONLY from real TonConnect
+// Extract wallet address from TonConnect - More permissive
 export const extractRealTonConnectAddress = (connector: TonConnectUI): string | null => {
-  console.log("[TON-EXTRACT] 🔍 === EXTRACTING REAL TONCONNECT ADDRESS ===");
+  console.log("[TON-EXTRACT] 🔍 === EXTRACTING TONCONNECT ADDRESS ===");
   console.log("[TON-EXTRACT] 🔍 Connector object:", connector);
   console.log("[TON-EXTRACT] 🔍 Connector.connected:", connector?.connected);
   console.log("[TON-EXTRACT] 🔍 Connector.wallet:", connector?.wallet);
   
-  // Strict validation - MUST be connected
-  if (!connector || !connector.connected) {
-    console.log("[TON-EXTRACT] ❌ TonConnect NOT CONNECTED - returning null");
+  // Check if we have a wallet with account and address
+  if (!connector || !connector.wallet || !connector.wallet.account || !connector.wallet.account.address) {
+    console.log("[TON-EXTRACT] ❌ Missing wallet/account/address");
     return null;
   }
 
-  // Strict validation - MUST have wallet object
-  if (!connector.wallet) {
-    console.log("[TON-EXTRACT] ❌ NO WALLET OBJECT - returning null");
-    return null;
-  }
-
-  // Strict validation - MUST have account
-  if (!connector.wallet.account) {
-    console.log("[TON-EXTRACT] ❌ NO ACCOUNT OBJECT - returning null");
-    return null;
-  }
-
-  // Strict validation - MUST have address
-  if (!connector.wallet.account.address) {
-    console.log("[TON-EXTRACT] ❌ NO ADDRESS IN ACCOUNT - returning null");
-    return null;
-  }
-
-  const realAddress = connector.wallet.account.address;
-  console.log("[TON-EXTRACT] 🎯 FOUND REAL ADDRESS:", realAddress);
-  console.log("[TON-EXTRACT] 🎯 Address type:", typeof realAddress);
-  console.log("[TON-EXTRACT] 🎯 Address length:", realAddress?.length);
+  const address = connector.wallet.account.address;
+  console.log("[TON-EXTRACT] 🎯 FOUND ADDRESS:", address);
   
-  // STRICT validation of address format
-  if (!isValidTonAddress(realAddress)) {
-    console.error("[TON-EXTRACT] ❌ INVALID TON ADDRESS FORMAT:", realAddress);
+  // Validate address format
+  if (!isValidTonAddress(address)) {
+    console.error("[TON-EXTRACT] ❌ INVALID TON ADDRESS FORMAT:", address);
     return null;
   }
 
-  console.log("[TON-EXTRACT] ✅ REAL TONCONNECT ADDRESS EXTRACTED AND VALIDATED:", realAddress);
-  return realAddress;
+  console.log("[TON-EXTRACT] ✅ ADDRESS EXTRACTED AND VALIDATED:", address);
+  return address;
 };
 
-// Save ONLY real wallet address
-export const saveRealWalletAddress = async (realAddress: string, toast: any) => {
-  console.log("[TON-SAVE] 💾 === SAVING REAL WALLET ADDRESS ===");
-  console.log("[TON-SAVE] 💾 Real address to save:", realAddress);
+// Save wallet address
+export const saveRealWalletAddress = async (address: string, toast: any) => {
+  console.log("[TON-SAVE] 💾 === SAVING WALLET ADDRESS ===");
+  console.log("[TON-SAVE] 💾 Address to save:", address);
   
   // Set localStorage
-  localStorage.setItem("tonWalletAddress", realAddress);
+  localStorage.setItem("tonWalletAddress", address);
   
-  console.log("[TON-SAVE] 💾 State updated with REAL address:", realAddress);
+  console.log("[TON-SAVE] 💾 State updated with address:", address);
   
   // Save to database
   const userId = localStorage.getItem("telegramUserId");
   if (userId) {
     try {
-      console.log("[TON-SAVE] 💾 Saving to database:", { userId, realAddress });
+      console.log("[TON-SAVE] 💾 Saving to database:", { userId, address });
       
       const { data, error } = await supabase.functions.invoke('database-helper', {
         body: {
           action: 'save_wallet_connection',
           params: {
             telegram_id: userId,
-            wallet_address: realAddress
+            wallet_address: address
           }
         }
       });
@@ -98,9 +78,9 @@ export const saveRealWalletAddress = async (realAddress: string, toast: any) => 
   }
   
   toast({
-    title: "✅ Real TON Wallet Connected!",
-    description: `Real Address: ${realAddress.substring(0, 15)}...`,
+    title: "✅ TON Wallet Connected!",
+    description: `Address: ${address.substring(0, 15)}...`,
   });
   
-  console.log("[TON-SAVE] ✅ REAL WALLET SAVE COMPLETE");
+  console.log("[TON-SAVE] ✅ WALLET SAVE COMPLETE");
 };
