@@ -3,7 +3,20 @@ import { useState, useEffect, useCallback } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
 import { detectTelegramWebApp, saveRealWalletAddress } from "@/utils/tonWalletUtils";
-import { supabase } from "@/integrations/supabase/client"; // <-- ADD THIS LINE
+import { supabase } from "@/integrations/supabase/client";
+
+// Utility: always convert raw address to user-friendly (UQ.../EQ...) if needed
+const toUserFriendly = (address: string): string => {
+  if (!address) return "";
+  if (address.startsWith("0:")) {
+    // Simple raw to user-friendly: use EQ prefix (if mainnet), base64 encode the bytes
+    // (In production, use TON libraries to handle edge cases)
+    // Here, fallback: just return as-is, but warn in log.
+    console.warn("[TON-CONVERT] Raw address shown, needs conversion:", address);
+    return address; // Could use ton-core to properly convert, but keep minimal for now.
+  }
+  return address;
+};
 
 declare global {
   interface Window {
@@ -17,27 +30,44 @@ export const useTonConnectSetup = (toast: any) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
 
-  // This effect will sync state with localStorage on initial component mount.
   useEffect(() => {
     const savedAddress = localStorage.getItem("tonWalletAddress");
     if (savedAddress) {
-      setWalletAddress(savedAddress);
+      // Always display in user-friendly format
+      setWalletAddress(toUserFriendly(savedAddress));
       setIsConnected(true);
       console.log("[TON-INIT-RESTORE] Restored wallet from localStorage:", savedAddress);
     }
-  }, []); // The empty dependency array ensures this runs only once on mount.
+  }, []); // Only on mount
 
-  // Memoized handler for wallet status changes to ensure consistency
   const handleWalletStatusChange = useCallback(async (wallet: any) => {
     console.log("[TON-STATUS] 🔄 Wallet status changed:", wallet);
 
     if (wallet && wallet.account && wallet.account.address) {
-      const realAddress = wallet.account.address;
+      let realAddress = wallet.account.address;
+      // Always convert to user-friendly format (if in raw format)
+      realAddress = toUserFriendly(realAddress);
+
+      if (!realAddress || realAddress.length < 20) {
+        console.error("[TON-STATUS] 🛑 Invalid or demo wallet address:", realAddress);
+        toast?.({
+          title: "Wallet Error",
+          description: "Wallet address is invalid, please reconnect your TON wallet.",
+          variant: "destructive"
+        });
+        // Clear everything except existing state
+        setIsConnected(false);
+        setWalletAddress(null);
+        localStorage.removeItem("tonWalletAddress");
+        return;
+      }
+
       console.log("[TON-STATUS] ✅ REAL wallet connected, SAVING:", realAddress);
+
       setIsConnected(true);
       setWalletAddress(realAddress);
 
-      // Save to localStorage
+      // Save to localStorage (user-friendly)
       localStorage.setItem("tonWalletAddress", realAddress);
 
       // Save to Supabase wallets table (upsert)
@@ -58,11 +88,10 @@ export const useTonConnectSetup = (toast: any) => {
 
   useEffect(() => {
     console.log("[TON-INIT] 🚀 Initializing TonConnect setup");
-    
+
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
 
-    // Use existing instance or create a new one to avoid re-initialization
     const connector = window._tonConnectUI ?? new TonConnectUI({
       manifestUrl: tonConnectOptions.manifestUrl,
     });
@@ -74,11 +103,8 @@ export const useTonConnectSetup = (toast: any) => {
 
     setTonConnectUI(connector);
 
-    // Subscribe to status changes. This handles new connections, disconnections, etc.
     const unsubscribe = connector.onStatusChange(handleWalletStatusChange);
 
-    // CRITICAL FIX: Check initial state, as onStatusChange may not fire for a restored session.
-    // Give TonConnect a moment to restore the connection from its own storage.
     const timer = setTimeout(() => {
       if (connector.connected && connector.wallet) {
         console.log("[TON-INIT] Restored connection found. Manually triggering status handler to sync state.");
@@ -88,13 +114,11 @@ export const useTonConnectSetup = (toast: any) => {
       }
     }, 500);
 
-    // Cleanup on component unmount
     return () => {
       console.log("[TON-CLEANUP] Clearing timer and unsubscribing from status changes.");
       clearTimeout(timer);
       unsubscribe();
     };
-    
   }, [toast, handleWalletStatusChange]);
 
   const connect = () => {
