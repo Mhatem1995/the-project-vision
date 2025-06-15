@@ -15,29 +15,6 @@ export const detectTelegramWebApp = () => {
   return false;
 };
 
-// NUCLEAR OPTION: Clear ALL wallet-related data completely
-export const nukeAllWalletData = () => {
-  console.log("[TON-NUKE] 💥 NUCLEAR CLEARING ALL WALLET DATA");
-  
-  // NUKE localStorage completely - remove ALL keys that might contain wallet data
-  const allKeys = Object.keys(localStorage);
-  console.log("[TON-NUKE] All localStorage keys:", allKeys);
-  
-  allKeys.forEach(key => {
-    if (key.toLowerCase().includes('wallet') || 
-        key.toLowerCase().includes('ton') || 
-        key.toLowerCase().includes('address') ||
-        key === 'connectedWallet' ||
-        key === 'userWallet' ||
-        key === 'links') {
-      console.log(`[TON-NUKE] 💥 DESTROYING localStorage key: ${key} = ${localStorage.getItem(key)}`);
-      localStorage.removeItem(key);
-    }
-  });
-  
-  console.log("[TON-NUKE] 💥 NUCLEAR WALLET DATA DESTRUCTION COMPLETE");
-};
-
 // Extract wallet address ONLY from real TonConnect
 export const extractRealTonConnectAddress = (connector: TonConnectUI): string | null => {
   console.log("[TON-EXTRACT] 🔍 === EXTRACTING REAL TONCONNECT ADDRESS ===");

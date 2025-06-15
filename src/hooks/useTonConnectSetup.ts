@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { tonConnectOptions, getPreferredWallets } from "@/integrations/ton/TonConnectConfig";
-import { detectTelegramWebApp, nukeAllWalletData, extractRealTonConnectAddress, saveRealWalletAddress } from "@/utils/tonWalletUtils";
+import { detectTelegramWebApp, extractRealTonConnectAddress, saveRealWalletAddress } from "@/utils/tonWalletUtils";
 
 declare global {
   interface Window {
@@ -16,7 +16,7 @@ export const useTonConnectSetup = (toast: any) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
 
-  // Handle wallet status changes - ONLY accept real connections
+  // Handle wallet status changes - FIXED to prevent auto-disconnect
   const handleWalletStatusChange = async (wallet: any) => {
     console.log("[TON-STATUS] 🔄 === WALLET STATUS CHANGED ===");
     console.log("[TON-STATUS] 🔄 Wallet object:", wallet);
@@ -35,28 +35,27 @@ export const useTonConnectSetup = (toast: any) => {
         await saveRealWalletAddress(realAddress, toast);
       } else {
         console.log("[TON-STATUS] ❌ FAILED TO EXTRACT REAL ADDRESS");
+        // Don't nuke data here - just reset state
         setIsConnected(false);
         setWalletAddress(null);
-        nukeAllWalletData();
       }
     } else {
       console.log("[TON-STATUS] ❌ WALLET DISCONNECTED OR INVALID");
       setIsConnected(false);
       setWalletAddress(null);
-      nukeAllWalletData();
-      toast({
-        title: "Wallet Disconnected",
-        description: "Your wallet has been disconnected.",
-        variant: "destructive"
-      });
+      // Only show disconnect toast if we were previously connected
+      if (isConnected) {
+        toast({
+          title: "Wallet Disconnected",
+          description: "Your wallet has been disconnected.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
   useEffect(() => {
     console.log("[TON-INIT] 🚀 === PROVIDER INITIALIZATION ===");
-    
-    // Start with nuclear cleaning
-    nukeAllWalletData();
     
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
@@ -116,16 +115,15 @@ export const useTonConnectSetup = (toast: any) => {
       };
     } catch (error) {
       console.error("[TON-INIT] ❌ TonConnect initialization error:", error);
-      nukeAllWalletData();
+      setIsConnected(false);
+      setWalletAddress(null);
     }
   }, [toast]);
 
   const connect = () => {
     if (tonConnectUI) {
       console.log("[TON-CONNECT] 🔗 Opening wallet connection modal");
-      nukeAllWalletData(); // Clean slate before connecting
-      setIsConnected(false);
-      setWalletAddress(null);
+      // Don't clear data before connecting - let the connection happen naturally
       tonConnectUI.openModal();
     } else {
       console.error("[TON-CONNECT] ❌ TonConnect UI not available");
@@ -144,7 +142,8 @@ export const useTonConnectSetup = (toast: any) => {
     }
     setIsConnected(false);
     setWalletAddress(null);
-    nukeAllWalletData();
+    // Clear localStorage only on manual disconnect
+    localStorage.removeItem("tonWalletAddress");
     toast({
       title: "Wallet Disconnected",
       description: "Your wallet has been disconnected.",
