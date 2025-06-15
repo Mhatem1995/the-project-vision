@@ -106,9 +106,14 @@ const Mining = () => {
                       <p className="text-sm font-medium text-green-800">Real TON Wallet Connected</p>
                     </div>
                     <p className="text-xs text-green-700 mb-1">Real Wallet Address:</p>
-                    <p className="text-xs font-mono break-all text-green-800 bg-green-100 p-2 rounded">
-                      {walletAddress}
-                    </p>
+                    {/* Only display if provider is telegram-wallet */}
+                    {localStorage.getItem("tonWalletProvider") === "telegram-wallet" ? (
+                      <p className="text-xs font-mono break-all text-green-800 bg-green-100 p-2 rounded">
+                        {walletAddress}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-red-700 font-semibold">No REAL Telegram Wallet connected!</p>
+                    )}
                     <p className="text-xs text-green-600 mt-1">
                       ✅ This is your REAL connected TON wallet address
                     </p>
