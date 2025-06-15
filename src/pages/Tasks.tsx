@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertCircle, Wallet } from "lucide-react";
@@ -5,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TaskItem } from "@/components/tasks/TaskItem";
 import { handleCollabTask, handlePaymentTask } from "@/utils/taskHandlers";
 import { supabase } from "@/integrations/supabase/client";
-import { useTonConnect } from "@/providers/TonConnectProvider";
+import { useTonConnect } from "@/hooks/useTonConnect";
 import { Button } from "@/components/ui/button";
 import type { Task } from "@/types/task";
 

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,7 +8,7 @@ import MiningProgress from "@/components/mining/MiningProgress";
 import FortuneWheel from "@/components/FortuneWheel";
 import { useMining } from "@/hooks/useMining";
 import { useToast } from "@/hooks/use-toast";
-import { useTonConnect } from "@/providers/TonConnectProvider";
+import { useTonConnect } from "@/hooks/useTonConnect";
 
 const Mining = () => {
   const { toast } = useToast();

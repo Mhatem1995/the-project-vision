@@ -12,7 +12,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import BoostPaymentVerificationDialog from "./BoostPaymentVerificationDialog";
 import { useToast } from "@/hooks/use-toast";
-import { useTonConnect } from "@/providers/TonConnectProvider";
+import { useTonConnect } from "@/hooks/useTonConnect";
 import { getConnectedWalletAddress } from "@/integrations/ton/TonConnectConfig";
 import { openTonPayment } from "@/utils/tonTransactionUtils";
 
