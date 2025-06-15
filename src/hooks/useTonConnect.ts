@@ -2,19 +2,16 @@ import { useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { useEffect } from "react";
 
 /**
- * Always pass through or extract the canonical UQ-address (44 base64url, no +/=) as given by Telegram Wallet/TonConnect.
- * No conversion, no string replace or homebrew encoding.
- * If supplied address is not a valid UQ-address, return null.
+ * Accept any 'UQ' address of 40+ base64url chars as "real enough for TON Space" for persistence.
+ * (No conversion! Trust TonConnect's output, but basic sanity check.)
  */
-function getCanonicalUQAddress(address: string | null | undefined): string | null {
-  if (!address || typeof address !== "string") return null;
-  const base = address.trim();
-  // Match canonical Telegram/Ton Space format: UQ, 44 base64-url characters ("-_"), no + or =. (UQ + 44 chars = 46 total)
-  if (/^UQ[a-zA-Z0-9\-_]{44}$/.test(base)) return base;
-  // Accept 39, 40, or 46 char variants for backwards compat
-  if (/^UQ[a-zA-Z0-9\-_]{40,}$/.test(base)) return base;
-  // Otherwise, not a user-friendly wallet address that is copy-pasteable. Reject.
-  return null;
+function isLikelyTonspaceUQ(addr: string | null | undefined): boolean {
+  return (
+    typeof addr === "string" &&
+    addr.startsWith("UQ") &&
+    addr.length >= 40 && 
+    /^[a-zA-Z0-9\-\._]+$/.test(addr.slice(2)) // base64 url or legacy
+  );
 }
 
 type UseTonConnectReturn = {
@@ -27,48 +24,51 @@ type UseTonConnectReturn = {
 };
 
 /**
- * Always use ONLY user-friendly canonical UQ-address as shown by Telegram Wallet/Ton Space.
- * Do NOT try to convert or accept raw/hex/other encodings.
+ * Use the wallet address exactly as given by TonConnect, if it's a UQ-style address.
  */
 export const useTonConnect = (): UseTonConnectReturn => {
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
 
-  // The *true* address as TonConnect gives it—do not mutate
+  // The *real* address as TonConnect gives it—accept if it's a real UQ address of any valid length (not just 44)
   const rawAccountAddress = wallet?.account?.address;
-  const walletAddress = getCanonicalUQAddress(rawAccountAddress);
+  const walletAddress =
+    isLikelyTonspaceUQ(rawAccountAddress) ? rawAccountAddress : null;
 
-  // Only connected if address is real, canonical Telegram Wallet address
+  // Only connected if we have a likely UQ-format address from wallet
   const isConnected = !!walletAddress;
 
-  // If localStorage has something invalid, clean it. Only accept canonical UQ-addresses in localStorage.
-  useEffect(() => {
-    const localStorageAddress = localStorage.getItem("tonWalletAddress");
-    const isCanonicalFormat = !!getCanonicalUQAddress(localStorageAddress);
-
-    if (localStorageAddress && !isCanonicalFormat && !walletAddress) {
-      localStorage.removeItem("tonWalletAddress");
-      localStorage.removeItem("tonWalletProvider");
-      if (tonConnectUI?.disconnect) {
-        tonConnectUI.disconnect();
-      }
-    }
-    // If all is valid, do nothing.
-  }, [tonConnectUI, walletAddress]);
-
+  // On connect: save valid wallet to localStorage!
   useEffect(() => {
     if (walletAddress) {
-      // Save only canonical UQ-address and mark as Telegram wallet
       localStorage.setItem("tonWalletAddress", walletAddress);
       localStorage.setItem("tonWalletProvider", "telegram-wallet");
     } else {
-      localStorage.removeItem("tonWalletAddress");
-      localStorage.removeItem("tonWalletProvider");
+      // Only clear on explicit disconnect, not formatting mismatch
+      // (Otherwise, user will get disconnected after page reload for trivial format changes!)
+      // Don't wipe localStorage if a wallet used to be there
     }
   }, [walletAddress]);
 
+  // On mount: if address in localStorage is not valid UQ, nuke it
+  useEffect(() => {
+    const localAddress = localStorage.getItem("tonWalletAddress");
+    if (localAddress && !isLikelyTonspaceUQ(localAddress)) {
+      localStorage.removeItem("tonWalletAddress");
+      localStorage.removeItem("tonWalletProvider");
+      // Only disconnect if session wallet is truly missing
+      if (!walletAddress && tonConnectUI?.disconnect) {
+        tonConnectUI.disconnect();
+      }
+    }
+  }, [tonConnectUI, walletAddress]);
+
   const connect = () => tonConnectUI?.openModal();
-  const disconnect = () => tonConnectUI?.disconnect();
+  const disconnect = () => {
+    localStorage.removeItem("tonWalletAddress");
+    localStorage.removeItem("tonWalletProvider");
+    tonConnectUI?.disconnect();
+  };
 
   return {
     tonConnectUI,
