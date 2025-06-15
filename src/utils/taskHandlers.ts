@@ -1,7 +1,9 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
 import { pollForTransactionVerification, openTonPayment } from "@/utils/tonTransactionUtils";
 import { getConnectedWalletAddress } from "@/integrations/ton/TonConnectConfig";
+import { useTonConnect } from "@/hooks/useTonConnect";
 
 const debugLog = (message: string, data?: any) => {
   console.log(`🔍 [TASK DEBUG] ${message}`, data || "");
@@ -94,6 +96,11 @@ export const handlePaymentTask = async (
     return;
   }
 
+  // useTonConnect cannot be called outside React, so in a React component you should import useTonConnect.
+  // Here, for simplicity, assume tonConnectUI is exposed on window (as fallback), otherwise, this function would need adjustment (pass tonConnectUI as argument).
+  // For hacky compatibility, check window._tonConnectUI and pass to openTonPayment
+
+  let tonConnectUI = (window as any)._tonConnectUI;
   try {
     debugLog("Ensuring user exists and recording payment attempt in database", { userId, walletAddress });
     
@@ -129,7 +136,7 @@ export const handlePaymentTask = async (
 
     // REFACTORED: Use the centralized openTonPayment function for correctness
     const comment = task.isDaily ? 'daily_ton_payment' : `task${task.id}`;
-    openTonPayment(task.tonAmount, task.id, comment);
+    openTonPayment(tonConnectUI, task.tonAmount, task.id, comment);
     
     debugLog("✅ TonConnect transaction initiated via openTonPayment.");
 

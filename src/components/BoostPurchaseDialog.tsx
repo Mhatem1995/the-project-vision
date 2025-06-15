@@ -1,3 +1,4 @@
+
 import {
   Dialog,
   DialogContent,
@@ -36,7 +37,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
   const [pendingBoost, setPendingBoost] = useState<any>(null);
   const [verifyDialog, setVerifyDialog] = useState(false);
   const { toast } = useToast();
-  const { isConnected } = useTonConnect();
+  const { isConnected, tonConnectUI } = useTonConnect(); // get tonConnectUI
 
   const handlePurchase = async (option: BoostOption) => {
     const userId = localStorage.getItem("telegramUserId");
@@ -102,7 +103,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
       onOpenChange(false);
 
       setTimeout(() => {
-        openTonPayment(option.price, data.id); // always uses the real boost id
+        openTonPayment(tonConnectUI, option.price, data.id); // Pass tonConnectUI and correct id type (string)
       }, 500);
     } catch (e) {
       console.error("Unexpected error in handlePurchase:", e);
