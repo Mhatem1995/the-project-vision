@@ -16,138 +16,103 @@ export const useTonConnectSetup = (toast: any) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
 
-  // Handle wallet status changes - More permissive approach
+  // Simplified wallet status handler
   const handleWalletStatusChange = async (wallet: any) => {
-    console.log("[TON-STATUS] 🔄 === WALLET STATUS CHANGED ===");
-    console.log("[TON-STATUS] 🔄 Wallet object:", wallet);
-    console.log("[TON-STATUS] 🔄 Has account:", !!wallet?.account);
-    console.log("[TON-STATUS] 🔄 Has address:", !!wallet?.account?.address);
+    console.log("[TON-STATUS] 🔄 Wallet status changed:", wallet);
     
     if (wallet && wallet.account && wallet.account.address) {
-      console.log("[TON-STATUS] ✅ WALLET CONNECTION DETECTED");
       const address = wallet.account.address;
+      console.log("[TON-STATUS] ✅ Wallet connected with address:", address);
       
-      console.log("[TON-STATUS] ✅ Setting connection state with address:", address);
       setIsConnected(true);
       setWalletAddress(address);
       await saveRealWalletAddress(address, toast);
-    } else if (!wallet) {
-      console.log("[TON-STATUS] ❌ WALLET DISCONNECTED");
+    } else if (wallet === null) {
+      console.log("[TON-STATUS] ❌ Wallet disconnected");
       setIsConnected(false);
       setWalletAddress(null);
-      
-      toast({
-        title: "Wallet Disconnected",
-        description: "Your wallet has been disconnected.",
-        variant: "destructive"
-      });
+      localStorage.removeItem("tonWalletAddress");
     }
-    // Don't change state for partial wallet objects - let them remain
+    // Don't change state for partial updates
   };
 
   useEffect(() => {
-    console.log("[TON-INIT] 🚀 === PROVIDER INITIALIZATION ===");
+    console.log("[TON-INIT] 🚀 Initializing TonConnect");
     
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
 
-    // Check for existing TonConnect UI
+    // Check for existing instance
     if (window._tonConnectUI) {
-      console.log("[TON-INIT] 🔄 Using existing TonConnect UI");
+      console.log("[TON-INIT] Using existing TonConnect UI");
       const existingUI = window._tonConnectUI;
       setTonConnectUI(existingUI);
       
-      // Check initial state more permissively
-      if (existingUI.wallet && existingUI.wallet.account && existingUI.wallet.account.address) {
+      // Check if already connected
+      if (existingUI.connected && existingUI.wallet?.account?.address) {
         const address = existingUI.wallet.account.address;
-        console.log("[TON-INIT] ✅ Found existing connection:", address);
+        console.log("[TON-INIT] Found existing connection:", address);
         setIsConnected(true);
         setWalletAddress(address);
-        saveRealWalletAddress(address, toast);
       }
       
-      // Add status change listener to existing UI
       existingUI.onStatusChange(handleWalletStatusChange);
       return;
     }
 
-    // Create new TonConnect UI
+    // Create new instance
     try {
       const options = {
         manifestUrl: tonConnectOptions.manifestUrl,
         preferredWallets: getPreferredWallets()
       };
 
-      console.log("[TON-INIT] 🔧 Creating new TonConnect with options:", options);
+      console.log("[TON-INIT] Creating new TonConnect instance");
       const connector = new TonConnectUI(options);
       
-      // Store globally
       window._tonConnectUI = connector;
       setTonConnectUI(connector);
 
-      // Listen for status changes
-      const unsubscribe = connector.onStatusChange(handleWalletStatusChange);
+      connector.onStatusChange(handleWalletStatusChange);
 
-      // Check initial state after a delay
+      // Check initial connection after setup
       setTimeout(() => {
-        console.log("[TON-INIT] 🔍 Checking initial connection state...");
-        if (connector.wallet && connector.wallet.account && connector.wallet.account.address) {
+        if (connector.connected && connector.wallet?.account?.address) {
           const address = connector.wallet.account.address;
-          console.log("[TON-INIT] ✅ Initial connection found:", address);
+          console.log("[TON-INIT] Initial connection found:", address);
           setIsConnected(true);
           setWalletAddress(address);
-          saveRealWalletAddress(address, toast);
         }
       }, 1000);
 
-      return () => {
-        unsubscribe();
-      };
     } catch (error) {
-      console.error("[TON-INIT] ❌ TonConnect initialization error:", error);
-      setIsConnected(false);
-      setWalletAddress(null);
+      console.error("[TON-INIT] ❌ Failed to create TonConnect:", error);
     }
   }, [toast]);
 
   const connect = () => {
     if (tonConnectUI) {
-      console.log("[TON-CONNECT] 🔗 Opening wallet connection modal");
+      console.log("[TON-CONNECT] Opening wallet modal");
       tonConnectUI.openModal();
     } else {
-      console.error("[TON-CONNECT] ❌ TonConnect UI not available");
+      console.error("[TON-CONNECT] TonConnect UI not ready");
       toast({
         title: "Connection Error",
-        description: "Wallet connection service not ready. Please try again.",
+        description: "Wallet service not ready. Please refresh and try again.",
         variant: "destructive"
       });
     }
   };
 
   const disconnect = () => {
-    console.log("[TON-DISCONNECT] 🔌 Disconnecting wallet");
+    console.log("[TON-DISCONNECT] Disconnecting wallet");
     if (tonConnectUI) {
       tonConnectUI.disconnect();
     }
     setIsConnected(false);
     setWalletAddress(null);
     localStorage.removeItem("tonWalletAddress");
-    toast({
-      title: "Wallet Disconnected",
-      description: "Your wallet has been disconnected.",
-      variant: "destructive"
-    });
   };
-
-  // DEBUG: Log current state
-  useEffect(() => {
-    console.log("[TON-STATE] 📊 Current provider state:", {
-      isConnected,
-      walletAddress,
-      tonConnectUIConnected: tonConnectUI?.connected,
-      tonConnectUIWallet: tonConnectUI?.wallet?.account?.address
-    });
-  }, [isConnected, walletAddress, tonConnectUI]);
 
   return {
     tonConnectUI,

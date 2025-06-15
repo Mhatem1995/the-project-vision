@@ -26,51 +26,25 @@ export const getTonNetwork = async () => {
   }
 };
 
-// Get ONLY real connected wallet address from TonConnect - NO FAKE ADDRESSES
+// Get connected wallet address - simplified approach
 export const getConnectedWalletAddress = (): string | null => {
-  console.log("[TON-CONFIG] 🔍 === GETTING REAL WALLET ADDRESS ===");
+  console.log("[TON-CONFIG] Getting connected wallet address");
   
-  // STRICT CHECK: TonConnect UI must exist
+  // Check TonConnect UI instance
   if (!window._tonConnectUI) {
-    console.log("[TON-CONFIG] ❌ NO TONCONNECT UI FOUND");
+    console.log("[TON-CONFIG] No TonConnect UI found");
     return null;
   }
 
-  // STRICT CHECK: Must be connected
-  if (!window._tonConnectUI.connected) {
-    console.log("[TON-CONFIG] ❌ TONCONNECT NOT CONNECTED");
-    return null;
+  // Check if connected and has address
+  if (window._tonConnectUI.connected && window._tonConnectUI.wallet?.account?.address) {
+    const address = window._tonConnectUI.wallet.account.address;
+    console.log("[TON-CONFIG] Found connected address:", address);
+    return address;
   }
 
-  // STRICT CHECK: Must have wallet
-  if (!window._tonConnectUI.wallet) {
-    console.log("[TON-CONFIG] ❌ NO WALLET OBJECT");
-    return null;
-  }
-
-  // STRICT CHECK: Must have account
-  if (!window._tonConnectUI.wallet.account) {
-    console.log("[TON-CONFIG] ❌ NO ACCOUNT OBJECT");
-    return null;
-  }
-
-  // STRICT CHECK: Must have address
-  if (!window._tonConnectUI.wallet.account.address) {
-    console.log("[TON-CONFIG] ❌ NO ADDRESS IN ACCOUNT");
-    return null;
-  }
-
-  const realAddress = window._tonConnectUI.wallet.account.address;
-  console.log("[TON-CONFIG] 🎯 FOUND REAL ADDRESS FROM TONCONNECT:", realAddress);
-  
-  // Validate it's a proper TON address
-  if (isValidTonAddress(realAddress)) {
-    console.log("[TON-CONFIG] ✅ REAL ADDRESS VALIDATION PASSED");
-    return realAddress;
-  } else {
-    console.log("[TON-CONFIG] ❌ REAL ADDRESS FAILED VALIDATION");
-    return null;
-  }
+  console.log("[TON-CONFIG] No connected wallet found");
+  return null;
 };
 
 // Constants for API access
@@ -86,40 +60,24 @@ export const TRANSACTION_VERIFICATION = {
   EXPIRATION_TIME_MS: 30 * 60 * 1000,
 };
 
-// TON wallet address validation - STRICT validation
+// Simple TON wallet address validation
 export const isValidTonAddress = (address: string): boolean => {
   if (!address || typeof address !== 'string') {
-    console.log("[TON-VALIDATION] ❌ Invalid input - not a string or empty");
     return false;
   }
   
   const cleanAddress = address.trim();
   
-  console.log("[TON-VALIDATION] 🔍 Validating address:", cleanAddress);
-  console.log("[TON-VALIDATION] 🔍 Length:", cleanAddress.length);
-  
-  // STRICT CHECK: No fake addresses allowed
-  if (cleanAddress.includes('bulgbugbvjlhbvjhlbvljhbv')) {
-    console.log("[TON-VALIDATION] ❌ DETECTED FAKE ADDRESS - REJECTING");
+  // Basic length check
+  if (cleanAddress.length < 40) {
     return false;
   }
   
-  // Check for user-friendly format (UQ/EQ + base64)
-  const userFriendlyPattern = /^(UQ|EQ)[A-Za-z0-9_-]{44,48}$/;
+  // Accept UQ/EQ format or raw 0: format
+  const userFriendlyPattern = /^(UQ|EQ)[A-Za-z0-9_-]{40,}$/;
+  const rawPattern = /^0:[a-fA-F0-9]{60,}$/;
   
-  // Check for raw format (0: + 64 hex characters)
-  const rawPattern = /^0:[a-fA-F0-9]{64}$/;
-  
-  const isUserFriendly = userFriendlyPattern.test(cleanAddress);
-  const isRaw = rawPattern.test(cleanAddress);
-  
-  console.log("[TON-VALIDATION] 🔍 User-friendly pattern match:", isUserFriendly);
-  console.log("[TON-VALIDATION] 🔍 Raw pattern match:", isRaw);
-  
-  const isValid = isUserFriendly || isRaw;
-  console.log("[TON-VALIDATION] 🔍 Final validation result:", isValid);
-  
-  return isValid;
+  return userFriendlyPattern.test(cleanAddress) || rawPattern.test(cleanAddress);
 };
 
 // Get preferred wallets for TON Space

@@ -1,6 +1,5 @@
 
 import { TonConnectUI } from "@tonconnect/ui";
-import { isValidTonAddress } from "@/integrations/ton/TonConnectConfig";
 import { supabase } from "@/integrations/supabase/client";
 
 export const detectTelegramWebApp = () => {
@@ -15,47 +14,64 @@ export const detectTelegramWebApp = () => {
   return false;
 };
 
-// Extract wallet address from TonConnect - More permissive
-export const extractRealTonConnectAddress = (connector: TonConnectUI): string | null => {
-  console.log("[TON-EXTRACT] 🔍 === EXTRACTING TONCONNECT ADDRESS ===");
-  console.log("[TON-EXTRACT] 🔍 Connector object:", connector);
-  console.log("[TON-EXTRACT] 🔍 Connector.connected:", connector?.connected);
-  console.log("[TON-EXTRACT] 🔍 Connector.wallet:", connector?.wallet);
+// Simple address validation - accept any reasonable looking TON address
+export const isValidTonAddress = (address: string): boolean => {
+  if (!address || typeof address !== 'string') {
+    return false;
+  }
   
-  // Check if we have a wallet with account and address
-  if (!connector || !connector.wallet || !connector.wallet.account || !connector.wallet.account.address) {
-    console.log("[TON-EXTRACT] ❌ Missing wallet/account/address");
+  const cleanAddress = address.trim();
+  console.log("[TON-VALIDATION] Validating address:", cleanAddress);
+  
+  // Basic length and format check - be more permissive
+  if (cleanAddress.length < 40) {
+    console.log("[TON-VALIDATION] Address too short");
+    return false;
+  }
+  
+  // Accept UQ/EQ format or raw 0: format
+  const userFriendlyPattern = /^(UQ|EQ)[A-Za-z0-9_-]{40,}$/;
+  const rawPattern = /^0:[a-fA-F0-9]{60,}$/;
+  
+  const isValid = userFriendlyPattern.test(cleanAddress) || rawPattern.test(cleanAddress);
+  console.log("[TON-VALIDATION] Address valid:", isValid);
+  
+  return isValid;
+};
+
+// Extract address from TonConnect
+export const extractRealTonConnectAddress = (connector: TonConnectUI): string | null => {
+  console.log("[TON-EXTRACT] Extracting address from connector");
+  
+  if (!connector?.wallet?.account?.address) {
+    console.log("[TON-EXTRACT] No address found in connector");
     return null;
   }
 
   const address = connector.wallet.account.address;
-  console.log("[TON-EXTRACT] 🎯 FOUND ADDRESS:", address);
+  console.log("[TON-EXTRACT] Found address:", address);
   
-  // Validate address format
-  if (!isValidTonAddress(address)) {
-    console.error("[TON-EXTRACT] ❌ INVALID TON ADDRESS FORMAT:", address);
+  if (isValidTonAddress(address)) {
+    console.log("[TON-EXTRACT] ✅ Address is valid");
+    return address;
+  } else {
+    console.log("[TON-EXTRACT] ❌ Address failed validation");
     return null;
   }
-
-  console.log("[TON-EXTRACT] ✅ ADDRESS EXTRACTED AND VALIDATED:", address);
-  return address;
 };
 
 // Save wallet address
 export const saveRealWalletAddress = async (address: string, toast: any) => {
-  console.log("[TON-SAVE] 💾 === SAVING WALLET ADDRESS ===");
-  console.log("[TON-SAVE] 💾 Address to save:", address);
+  console.log("[TON-SAVE] Saving wallet address:", address);
   
   // Set localStorage
   localStorage.setItem("tonWalletAddress", address);
-  
-  console.log("[TON-SAVE] 💾 State updated with address:", address);
   
   // Save to database
   const userId = localStorage.getItem("telegramUserId");
   if (userId) {
     try {
-      console.log("[TON-SAVE] 💾 Saving to database:", { userId, address });
+      console.log("[TON-SAVE] Saving to database for user:", userId);
       
       const { data, error } = await supabase.functions.invoke('database-helper', {
         body: {
@@ -68,12 +84,12 @@ export const saveRealWalletAddress = async (address: string, toast: any) => {
       });
       
       if (error) {
-        console.error("[TON-SAVE] ❌ Database error:", error);
+        console.error("[TON-SAVE] Database error:", error);
       } else {
-        console.log("[TON-SAVE] ✅ Database save successful:", data);
+        console.log("[TON-SAVE] ✅ Database save successful");
       }
     } catch (err) {
-      console.error("[TON-SAVE] ❌ Database exception:", err);
+      console.error("[TON-SAVE] Database exception:", err);
     }
   }
   
@@ -82,5 +98,5 @@ export const saveRealWalletAddress = async (address: string, toast: any) => {
     description: `Address: ${address.substring(0, 15)}...`,
   });
   
-  console.log("[TON-SAVE] ✅ WALLET SAVE COMPLETE");
+  console.log("[TON-SAVE] ✅ Wallet save complete");
 };
