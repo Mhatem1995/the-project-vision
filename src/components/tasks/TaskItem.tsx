@@ -2,7 +2,6 @@
 import { Button } from "@/components/ui/button";
 import { Check, ExternalLink, Clock, Wallet } from "lucide-react";
 import type { Task } from "@/types/task";
-import { useTonConnect } from "@/providers/TonConnectProvider";
 
 interface TaskItemProps {
   task: Task;
@@ -19,8 +18,6 @@ export const TaskItem = ({
   onPaymentSubmit,
   walletConnected = true
 }: TaskItemProps) => {
-  const { disconnect, isConnected } = useTonConnect();
-  
   return (
     <div className="bg-card p-4 rounded-md shadow-sm border">
       <div className="flex items-start justify-between">
@@ -57,39 +54,25 @@ export const TaskItem = ({
                   </Button>
                 </>
               ) : (
-                <>
-                  <Button 
-                    size="sm"
-                    onClick={() => onPaymentSubmit && onPaymentSubmit(task)}
-                    disabled={(task.isDaily && !dailyTaskAvailable) || !walletConnected || !onPaymentSubmit}
-                  >
-                    {task.isDaily && !dailyTaskAvailable ? (
-                      <>
-                        <Clock className="mr-2 h-4 w-4" />
-                        Cooldown
-                      </>
-                    ) : !walletConnected ? (
-                      <>
-                        <Wallet className="mr-2 h-4 w-4" />
-                        Connect Wallet
-                      </>
-                    ) : (
-                      `Pay ${task.tonAmount} TON`
-                    )}
-                  </Button>
-                  
-                  {/* Disconnect button for connected wallets */}
-                  {isConnected && (
-                    <Button 
-                      size="sm" 
-                      variant="destructive" 
-                      onClick={disconnect}
-                      className="text-xs"
-                    >
-                      Disconnect
-                    </Button>
+                <Button 
+                  size="sm"
+                  onClick={() => onPaymentSubmit && onPaymentSubmit(task)}
+                  disabled={(task.isDaily && !dailyTaskAvailable) || !walletConnected || !onPaymentSubmit}
+                >
+                  {task.isDaily && !dailyTaskAvailable ? (
+                    <>
+                      <Clock className="mr-2 h-4 w-4" />
+                      Cooldown
+                    </>
+                  ) : !walletConnected ? (
+                    <>
+                      <Wallet className="mr-2 h-4 w-4" />
+                      Connect Wallet
+                    </>
+                  ) : (
+                    `Pay ${task.tonAmount} TON`
                   )}
-                </>
+                </Button>
               )}
             </>
           )}

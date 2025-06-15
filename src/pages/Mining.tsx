@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet } from "lucide-react";
+import { Wallet, LogOut } from "lucide-react";
 import BoostPurchaseDialog from "@/components/BoostPurchaseDialog";
 import BalanceCard from "@/components/mining/BalanceCard";
 import MiningProgress from "@/components/mining/MiningProgress";
@@ -18,7 +18,7 @@ const Mining = () => {
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   
   // TON Connect integration using our hook
-  const { isConnected, walletAddress, connect, isTelegramWebApp } = useTonConnect();
+  const { isConnected, walletAddress, connect, disconnect, isTelegramWebApp } = useTonConnect();
   
   const {
     balance,
@@ -110,9 +110,21 @@ const Mining = () => {
                   {isConnecting ? 'Connecting...' : 'Connect TON Wallet'}
                 </Button>
               ) : (
-                <div className="bg-card p-4 rounded-lg border border-border">
-                  <p className="text-sm text-muted-foreground mb-1">Connected Wallet:</p>
-                  <p className="text-xs font-mono break-all">{formatWalletAddress(walletAddress || "")}</p>
+                <div className="space-y-3">
+                  <div className="bg-card p-4 rounded-lg border border-border">
+                    <p className="text-sm text-muted-foreground mb-1">Connected Wallet:</p>
+                    <p className="text-xs font-mono break-all">{formatWalletAddress(walletAddress || "")}</p>
+                  </div>
+                  
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    onClick={disconnect}
+                    className="w-full"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Disconnect Wallet
+                  </Button>
                 </div>
               )}
               
