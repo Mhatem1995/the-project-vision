@@ -3,7 +3,7 @@
  * Utility for converting TON addresses between formats.
  * Only user-friendly (base64, UQ.../EQ...) should ever be saved/used.
  */
-import { Address } from '@ton/ton';
+import { Address } from '@ton/core';
 
 export function toUserFriendlyAddress(address: string): string {
   try {
