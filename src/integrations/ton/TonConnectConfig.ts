@@ -30,14 +30,14 @@ export const getTonNetwork = async () => {
 
 // Get the real connected wallet address from TonConnect UI
 export const getConnectedWalletAddress = (): string | null => {
-  // First try to get from TonConnect UI directly (most reliable)
+  // Get from TonConnect UI directly (most reliable)
   if (window._tonConnectUI && window._tonConnectUI.connected && window._tonConnectUI.wallet) {
-    const rawAddress = window._tonConnectUI.wallet.account.address;
-    console.log("[TON-CONFIG] Getting wallet address from TonConnect UI:", rawAddress);
-    return convertToUserFriendlyAddress(rawAddress);
+    const realAddress = window._tonConnectUI.wallet.account.address;
+    console.log("[TON-CONFIG] Getting REAL wallet address from TonConnect UI:", realAddress);
+    return realAddress;
   }
   
-  // Fallback to localStorage (less reliable but better than nothing)
+  // Fallback to localStorage 
   const storedAddress = localStorage.getItem("tonWalletAddress");
   console.log("[TON-CONFIG] Getting wallet address from localStorage:", storedAddress);
   return storedAddress;
@@ -54,49 +54,6 @@ export const TRANSACTION_VERIFICATION = {
   CHECK_DELAY_MS: 5000, // 5 seconds between checks
   MAX_ATTEMPTS: 12, // Try for up to 1 minute (12 * 5000ms)
   EXPIRATION_TIME_MS: 30 * 60 * 1000, // 30 minutes in milliseconds
-};
-
-// Convert raw TON address (0:hex) to user-friendly format
-export const convertToUserFriendlyAddress = (rawAddress: string): string => {
-  console.log("[TON-CONVERT] Converting raw address:", rawAddress);
-  
-  // If it's already user-friendly (starts with UQ/EQ), return as is
-  if (rawAddress.startsWith('UQ') || rawAddress.startsWith('EQ')) {
-    console.log("[TON-CONVERT] Already user-friendly format");
-    return rawAddress;
-  }
-  
-  // If it's raw format (0: + 64 hex characters), we need to convert it
-  if (rawAddress.startsWith('0:')) {
-    try {
-      // Remove the '0:' prefix and get the hex part
-      const hexPart = rawAddress.substring(2);
-      
-      // Convert hex to bytes
-      const bytes = new Uint8Array(hexPart.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []);
-      
-      // Add workchain byte (0) at the beginning
-      const fullBytes = new Uint8Array([0, ...bytes]);
-      
-      // Convert to base64url format for user-friendly address
-      const base64 = btoa(String.fromCharCode(...fullBytes))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
-      
-      const userFriendlyAddress = 'UQ' + base64;
-      console.log("[TON-CONVERT] Converted to user-friendly:", userFriendlyAddress);
-      return userFriendlyAddress;
-    } catch (error) {
-      console.error("[TON-CONVERT] Error converting address:", error);
-      // Return original if conversion fails
-      return rawAddress;
-    }
-  }
-  
-  // Return original if format is not recognized
-  console.log("[TON-CONVERT] Unknown format, returning original");
-  return rawAddress;
 };
 
 // Updated TON wallet address validation - accepts both raw and user-friendly formats

@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { tonConnectOptions, isValidTonAddress, getPreferredWallets, convertToUserFriendlyAddress } from "@/integrations/ton/TonConnectConfig";
+import { tonConnectOptions, isValidTonAddress, getPreferredWallets } from "@/integrations/ton/TonConnectConfig";
 
 declare global {
   interface Window {
@@ -58,17 +58,18 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   };
 
   const updateWalletState = (connector: TonConnectUI) => {
+    console.log("[TON-DEBUG] Updating wallet state, connector:", connector);
+    console.log("[TON-DEBUG] Connector connected:", connector.connected);
+    console.log("[TON-DEBUG] Connector wallet:", connector.wallet);
+    
     if (connector.connected && connector.wallet) {
-      const rawAddress = connector.wallet.account.address;
-      console.log("[TON-DEBUG] Real wallet connected with raw address:", rawAddress);
-      console.log("[TON-DEBUG] Wallet info:", {
-        name: connector.wallet.device.appName,
-        version: connector.wallet.device.appVersion,
-        platform: connector.wallet.device.platform
-      });
-
-      if (!isValidTonAddress(rawAddress)) {
-        console.error("[TON-DEBUG] Invalid TON address format:", rawAddress);
+      // Get the REAL wallet address from the connector
+      const realWalletAddress = connector.wallet.account.address;
+      console.log("[TON-DEBUG] REAL wallet address from connector:", realWalletAddress);
+      console.log("[TON-DEBUG] Wallet device info:", connector.wallet.device);
+      
+      if (!isValidTonAddress(realWalletAddress)) {
+        console.error("[TON-DEBUG] Invalid TON address format:", realWalletAddress);
         toast({
           title: "Invalid Wallet",
           description: "The wallet address format is not recognized.",
@@ -78,15 +79,11 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         return;
       }
       
-      // Convert to user-friendly format if it's raw
-      const userFriendlyAddress = convertToUserFriendlyAddress(rawAddress);
-      console.log("[TON-DEBUG] Using user-friendly address:", userFriendlyAddress);
-      
       setIsConnected(true);
-      setWalletAddress(userFriendlyAddress);
-      localStorage.setItem("tonWalletAddress", userFriendlyAddress);
+      setWalletAddress(realWalletAddress);
+      localStorage.setItem("tonWalletAddress", realWalletAddress);
 
-      // Save wallet connection in database
+      // Save wallet connection in database with REAL address
       const userId = localStorage.getItem("telegramUserId");
       if (userId) {
         supabase.functions.invoke('database-helper', {
@@ -94,14 +91,14 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
             action: 'save_wallet_connection',
             params: {
               telegram_id: userId,
-              wallet_address: userFriendlyAddress
+              wallet_address: realWalletAddress
             }
           }
         }).then(({ data, error }) => {
           if (error) {
             console.error("[TON-DEBUG] Error saving wallet connection:", error);
           } else {
-            console.log("[TON-DEBUG] Real wallet connection saved successfully:", data);
+            console.log("[TON-DEBUG] REAL wallet connection saved successfully:", data);
           }
         });
 
@@ -111,6 +108,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         });
       }
     } else {
+      console.log("[TON-DEBUG] No wallet connected or wallet data missing");
       clearWalletState();
     }
   };
@@ -142,8 +140,10 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       const unsubscribe = connector.onStatusChange((wallet) => {
         console.log("[TON-DEBUG] Wallet status changed:", wallet);
         if (wallet) {
+          console.log("[TON-DEBUG] Wallet connected, account:", wallet.account);
           updateWalletState(connector);
         } else {
+          console.log("[TON-DEBUG] Wallet disconnected");
           clearWalletState();
           toast({
             title: "Wallet Disconnected",
@@ -154,6 +154,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       });
 
       // Check initial connection state
+      console.log("[TON-DEBUG] Checking initial connection state");
       updateWalletState(connector);
 
       return () => {
