@@ -50,63 +50,70 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
   const { toast } = useToast();
 
-  const clearWalletState = () => {
-    console.log("[TON-DEBUG] === CLEARING ALL WALLET STATE ===");
+  // NUCLEAR OPTION: Clear all possible fake wallet data
+  const nukeAllFakeWalletData = () => {
+    console.log("[TON-NUKE] === NUKING ALL FAKE WALLET DATA ===");
+    
+    // Clear from state
     setIsConnected(false);
     setWalletAddress(null);
     
-    // Clear ALL possible storage locations for fake addresses
-    localStorage.removeItem("tonWalletAddress");
-    localStorage.removeItem("walletAddress");
-    localStorage.removeItem("ton_wallet_address");
+    // Clear ALL possible localStorage keys that could contain fake addresses
+    const keysToNuke = [
+      "tonWalletAddress",
+      "walletAddress", 
+      "ton_wallet_address",
+      "wallet_address",
+      "kfcWalletAddress",
+      "connectedWallet",
+      "ton_connect_wallet",
+      "userWallet"
+    ];
     
-    console.log("[TON-DEBUG] Cleared all wallet connection state and storage");
+    keysToNuke.forEach(key => {
+      if (localStorage.getItem(key)) {
+        console.log(`[TON-NUKE] Removing fake data from localStorage key: ${key}`);
+        localStorage.removeItem(key);
+      }
+    });
+    
+    console.log("[TON-NUKE] All fake wallet data nuked!");
   };
 
-  const updateWalletState = async (connector: TonConnectUI) => {
-    console.log("[TON-DEBUG] === WALLET STATE UPDATE START ===");
-    console.log("[TON-DEBUG] TonConnect connected:", connector.connected);
-    console.log("[TON-DEBUG] TonConnect wallet:", connector.wallet);
-    console.log("[TON-DEBUG] TonConnect account:", connector.wallet?.account);
-    console.log("[TON-DEBUG] Raw address from connector:", connector.wallet?.account?.address);
+  // ONLY set wallet data if we have a REAL connection
+  const setRealWalletData = async (connector: TonConnectUI) => {
+    console.log("[TON-REAL] === CHECKING FOR REAL WALLET ===");
+    console.log("[TON-REAL] Connector connected:", connector.connected);
+    console.log("[TON-REAL] Connector wallet:", connector.wallet);
     
+    // STRICT CHECK: Only proceed if we have a real, connected wallet
     if (connector.connected && connector.wallet?.account?.address) {
-      // Get the REAL address directly from TonConnect
       const realAddress = connector.wallet.account.address;
-      console.log("[TON-DEBUG] ✅ REAL ADDRESS EXTRACTED:", realAddress);
-      console.log("[TON-DEBUG] Address type:", typeof realAddress);
-      console.log("[TON-DEBUG] Address length:", realAddress.length);
       
-      // Validate the address format
+      console.log("[TON-REAL] ✅ REAL WALLET FOUND!");
+      console.log("[TON-REAL] Real address:", realAddress);
+      console.log("[TON-REAL] Address type:", typeof realAddress);
+      
+      // Validate the real address
       if (!isValidTonAddress(realAddress)) {
-        console.error("[TON-DEBUG] ❌ Invalid TON address format:", realAddress);
-        toast({
-          title: "Invalid Wallet",
-          description: "The wallet address format is not recognized.",
-          variant: "destructive"
-        });
-        clearWalletState();
+        console.error("[TON-REAL] ❌ Real address failed validation:", realAddress);
+        nukeAllFakeWalletData();
         return;
       }
       
-      console.log("[TON-DEBUG] ✅ Address validation PASSED for:", realAddress);
+      // First nuke all fake data, then set real data
+      nukeAllFakeWalletData();
       
-      // FORCE clear any old fake addresses first
-      clearWalletState();
-      
-      // Now set the REAL address
+      // Set REAL wallet data
       setIsConnected(true);
       setWalletAddress(realAddress);
       localStorage.setItem("tonWalletAddress", realAddress);
       
-      console.log("[TON-DEBUG] ✅ STATE UPDATED WITH REAL ADDRESS:", realAddress);
-      console.log("[TON-DEBUG] ✅ STORED IN LOCALSTORAGE:", realAddress);
-
+      console.log("[TON-REAL] ✅ REAL WALLET SET:", realAddress);
+      
       // Save to database
       const userId = localStorage.getItem("telegramUserId");
       if (userId) {
-        console.log("[TON-DEBUG] Saving REAL wallet to database:", { userId, realAddress });
-        
         try {
           const { data, error } = await supabase.functions.invoke('database-helper', {
             body: {
@@ -119,47 +126,48 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
           });
           
           if (error) {
-            console.error("[TON-DEBUG] ❌ Database error:", error);
+            console.error("[TON-REAL] Database save error:", error);
           } else {
-            console.log("[TON-DEBUG] ✅ Real wallet saved to database:", data);
+            console.log("[TON-REAL] Real wallet saved to database");
           }
         } catch (saveError) {
-          console.error("[TON-DEBUG] ❌ Exception saving wallet:", saveError);
+          console.error("[TON-REAL] Database save exception:", saveError);
         }
-
-        toast({
-          title: "Real TON Wallet Connected",
-          description: `Connected successfully! Address: ${realAddress.substring(0, 10)}...`,
-        });
       }
+      
+      toast({
+        title: "Real TON Wallet Connected!",
+        description: `Address: ${realAddress.substring(0, 16)}...`,
+      });
     } else {
-      console.log("[TON-DEBUG] ❌ No wallet connected or missing data");
-      console.log("[TON-DEBUG] Connected:", connector.connected);
-      console.log("[TON-DEBUG] Has wallet:", !!connector.wallet);
-      console.log("[TON-DEBUG] Has account:", !!connector.wallet?.account);
-      console.log("[TON-DEBUG] Has address:", !!connector.wallet?.account?.address);
-      clearWalletState();
+      console.log("[TON-REAL] ❌ NO REAL WALLET CONNECTION");
+      console.log("[TON-REAL] Connected:", connector.connected);
+      console.log("[TON-REAL] Has wallet:", !!connector.wallet);
+      console.log("[TON-REAL] Has account:", !!connector.wallet?.account);
+      console.log("[TON-REAL] Has address:", !!connector.wallet?.account?.address);
+      
+      // No real wallet, nuke everything
+      nukeAllFakeWalletData();
     }
-    console.log("[TON-DEBUG] === WALLET STATE UPDATE END ===");
   };
 
   useEffect(() => {
-    console.log("[TON-DEBUG] === INITIALIZING TONCONNECT ===");
+    console.log("[TON-INIT] === PROVIDER INITIALIZATION ===");
     
-    // Clear any fake addresses on startup
-    clearWalletState();
+    // ALWAYS start by nuking fake data
+    nukeAllFakeWalletData();
     
-    // Check if TonConnect UI already exists
-    if (window._tonConnectUI) {
-      console.log("[TON-DEBUG] Using existing TonConnect UI instance");
-      const existingUI = window._tonConnectUI;
-      setTonConnectUI(existingUI);
-      updateWalletState(existingUI);
-      return;
-    }
-
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
+
+    // Check if TonConnect UI already exists
+    if (window._tonConnectUI) {
+      console.log("[TON-INIT] Using existing TonConnect UI");
+      const existingUI = window._tonConnectUI;
+      setTonConnectUI(existingUI);
+      setRealWalletData(existingUI);
+      return;
+    }
 
     try {
       const options = {
@@ -167,55 +175,55 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         preferredWallets: getPreferredWallets()
       };
 
-      console.log("[TON-DEBUG] Creating new TonConnect with options:", options);
+      console.log("[TON-INIT] Creating new TonConnect with options:", options);
       const connector = new TonConnectUI(options);
       
-      // Store globally for access
+      // Store globally
       window._tonConnectUI = connector;
       setTonConnectUI(connector);
 
-      // Set up status change listener FIRST
+      // Listen for wallet status changes - ONLY accept real connections
       const unsubscribe = connector.onStatusChange((wallet) => {
-        console.log("[TON-DEBUG] === WALLET STATUS CHANGED ===");
-        console.log("[TON-DEBUG] New wallet status:", wallet);
+        console.log("[TON-STATUS] === WALLET STATUS CHANGED ===");
+        console.log("[TON-STATUS] New wallet:", wallet);
         
         if (wallet?.account?.address) {
-          console.log("[TON-DEBUG] ✅ Wallet connected with real address:", wallet.account.address);
-          updateWalletState(connector);
+          console.log("[TON-STATUS] ✅ Real wallet connected");
+          setRealWalletData(connector);
         } else {
-          console.log("[TON-DEBUG] ❌ Wallet disconnected or no account");
-          clearWalletState();
+          console.log("[TON-STATUS] ❌ Wallet disconnected or fake");
+          nukeAllFakeWalletData();
           toast({
-            title: "Wallet Disconnected", 
-            description: "You have disconnected your wallet.",
+            title: "Wallet Disconnected",
+            description: "Your wallet has been disconnected.",
             variant: "destructive"
           });
         }
       });
 
-      // Check initial connection state after a brief delay
+      // Check initial state after delay
       setTimeout(() => {
-        console.log("[TON-DEBUG] Checking initial connection state...");
-        updateWalletState(connector);
-      }, 500);
+        console.log("[TON-INIT] Checking initial wallet state...");
+        setRealWalletData(connector);
+      }, 1000);
 
       return () => {
         unsubscribe();
       };
     } catch (error) {
-      console.error("[TON-DEBUG] ❌ Error initializing TonConnect:", error);
-      clearWalletState();
+      console.error("[TON-INIT] ❌ TonConnect initialization error:", error);
+      nukeAllFakeWalletData();
     }
   }, [toast]);
 
   const connect = () => {
     if (tonConnectUI) {
-      console.log("[TON-DEBUG] Opening real TON wallet connection modal");
-      // Clear any fake addresses before connecting
-      clearWalletState();
+      console.log("[TON-CONNECT] Opening wallet connection modal");
+      // Nuke fake data before attempting real connection
+      nukeAllFakeWalletData();
       tonConnectUI.openModal();
     } else {
-      console.error("[TON-DEBUG] ❌ TonConnect UI not available");
+      console.error("[TON-CONNECT] ❌ TonConnect UI not available");
       toast({
         title: "Connection Error",
         description: "Wallet connection service not ready. Please try again.",
@@ -225,14 +233,14 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   };
 
   const disconnect = () => {
-    console.log("[TON-DEBUG] Disconnecting real wallet");
+    console.log("[TON-DISCONNECT] Disconnecting wallet");
     if (tonConnectUI) {
       tonConnectUI.disconnect();
     }
-    clearWalletState();
+    nukeAllFakeWalletData();
     toast({
       title: "Wallet Disconnected",
-      description: "You have disconnected your wallet.",
+      description: "Your wallet has been disconnected.",
       variant: "destructive"
     });
   };

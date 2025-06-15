@@ -28,25 +28,30 @@ export const getTonNetwork = async () => {
   }
 };
 
-// Get the real connected wallet address from TonConnect UI - SUPER SIMPLIFIED
+// Get ONLY real connected wallet address - NO FAKES ALLOWED
 export const getConnectedWalletAddress = (): string | null => {
-  console.log("[TON-CONFIG] === GETTING WALLET ADDRESS ===");
+  console.log("[TON-CONFIG] === GETTING REAL WALLET ADDRESS ONLY ===");
   
-  // First try TonConnect UI directly
-  if (window._tonConnectUI && window._tonConnectUI.connected && window._tonConnectUI.wallet?.account?.address) {
+  // ONLY trust TonConnect UI if it's actually connected
+  if (window._tonConnectUI?.connected && window._tonConnectUI?.wallet?.account?.address) {
     const realAddress = window._tonConnectUI.wallet.account.address;
     console.log("[TON-CONFIG] ✅ Got REAL address from TonConnect:", realAddress);
-    return realAddress;
+    
+    // Double-check it's valid
+    if (isValidTonAddress(realAddress)) {
+      return realAddress;
+    } else {
+      console.log("[TON-CONFIG] ❌ Address from TonConnect failed validation");
+      return null;
+    }
   }
   
-  // Fallback to localStorage (but only if it's a valid address)
-  const storedAddress = localStorage.getItem("tonWalletAddress");
-  if (storedAddress && isValidTonAddress(storedAddress)) {
-    console.log("[TON-CONFIG] ✅ Got valid stored address:", storedAddress);
-    return storedAddress;
-  }
+  console.log("[TON-CONFIG] ❌ NO REAL WALLET CONNECTION FOUND");
+  console.log("[TON-CONFIG] TonConnect connected:", window._tonConnectUI?.connected);
+  console.log("[TON-CONFIG] Has wallet:", !!window._tonConnectUI?.wallet);
+  console.log("[TON-CONFIG] Has account:", !!window._tonConnectUI?.wallet?.account);
+  console.log("[TON-CONFIG] Has address:", !!window._tonConnectUI?.wallet?.account?.address);
   
-  console.log("[TON-CONFIG] ❌ No valid wallet address found");
   return null;
 };
 
