@@ -1,7 +1,9 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
 import { detectTelegramWebApp, saveRealWalletAddress } from "@/utils/tonWalletUtils";
+import { supabase } from "@/integrations/supabase/client"; // <-- ADD THIS LINE
 
 declare global {
   interface Window {
