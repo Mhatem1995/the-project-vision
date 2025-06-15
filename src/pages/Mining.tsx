@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,14 +11,24 @@ import { useMining } from "@/hooks/useMining";
 import { useToast } from "@/hooks/use-toast";
 import { useTonConnect } from "@/hooks/useTonConnect";
 
+// Helper: guess address type for troubleshooting
+function getWalletAddressType(addr: string | null | undefined): string {
+  if (!addr) return "none";
+  if (addr.match(/^0:[a-fA-F0-9]{64}$/)) return "raw-0:";
+  if (addr.match(/^UQ[A-Za-z0-9_\-]{40,}$/)) return "UQ (user-friendly)";
+  if (addr.match(/^EQ[A-Za-z0-9_\-]{40,}$/)) return "EQ (user-friendly)";
+  if (addr.match(/^[a-fA-F0-9]{64}$/)) return "raw hex";
+  return "unknown";
+}
+
 const Mining = () => {
   const { toast } = useToast();
   const [boostDialogOpen, setBoostDialogOpen] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
-  
+
   // Use wallet session only, per official TON Connect guidelines
-  const { isConnected, walletAddress, connect, disconnect } = useTonConnect();
-  
+  const { isConnected, walletAddress, connect, disconnect, wallet, tonConnectUI } = useTonConnect();
+
   const {
     balance,
     timeRemaining,
@@ -27,16 +38,31 @@ const Mining = () => {
     handleCollect,
   } = useMining();
 
+  // Debugging info extraction
+  const tonWalletRawAddr = wallet?.account?.address ?? null;
+  const tonWalletProvider = wallet?.device?.platform ?? "unknown";
+  const tonWalletAppName = wallet?.device?.appName ?? "unknown";
+
   useEffect(() => {
-    console.log("Mining page: Wallet connection status:", {
+    console.log("Mining page: Wallet connection debug info:", {
       isConnected,
       walletAddress,
       addressLength: walletAddress?.length,
       isValidFormat: walletAddress
         ? /^(UQ|EQ|kq|0:|-)/i.test(walletAddress)
-        : false
+        : false,
+      tonWallet: wallet,
+      tonWalletProvider,
+      tonWalletAppName,
+      tonWalletRawAddr,
+      rawAddressType: getWalletAddressType(tonWalletRawAddr),
+      formattedAddress: walletAddress,
+      formattedAddressType: getWalletAddressType(walletAddress)
     });
-  }, [isConnected, walletAddress]);
+  }, [
+    isConnected, walletAddress, wallet, 
+    tonWalletProvider, tonWalletAppName, tonWalletRawAddr
+  ]);
 
   const handleConnectWallet = async () => {
     setIsConnecting(true);
@@ -64,7 +90,7 @@ const Mining = () => {
           <h1 className="text-3xl font-bold mb-2">Knife Coin Mining</h1>
           <p className="text-muted-foreground">Mine Knife Coin tokens every 8 hours with your real TON wallet</p>
         </div>
-        
+
         {isLoading ? (
           <div className="w-full space-y-4">
             <Skeleton className="h-20 w-full" />
@@ -78,7 +104,7 @@ const Mining = () => {
               activeBoost={activeBoost}
               onBoostClick={() => setBoostDialogOpen(true)}
             />
-            
+
             <MiningProgress
               progress={progress}
               timeRemaining={timeRemaining}
@@ -110,8 +136,20 @@ const Mining = () => {
                     <p className="text-xs text-green-600 mt-1">
                       ✅ This is your connected TON wallet address (from TonConnect session)
                     </p>
+                    {/* Debug info for troubleshooting wallet mismatch */}
+                    <div className="mt-4">
+                      <details className="text-xs text-gray-700 bg-gray-50 p-2 rounded border">
+                        <summary className="cursor-pointer font-bold mb-1">Wallet Debug Info</summary>
+                        <div><b>Provider</b>: {tonWalletProvider}</div>
+                        <div><b>App Name</b>: {tonWalletAppName}</div>
+                        <div><b>Raw Address</b>: {tonWalletRawAddr ?? "n/a"}</div>
+                        <div><b>Raw Address Type</b>: {getWalletAddressType(tonWalletRawAddr)}</div>
+                        <div><b>Formatted Address</b>: {walletAddress ?? "n/a"}</div>
+                        <div><b>Formatted Address Type</b>: {getWalletAddressType(walletAddress)}</div>
+                      </details>
+                    </div>
                   </div>
-                  
+
                   <Button 
                     variant="destructive" 
                     size="sm"
@@ -123,7 +161,7 @@ const Mining = () => {
                   </Button>
                 </div>
               )}
-              
+
               <Button 
                 className="w-full" 
                 size="lg"
@@ -137,7 +175,7 @@ const Mining = () => {
                     : 'Collect Knife Coin'}
               </Button>
             </div>
-            
+
             {/* Fortune Wheel with proper spacing */}
             <div className="w-full max-w-md mx-auto mt-8">
               <FortuneWheel />
