@@ -58,18 +58,21 @@ export const useTonConnect = (): UseTonConnectReturn => {
   // Only connected if address in UQ format present
   const isConnected = !!walletAddress;
 
-  // FORCE DISCONNECT if something in storage is NOT UQ... to force re-connect
+  // Only force disconnect if non-UQ address found in storage and walletAddress is NOT valid
   useEffect(() => {
     const localStorageAddress = localStorage.getItem("tonWalletAddress");
-    // If there is an address but it is not UQ-format, disconnect and clear it
-    if (localStorageAddress && !/^UQ[A-Za-z0-9_-]{40,}$/.test(localStorageAddress)) {
+    const isLocalStorageValid = localStorageAddress && /^UQ[A-Za-z0-9_-]{40,}$/.test(localStorageAddress);
+
+    // Only check/force disconnect if localStorage address exists, is NOT UQ, and walletAddress missing
+    if (localStorageAddress && !isLocalStorageValid && !walletAddress) {
       localStorage.removeItem("tonWalletAddress");
       localStorage.removeItem("tonWalletProvider");
       if (tonConnectUI?.disconnect) {
         tonConnectUI.disconnect();
       }
     }
-  }, [tonConnectUI]);
+    // If everything already valid (wallet connected, correct format), do nothing.
+  }, [tonConnectUI, walletAddress]);
 
   useEffect(() => {
     if (walletAddress) {
