@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
-import { tonConnectOptions, getPreferredWallets } from "@/integrations/ton/TonConnectConfig";
+import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
 import { detectTelegramWebApp, saveRealWalletAddress } from "@/utils/tonWalletUtils";
 
 declare global {
@@ -45,7 +45,6 @@ export const useTonConnectSetup = (toast: any) => {
     // Use existing instance or create a new one to avoid re-initialization
     const connector = window._tonConnectUI ?? new TonConnectUI({
       manifestUrl: tonConnectOptions.manifestUrl,
-      preferredWallets: getPreferredWallets()
     });
 
     if (!window._tonConnectUI) {
