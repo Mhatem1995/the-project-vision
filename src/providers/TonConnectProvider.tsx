@@ -58,18 +58,19 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   };
 
   const updateWalletState = (connector: TonConnectUI) => {
-    console.log("[TON-DEBUG] Updating wallet state, connector:", connector);
-    console.log("[TON-DEBUG] Connector connected:", connector.connected);
-    console.log("[TON-DEBUG] Connector wallet:", connector.wallet);
+    console.log("[TON-DEBUG] === WALLET STATE UPDATE ===");
+    console.log("[TON-DEBUG] TonConnect connected:", connector.connected);
+    console.log("[TON-DEBUG] TonConnect wallet object:", connector.wallet);
     
-    if (connector.connected && connector.wallet) {
-      // Get the REAL wallet address from the connector
+    if (connector.connected && connector.wallet?.account) {
+      // Get the REAL wallet address directly from TonConnect
       const realWalletAddress = connector.wallet.account.address;
-      console.log("[TON-DEBUG] REAL wallet address from connector:", realWalletAddress);
+      console.log("[TON-DEBUG] ✅ REAL wallet address from TonConnect:", realWalletAddress);
       console.log("[TON-DEBUG] Wallet device info:", connector.wallet.device);
+      console.log("[TON-DEBUG] Wallet account:", connector.wallet.account);
       
       if (!isValidTonAddress(realWalletAddress)) {
-        console.error("[TON-DEBUG] Invalid TON address format:", realWalletAddress);
+        console.error("[TON-DEBUG] ❌ Invalid TON address format:", realWalletAddress);
         toast({
           title: "Invalid Wallet",
           description: "The wallet address format is not recognized.",
@@ -79,6 +80,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         return;
       }
       
+      console.log("[TON-DEBUG] ✅ Address validation passed");
       setIsConnected(true);
       setWalletAddress(realWalletAddress);
       localStorage.setItem("tonWalletAddress", realWalletAddress);
@@ -86,6 +88,8 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       // Save wallet connection in database with REAL address
       const userId = localStorage.getItem("telegramUserId");
       if (userId) {
+        console.log("[TON-DEBUG] Saving wallet connection to database:", { userId, realWalletAddress });
+        
         supabase.functions.invoke('database-helper', {
           body: {
             action: 'save_wallet_connection',
@@ -96,9 +100,9 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
           }
         }).then(({ data, error }) => {
           if (error) {
-            console.error("[TON-DEBUG] Error saving wallet connection:", error);
+            console.error("[TON-DEBUG] ❌ Error saving wallet connection:", error);
           } else {
-            console.log("[TON-DEBUG] REAL wallet connection saved successfully:", data);
+            console.log("[TON-DEBUG] ✅ REAL wallet connection saved successfully:", data);
           }
         });
 
@@ -108,14 +112,19 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         });
       }
     } else {
-      console.log("[TON-DEBUG] No wallet connected or wallet data missing");
+      console.log("[TON-DEBUG] ❌ No wallet connected or missing account data");
+      console.log("[TON-DEBUG] Connected:", connector.connected);
+      console.log("[TON-DEBUG] Wallet:", connector.wallet);
       clearWalletState();
     }
   };
 
   useEffect(() => {
+    console.log("[TON-DEBUG] === INITIALIZING TONCONNECT ===");
+    
     // Check if TonConnect UI already exists
     if (window._tonConnectUI) {
+      console.log("[TON-DEBUG] Using existing TonConnect UI instance");
       const existingUI = window._tonConnectUI;
       setTonConnectUI(existingUI);
       updateWalletState(existingUI);
@@ -131,19 +140,25 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         preferredWallets: getPreferredWallets()
       };
 
-      console.log("[TON-DEBUG] Initializing TonConnect with options:", options);
+      console.log("[TON-DEBUG] Creating new TonConnect with options:", options);
       const connector = new TonConnectUI(options);
+      
+      // Store globally for access
       window._tonConnectUI = connector;
       setTonConnectUI(connector);
 
-      // Set up status change listener
+      // Set up status change listener FIRST
       const unsubscribe = connector.onStatusChange((wallet) => {
-        console.log("[TON-DEBUG] Wallet status changed:", wallet);
-        if (wallet) {
-          console.log("[TON-DEBUG] Wallet connected, account:", wallet.account);
+        console.log("[TON-DEBUG] === WALLET STATUS CHANGED ===");
+        console.log("[TON-DEBUG] New wallet status:", wallet);
+        console.log("[TON-DEBUG] Wallet account:", wallet?.account);
+        console.log("[TON-DEBUG] Wallet device:", wallet?.device);
+        
+        if (wallet?.account) {
+          console.log("[TON-DEBUG] ✅ Wallet connected with account:", wallet.account.address);
           updateWalletState(connector);
         } else {
-          console.log("[TON-DEBUG] Wallet disconnected");
+          console.log("[TON-DEBUG] ❌ Wallet disconnected or no account");
           clearWalletState();
           toast({
             title: "Wallet Disconnected",
@@ -153,28 +168,27 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         }
       });
 
-      // Check initial connection state
-      console.log("[TON-DEBUG] Checking initial connection state");
-      updateWalletState(connector);
+      // Check initial connection state after a brief delay
+      setTimeout(() => {
+        console.log("[TON-DEBUG] Checking initial connection state...");
+        updateWalletState(connector);
+      }, 500);
 
       return () => {
         unsubscribe();
       };
     } catch (error) {
-      console.error("[TON-DEBUG] Error initializing TonConnect:", error);
+      console.error("[TON-DEBUG] ❌ Error initializing TonConnect:", error);
       clearWalletState();
     }
   }, [toast]);
-
-  useEffect(() => {
-    setIsTelegramWebApp(detectTelegramWebApp());
-  }, []);
 
   const connect = () => {
     if (tonConnectUI) {
       console.log("[TON-DEBUG] Opening real TON wallet connection modal");
       tonConnectUI.openModal();
     } else {
+      console.error("[TON-DEBUG] ❌ TonConnect UI not available");
       toast({
         title: "Connection Error",
         description: "Wallet connection service not ready. Please try again.",

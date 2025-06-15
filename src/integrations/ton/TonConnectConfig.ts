@@ -30,10 +30,12 @@ export const getTonNetwork = async () => {
 
 // Get the real connected wallet address from TonConnect UI
 export const getConnectedWalletAddress = (): string | null => {
+  console.log("[TON-CONFIG] Getting connected wallet address...");
+  
   // Get from TonConnect UI directly (most reliable)
-  if (window._tonConnectUI && window._tonConnectUI.connected && window._tonConnectUI.wallet) {
+  if (window._tonConnectUI && window._tonConnectUI.connected && window._tonConnectUI.wallet?.account) {
     const realAddress = window._tonConnectUI.wallet.account.address;
-    console.log("[TON-CONFIG] Getting REAL wallet address from TonConnect UI:", realAddress);
+    console.log("[TON-CONFIG] ✅ Getting REAL wallet address from TonConnect UI:", realAddress);
     return realAddress;
   }
   
