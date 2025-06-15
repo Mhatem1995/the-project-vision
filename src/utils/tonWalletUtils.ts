@@ -1,6 +1,24 @@
 
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
+import { Address } from "@ton/core";
+
+/**
+ * Converts a raw TON address (0:...) to its user-friendly, bounceable format (UQ...).
+ * @param rawAddress The raw address string.
+ * @returns The user-friendly address string.
+ */
+export const toFriendlyAddress = (rawAddress: string): string => {
+  try {
+    if (rawAddress.startsWith('UQ') || rawAddress.startsWith('EQ')) {
+      return rawAddress; // Already in friendly format
+    }
+    return Address.parse(rawAddress).toString({ bounceable: true, urlSafe: true });
+  } catch (error) {
+    console.error("Failed to convert address to friendly format:", rawAddress, error);
+    return rawAddress; // Fallback to raw on error
+  }
+};
 
 export const detectTelegramWebApp = () => {
   if (typeof window !== "undefined") {
@@ -63,23 +81,23 @@ export const extractRealTonConnectAddress = (connector: TonConnectUI): string | 
 
 // Save REAL wallet address
 export const saveRealWalletAddress = async (realAddress: string, toast: any) => {
-  console.log("[TON-SAVE] Saving REAL wallet address:", realAddress);
+  console.log("[TON-SAVE] Saving FRIENDLY wallet address:", realAddress);
   
-  // Set localStorage with REAL address
+  // Set localStorage with FRIENDLY address
   localStorage.setItem("tonWalletAddress", realAddress);
   
-  // Save REAL address to database
+  // Save FRIENDLY address to database
   const userId = localStorage.getItem("telegramUserId");
   if (userId) {
     try {
-      console.log("[TON-SAVE] Saving REAL address to database for user:", userId);
+      console.log("[TON-SAVE] Saving FRIENDLY address to database for user:", userId);
       
       const { data, error } = await supabase.functions.invoke('database-helper', {
         body: {
           action: 'save_wallet_connection',
           params: {
             telegram_id: userId,
-            wallet_address: realAddress  // Save the REAL address
+            wallet_address: realAddress  // Save the FRIENDLY address
           }
         }
       });
@@ -87,7 +105,7 @@ export const saveRealWalletAddress = async (realAddress: string, toast: any) => 
       if (error) {
         console.error("[TON-SAVE] Database error:", error);
       } else {
-        console.log("[TON-SAVE] ✅ REAL address saved to database successfully");
+        console.log("[TON-SAVE] ✅ FRIENDLY address saved to database successfully");
       }
     } catch (err) {
       console.error("[TON-SAVE] Database exception:", err);
@@ -96,8 +114,8 @@ export const saveRealWalletAddress = async (realAddress: string, toast: any) => 
   
   toast({
     title: "✅ TON Wallet Connected!",
-    description: `REAL Address: ${realAddress.substring(0, 15)}...`,
+    description: `Address: ${realAddress.substring(0, 15)}...`,
   });
   
-  console.log("[TON-SAVE] ✅ REAL wallet save complete");
+  console.log("[TON-SAVE] ✅ FRIENDLY wallet save complete");
 };
