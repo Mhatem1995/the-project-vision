@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
 import { pollForTransactionVerification, openTonPayment } from "@/utils/tonTransactionUtils";
@@ -64,15 +63,8 @@ export const handlePaymentTask = async (
     dailyTaskAvailable 
   });
   
-  // Get walletAddress from localStorage, fallback to TonConnect as backup
-  let walletAddress = localStorage.getItem("tonWalletAddress");
-  if (!walletAddress) {
-    // fallback: try window._tonConnectUI (TonConnectUI is stored on window)
-    walletAddress = (window as any)._tonConnectUI?.wallet?.account?.address || null;
-    if (walletAddress) {
-      localStorage.setItem("tonWalletAddress", walletAddress);
-    }
-  }
+  // ONLY use current localStorage wallet - never update from window or links!
+  const walletAddress = localStorage.getItem("tonWalletAddress");
 
   if (!walletAddress) {
     debugLog("❌ No real wallet address found");
@@ -96,10 +88,7 @@ export const handlePaymentTask = async (
     return;
   }
 
-  // useTonConnect cannot be called outside React, so in a React component you should import useTonConnect.
-  // Here, for simplicity, assume tonConnectUI is exposed on window (as fallback), otherwise, this function would need adjustment (pass tonConnectUI as argument).
-  // For hacky compatibility, check window._tonConnectUI and pass to openTonPayment
-
+  // Get tonConnectUI from window as before (for compatibility if not passed in directly)
   let tonConnectUI = (window as any)._tonConnectUI;
   try {
     debugLog("Ensuring user exists and recording payment attempt in database", { userId, walletAddress });
@@ -112,7 +101,7 @@ export const handlePaymentTask = async (
       }
     });
     
-    // Save wallet connection with REAL wallet address
+    // Save wallet connection as per new flow (just in case)
     await supabase.functions.invoke('database-helper', {
       body: {
         action: 'save_wallet_connection',
@@ -120,7 +109,7 @@ export const handlePaymentTask = async (
       }
     });
     
-    // Record the payment attempt with REAL wallet address
+    // Record the payment attempt
     await supabase.functions.invoke('database-helper', {
       body: {
         action: 'insert_payment',
@@ -134,13 +123,13 @@ export const handlePaymentTask = async (
       }
     });
 
-    // REFACTORED: Use the centralized openTonPayment function for correctness
+    // Use the openTonPayment function as before
     const comment = task.isDaily ? 'daily_ton_payment' : `task${task.id}`;
     openTonPayment(tonConnectUI, task.tonAmount, task.id, comment);
     
     debugLog("✅ TonConnect transaction initiated via openTonPayment.");
 
-    // Start transaction verification
+    // Transaction verification as before
     setTimeout(async () => {
       const taskType = task.isDaily ? "daily_ton_payment" : undefined;
       debugLog("Starting transaction verification for REAL wallet", { 

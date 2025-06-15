@@ -25,21 +25,19 @@ export const getTonNetwork = async () => {
   }
 };
 
-// Get connected wallet address - ALWAYS use localStorage as the single source of truth.
-// The useTonConnectSetup hook is responsible for keeping localStorage updated.
+// Only use Telegram Wallet from localStorage - never fetch from user profile/links
 export const getConnectedWalletAddress = (): string | null => {
   if (typeof window === 'undefined') {
     return null;
   }
-  const savedProvider = localStorage.getItem("tonWalletProvider");
-  if (savedProvider === "telegram-wallet") {
-    const savedAddress = localStorage.getItem("tonWalletAddress");
-    if (savedAddress) {
-      console.log("[TON-CONFIG] Found Telegram wallet address in localStorage:", savedAddress);
-      return savedAddress;
+  const provider = localStorage.getItem("tonWalletProvider");
+  if (provider === "telegram-wallet") {
+    const address = localStorage.getItem("tonWalletAddress");
+    if (address) {
+      console.log("[TON-CONFIG] Using Telegram wallet address from localStorage:", address);
+      return address;
     }
   }
-  console.log("[TON-CONFIG] No connected Telegram wallet found in localStorage.");
   return null;
 };
 

@@ -12,27 +12,25 @@ type UseTonConnectReturn = {
 };
 
 /**
- * The only secure way to verify a connected user is the session itself as provided by TonConnect.
- * Do not depend on walletInfo, localStorage provider hacks, or any string matching.
- * This follows the official guidelines: https://docs.ton.org/v3/guidelines/ton-connect/guidelines/verifying-signed-in-users
+ * Always use wallet.account.address from TonConnect session as source of truth.
+ * Only accept Telegram Wallet.
  */
 export const useTonConnect = (): UseTonConnectReturn => {
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
 
-  /**
-   * The authoritative source of the user is wallet?.account?.address.
-   * Do not check any walletInfo, localStorage, ids, etc.
-   */
+  // Only connected if true session with address present
   const isConnected = !!wallet?.account?.address;
   const walletAddress = isConnected ? wallet.account.address : null;
 
-  // Set the connected address in localStorage, but always treat TonConnect session as source of truth
   useEffect(() => {
     if (wallet?.account?.address) {
+      // Save only real TonConnect session address and mark as Telegram wallet
       localStorage.setItem("tonWalletAddress", wallet.account.address);
+      localStorage.setItem("tonWalletProvider", "telegram-wallet");
     } else {
       localStorage.removeItem("tonWalletAddress");
+      localStorage.removeItem("tonWalletProvider");
     }
   }, [wallet?.account?.address]);
 

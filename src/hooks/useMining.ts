@@ -34,7 +34,7 @@ export const useMining = () => {
     }
   }, []);
 
-  // Fetch user balance from Supabase
+  // Fetch user balance from Supabase; do NOT try to update wallet address from old profile/links
   const fetchUserBalance = useCallback(async () => {
     const userId = localStorage.getItem("telegramUserId");
     if (!userId) return;
@@ -42,34 +42,13 @@ export const useMining = () => {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("balance, links")
+        .select("balance")
         .eq("id", userId)
         .maybeSingle();
         
       if (data) {
         setBalance(data.balance || 0);
         localStorage.setItem("kfcBalance", data.balance?.toString() || "0");
-        
-        // Also update wallet address if available
-        if (data.links) {
-          localStorage.setItem("tonWalletAddress", data.links);
-          
-          // Make sure wallet is also recorded in the wallets table
-          // Use RPC function instead of direct wallets table access to avoid type errors
-          try {
-            await supabase.functions.invoke('database-helper', {
-              body: {
-                action: 'save_wallet_connection',
-                params: {
-                  telegram_id: userId,
-                  wallet_address: data.links
-                }
-              }
-            });
-          } catch (err) {
-            console.error("Error saving wallet connection:", err);
-          }
-        }
       } else {
         const savedBalance = localStorage.getItem("kfcBalance");
         if (savedBalance) {
@@ -157,7 +136,7 @@ export const useMining = () => {
       return;
     }
     
-    // Verify wallet is connected
+    // Only use session/localStorage wallet address
     const walletAddress = localStorage.getItem("tonWalletAddress");
     if (!walletAddress) {
       toast({

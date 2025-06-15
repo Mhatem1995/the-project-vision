@@ -123,7 +123,14 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     }
   };
 
-  const connectedWalletAddress = getConnectedWalletAddress();
+  // Directly get wallet from localStorage with enforced provider type
+  const connectedWalletAddress = (() => {
+    const provider = localStorage.getItem("tonWalletProvider");
+    if (provider === "telegram-wallet") {
+      return localStorage.getItem("tonWalletAddress");
+    }
+    return null;
+  })();
 
   return (
     <>
