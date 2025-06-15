@@ -65,14 +65,12 @@ serve(async (req: Request) => {
       .from("wallets")
       .select("wallet_address")
       .eq("telegram_id", userId)
-      .order('created_at', { ascending: false }) // Get the most recent connected wallet
-      .limit(1)
-      .maybeSingle();
+      .single(); // Use .single() as telegram_id is now unique
       
     debugLog("Wallets table query result", { walletData, walletError });
       
-    if (!walletData?.wallet_address) {
-      debugLog("❌ No wallet found for user in 'wallets' table!");
+    if (walletError || !walletData?.wallet_address) {
+      debugLog("❌ No wallet found for user in 'wallets' table!", { error: walletError });
       return new Response(
         JSON.stringify({ 
           success: false, 

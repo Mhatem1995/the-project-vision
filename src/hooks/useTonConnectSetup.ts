@@ -37,10 +37,10 @@ export const useTonConnectSetup = (toast: any) => {
       setIsConnected(true);
       setWalletAddress(realAddress);
       
-      // Save the REAL address to localStorage and Supabase
+      // Save the REAL address to localStorage and Supabase (which now performs an upsert)
       await saveRealWalletAddress(realAddress, toast);
     } else if (wallet === null) {
-      console.log("[TON-STATUS] ❌ Wallet disconnected, clearing storage.");
+      console.log("[TON-STATUS] ❌ Wallet disconnected, clearing local storage and state.");
       setIsConnected(false);
       setWalletAddress(null);
       localStorage.removeItem("tonWalletAddress");
@@ -103,7 +103,7 @@ export const useTonConnectSetup = (toast: any) => {
   };
 
   const disconnect = () => {
-    console.log("[TON-DISCONNECT] Disconnecting wallet");
+    console.log("[TON-DISCONNECT] Disconnecting wallet and clearing data");
     if (tonConnectUI) {
       tonConnectUI.disconnect();
     }

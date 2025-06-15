@@ -25,26 +25,19 @@ export const getTonNetwork = async () => {
   }
 };
 
-// Get connected wallet address - check localStorage first, then TonConnect
+// Get connected wallet address - ALWAYS use localStorage as the single source of truth.
+// The useTonConnectSetup hook is responsible for keeping localStorage updated.
 export const getConnectedWalletAddress = (): string | null => {
-  console.log("[TON-CONFIG] Getting connected wallet address");
-
-  // 1. Prioritize localStorage for consistency
+  if (typeof window === 'undefined') {
+    return null;
+  }
   const savedAddress = localStorage.getItem("tonWalletAddress");
   if (savedAddress) {
     console.log("[TON-CONFIG] Found wallet address in localStorage:", savedAddress);
     return savedAddress;
   }
   
-  // 2. Fallback to TonConnect UI instance if not in localStorage
-  if (window._tonConnectUI?.connected && window._tonConnectUI.wallet?.account?.address) {
-    const realAddress = window._tonConnectUI.wallet.account.address;
-    console.log("[TON-CONFIG] Found REAL connected address from TonConnect UI, saving to localStorage:", realAddress);
-    localStorage.setItem("tonWalletAddress", realAddress); // Persist for next time
-    return realAddress;
-  }
-
-  console.log("[TON-CONFIG] No connected wallet found");
+  console.log("[TON-CONFIG] No connected wallet found in localStorage.");
   return null;
 };
 
