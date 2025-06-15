@@ -184,18 +184,13 @@ export const openTonPayment = (
   const comment = customComment ?? (taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '');
   const receivingWallet = RECEIVING_WALLET_ADDRESS; // Always your Tonkeeper wallet
 
-  // New: show comment to user via toast
+  // Show payment details as plain text (to prevent TS/JSX error)
   toast({
     title: "TON Payment Details",
-    description: (
-      <div>
-        <div>Amount: <span className="font-mono">{amount} TON</span></div>
-        <div>Comment: <span className="font-mono">{comment || "(none)"}</span></div>
-        <div>To: <span className="font-mono">{receivingWallet}</span></div>
-      </div>
-    ),
+    description: `Amount: ${amount} TON\nComment: ${comment || "(none)"}\nTo: ${receivingWallet}`,
     duration: 7000,
   });
+
   debugLog("[TON PAYMENT] Will send transaction:", { 
     from: realWalletAddress, to: receivingWallet, amountInNano, comment 
   });
