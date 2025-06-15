@@ -1,4 +1,3 @@
-
 import { getHttpEndpoint } from '@orbs-network/ton-access';
 
 // App details for TON Connect - updated with proper manifest
@@ -44,7 +43,50 @@ export const TRANSACTION_VERIFICATION = {
   EXPIRATION_TIME_MS: 30 * 60 * 1000, // 30 minutes in milliseconds
 };
 
-// Updated TON wallet address validation - more flexible for real addresses
+// Convert raw TON address (0:hex) to user-friendly format
+export const convertToUserFriendlyAddress = (rawAddress: string): string => {
+  console.log("[TON-CONVERT] Converting raw address:", rawAddress);
+  
+  // If it's already user-friendly (starts with UQ/EQ), return as is
+  if (rawAddress.startsWith('UQ') || rawAddress.startsWith('EQ')) {
+    console.log("[TON-CONVERT] Already user-friendly format");
+    return rawAddress;
+  }
+  
+  // If it's raw format (0: + 64 hex characters), we need to convert it
+  if (rawAddress.startsWith('0:')) {
+    try {
+      // Remove the '0:' prefix and get the hex part
+      const hexPart = rawAddress.substring(2);
+      
+      // Convert hex to bytes
+      const bytes = new Uint8Array(hexPart.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []);
+      
+      // Add workchain byte (0) at the beginning
+      const fullBytes = new Uint8Array([0, ...bytes]);
+      
+      // Convert to base64url format for user-friendly address
+      const base64 = btoa(String.fromCharCode(...fullBytes))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+      
+      const userFriendlyAddress = 'UQ' + base64;
+      console.log("[TON-CONVERT] Converted to user-friendly:", userFriendlyAddress);
+      return userFriendlyAddress;
+    } catch (error) {
+      console.error("[TON-CONVERT] Error converting address:", error);
+      // Return original if conversion fails
+      return rawAddress;
+    }
+  }
+  
+  // Return original if format is not recognized
+  console.log("[TON-CONVERT] Unknown format, returning original");
+  return rawAddress;
+};
+
+// Updated TON wallet address validation - accepts both raw and user-friendly formats
 export const isValidTonAddress = (address: string): boolean => {
   if (!address || typeof address !== 'string') {
     return false;
@@ -53,26 +95,22 @@ export const isValidTonAddress = (address: string): boolean => {
   // Remove any whitespace
   const cleanAddress = address.trim();
   
-  // TON addresses can be in different formats:
-  // 1. Raw format: 48 characters starting with UQ or EQ
-  // 2. User-friendly format: can be longer and contain different characters
-  // 3. Bounceable/non-bounceable variants
-  
-  // Check for basic TON address patterns
-  const basicTonPattern = /^(UQ|EQ|kQ)[A-Za-z0-9_-]{44,48}$/;
-  const extendedTonPattern = /^[A-Za-z0-9_-]{48,}$/;
-  
-  // Log for debugging
   console.log("[TON-VALIDATION] Validating address:", cleanAddress);
   console.log("[TON-VALIDATION] Length:", cleanAddress.length);
-  console.log("[TON-VALIDATION] Basic pattern match:", basicTonPattern.test(cleanAddress));
-  console.log("[TON-VALIDATION] Extended pattern match:", extendedTonPattern.test(cleanAddress));
   
-  // Accept if it matches either pattern and has reasonable length
-  const isValid = (basicTonPattern.test(cleanAddress) || extendedTonPattern.test(cleanAddress)) && 
-                  cleanAddress.length >= 44 && 
-                  cleanAddress.length <= 55;
+  // Check for user-friendly format (UQ/EQ + base64)
+  const userFriendlyPattern = /^(UQ|EQ)[A-Za-z0-9_-]{46}$/;
   
+  // Check for raw format (0: + 64 hex characters)
+  const rawPattern = /^0:[a-fA-F0-9]{64}$/;
+  
+  const isUserFriendly = userFriendlyPattern.test(cleanAddress);
+  const isRaw = rawPattern.test(cleanAddress);
+  
+  console.log("[TON-VALIDATION] User-friendly pattern match:", isUserFriendly);
+  console.log("[TON-VALIDATION] Raw pattern match:", isRaw);
+  
+  const isValid = isUserFriendly || isRaw;
   console.log("[TON-VALIDATION] Final validation result:", isValid);
   
   return isValid;

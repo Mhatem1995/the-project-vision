@@ -1,8 +1,9 @@
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { tonConnectOptions, isValidTonAddress, getPreferredWallets } from "@/integrations/ton/TonConnectConfig";
+import { tonConnectOptions, isValidTonAddress, getPreferredWallets, convertToUserFriendlyAddress } from "@/integrations/ton/TonConnectConfig";
 
 declare global {
   interface Window {
@@ -56,31 +57,31 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     console.log("[TON-DEBUG] Cleared wallet connection state");
   };
 
-  const validateAndSetWallet = (address: string) => {
-    console.log("[TON-DEBUG] Validating wallet address:", address);
-    console.log("[TON-DEBUG] Address details:", {
-      length: address.length,
-      firstChars: address.substring(0, 5),
-      lastChars: address.substring(address.length - 5)
+  const validateAndSetWallet = (rawAddress: string) => {
+    console.log("[TON-DEBUG] Processing wallet address:", rawAddress);
+    console.log("[TON-DEBUG] Raw address details:", {
+      length: rawAddress.length,
+      format: rawAddress.startsWith('0:') ? 'raw' : rawAddress.startsWith('UQ') || rawAddress.startsWith('EQ') ? 'user-friendly' : 'unknown'
     });
     
-    // For now, let's be more permissive and accept any address that looks like a TON address
-    if (!address || address.length < 40) {
-      console.error("[TON-DEBUG] Address too short:", address);
+    if (!isValidTonAddress(rawAddress)) {
+      console.error("[TON-DEBUG] Invalid TON address format:", rawAddress);
       toast({
         title: "Invalid Wallet",
-        description: "The wallet address appears to be too short.",
+        description: "The wallet address format is not recognized.",
         variant: "destructive"
       });
       clearWalletState();
       return false;
     }
-
-    // Accept the address even if validation is strict - real wallets should work
-    console.log("[TON-DEBUG] Accepting wallet address (relaxed validation):", address);
+    
+    // Convert to user-friendly format if it's raw
+    const userFriendlyAddress = convertToUserFriendlyAddress(rawAddress);
+    console.log("[TON-DEBUG] Using user-friendly address:", userFriendlyAddress);
+    
     setIsConnected(true);
-    setWalletAddress(address);
-    localStorage.setItem("tonWalletAddress", address);
+    setWalletAddress(userFriendlyAddress);
+    localStorage.setItem("tonWalletAddress", userFriendlyAddress);
     return true;
   };
 
@@ -113,27 +114,29 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
 
       const unsubscribe = connector.onStatusChange(async (wallet) => {
         if (wallet) {
-          const address = wallet.account.address;
-          console.log("[TON-DEBUG] Real wallet connected with address:", address);
+          const rawAddress = wallet.account.address;
+          console.log("[TON-DEBUG] Real wallet connected with raw address:", rawAddress);
           console.log("[TON-DEBUG] Wallet info:", {
             name: wallet.device.appName,
             version: wallet.device.appVersion,
             platform: wallet.device.platform
           });
 
-          if (validateAndSetWallet(address)) {
-            // Save wallet connection in database only if validation passes
+          if (validateAndSetWallet(rawAddress)) {
+            const userFriendlyAddress = convertToUserFriendlyAddress(rawAddress);
+            // Save wallet connection in database with user-friendly address
             const userId = localStorage.getItem("telegramUserId");
             if (userId) {
               try {
                 console.log("[TON-DEBUG] Saving real wallet connection for user:", userId);
+                console.log("[TON-DEBUG] User-friendly address to save:", userFriendlyAddress);
                 
                 const { data, error } = await supabase.functions.invoke('database-helper', {
                   body: {
                     action: 'save_wallet_connection',
                     params: {
                       telegram_id: userId,
-                      wallet_address: address
+                      wallet_address: userFriendlyAddress
                     }
                   }
                 });
