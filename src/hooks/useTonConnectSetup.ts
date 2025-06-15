@@ -1,21 +1,21 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
-import { tonConnectOptions, getPreferredWallets } from "@/integrations/ton/TonConnectConfig";
+import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
 import { detectTelegramWebApp } from "@/utils/tonWalletUtils";
 import { supabase } from "@/integrations/supabase/client";
 
 // Only allow Telegram Wallet: wallet id for TonConnect is 'telegram-wallet'
 const TELEGRAM_WALLET_ID = 'telegram-wallet';
 
-// Utility to verify address is in user-friendly form (UQ/EQ) or raw (0:) format
+// Utility functions
 const isUserFriendly = (address: string): boolean =>
   address && (address.startsWith("UQ") || address.startsWith("EQ"));
+const isRawTonAddress = (address: string): boolean =>
+  address && address.startsWith("0:");
 
-// Utility: convert raw (0:...) to user-friendly format if needed (naive fallback)
 const toUserFriendly = (address: string): string => {
   if (!address) return "";
   if (address.startsWith("0:")) {
-    // Fallback (should not happen with Telegram Wallet)
     return address;
   }
   return address;
@@ -33,7 +33,6 @@ export const useTonConnectSetup = (toast: any) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
 
-  // On mount: restore wallet if already in localStorage and if it's Telegram Wallet
   useEffect(() => {
     const savedWalletProvider = localStorage.getItem("tonWalletProvider");
     const savedAddress = localStorage.getItem("tonWalletAddress");
@@ -41,7 +40,7 @@ export const useTonConnectSetup = (toast: any) => {
     if (
       savedWalletProvider === TELEGRAM_WALLET_ID &&
       savedAddress &&
-      isUserFriendly(savedAddress)
+      (isUserFriendly(savedAddress) || isRawTonAddress(savedAddress))
     ) {
       setWalletAddress(savedAddress);
       setIsConnected(true);
@@ -54,7 +53,6 @@ export const useTonConnectSetup = (toast: any) => {
     }
   }, []);
 
-  // Only allow Telegram Wallet in the connect modal
   useEffect(() => {
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
@@ -64,9 +62,8 @@ export const useTonConnectSetup = (toast: any) => {
     if (!window._tonConnectUI) {
       connector = new TonConnectUI({
         manifestUrl: tonConnectOptions.manifestUrl,
-        // Remove uiPreferences.wallets - not supported by TonConnect UI
         uiPreferences: {
-          // You may add other supported uiPreferences options here
+          // Other uiPreferences can go here
         }
       });
       window._tonConnectUI = connector;
@@ -76,17 +73,25 @@ export const useTonConnectSetup = (toast: any) => {
 
     setTonConnectUI(connector);
 
-    // Listen only for Telegram Wallet
+    // Listen for wallet connections
     const unsubscribe = connector.onStatusChange(async (wallet: any) => {
+      console.log("[TON-CONNECT-DEBUG] status change event:", wallet);
+
+      // Robust check: appName includes 'telegram' (any case/position)
+      const appName = wallet?.device?.appName?.toLowerCase() ?? "";
+      const isTelegramWallet = appName.includes("telegram");
+
       if (
         wallet &&
         wallet.account &&
         wallet.account.address &&
-        wallet.device.appName.toLowerCase().includes("telegram")
+        isTelegramWallet
       ) {
         const address = wallet.account.address;
-        // Only allow user-friendly addresses
-        if (!isUserFriendly(address)) {
+        console.log('[TON-CONNECT-DEBUG] Wallet Address:', address);
+
+        // Accept UQ/EQ or 0:... raw addresses
+        if (!isUserFriendly(address) && !isRawTonAddress(address)) {
           toast?.({
             title: "Wallet Error",
             description: "Please connect your Telegram Wallet. Only Telegram Wallet is supported.",
@@ -112,34 +117,46 @@ export const useTonConnectSetup = (toast: any) => {
             wallet_address: address
           });
         }
+
+        // Warn if raw (0:) used
+        if (isRawTonAddress(address)) {
+          toast?.({
+            title: "Raw wallet address",
+            description: "Connected with raw TON address (0:...). If you experience issues, re-install/update Telegram Wallet.",
+            variant: "default"
+          });
+        }
+
       } else {
         setIsConnected(false);
         setWalletAddress(null);
         localStorage.removeItem("tonWalletAddress");
         localStorage.removeItem("tonWalletProvider");
+        toast?.({
+          title: "Only Telegram Wallet is supported",
+          description: "Please use your Telegram Wallet to connect.",
+          variant: "destructive"
+        });
       }
     });
 
-    // If wallet restored but NOT Telegram Wallet, forcibly disconnect
     setTimeout(() => {
       const wallet = connector.wallet;
       if (
         wallet &&
-        wallet.device.appName.toLowerCase() !== "telegram"
+        !((wallet.device.appName?.toLowerCase() ?? "").includes("telegram"))
       ) {
         connector.disconnect();
       }
     }, 500);
 
     return () => {
-      // Fix: do not pass any argument to unsubscribe
       unsubscribe();
     };
   }, [toast]);
 
   const connect = () => {
     if (tonConnectUI) {
-      // Show only Telegram Wallet option if supported, fallback to default openModal
       tonConnectUI.openModal();
     } else {
       toast({
