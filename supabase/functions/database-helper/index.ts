@@ -46,7 +46,7 @@ serve(async (req: Request) => {
         }
 
         if (!existingUser) {
-          console.log("Creating new user");
+          console.log("Creating new user with real Telegram ID");
           const { data: newUser, error: insertError } = await supabaseAdmin
             .from("users")
             .insert({
@@ -101,8 +101,16 @@ serve(async (req: Request) => {
           .maybeSingle();
 
         if (existingConnection) {
-          console.log("Wallet connection already exists, skipping insert");
-          result = existingConnection;
+          console.log("Wallet connection already exists, updating timestamp");
+          const { data: updatedConnection, error: updateError } = await supabaseAdmin
+            .from("wallets")
+            .update({ created_at: new Date().toISOString() })
+            .eq("telegram_id", telegram_id)
+            .eq("wallet_address", wallet_address)
+            .select()
+            .single();
+
+          result = updatedConnection || existingConnection;
         } else {
           const { data: walletData, error: walletError } = await supabaseAdmin
             .from("wallets")

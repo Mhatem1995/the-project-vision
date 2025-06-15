@@ -53,24 +53,26 @@ const TelegramInitializer = () => {
         const tgUser = hasTelegram ? window.Telegram.WebApp.initDataUnsafe.user : null;
 
         if (tgUser && tgUser.id) {
-          userId = "@" + tgUser.id.toString();
-          telegramUserName = tgUser.username ? "@" + tgUser.username : tgUser.first_name || "";
+          // Use real Telegram user ID
+          userId = tgUser.id.toString();
+          telegramUserName = tgUser.username ? tgUser.username : tgUser.first_name || "";
           firstName = tgUser.first_name || "";
           lastName = tgUser.last_name || "";
           languageCode = tgUser.language_code || "";
+          
+          console.log("[TG-DEBUG] Real Telegram user detected:", {
+            userId,
+            username: telegramUserName,
+            firstName,
+            lastName
+          });
         } else {
-          // For development only - use real format
-          userId = localStorage.getItem("telegramUserId");
-          if (!userId) {
-            userId = prompt("Enter your Telegram ID (include the @):") || "";
-          }
-          if (userId && !userId.startsWith("@")) {
-            userId = "@" + userId;
-          }
-          telegramUserName = localStorage.getItem("telegramUserName") || userId;
+          console.error("[TG-DEBUG] No Telegram WebApp environment detected. This app must be run inside Telegram.");
+          setLoading(false);
+          return;
         }
 
-        // Store in localStorage with @ prefix
+        // Store in localStorage without @ prefix for real users
         localStorage.setItem("telegramUserId", userId ?? "");
         localStorage.setItem("telegramUserName", telegramUserName ?? "");
       }
