@@ -10,6 +10,10 @@ import { Address } from "@ton/core";
  */
 export const toFriendlyAddress = (rawAddress: string): string => {
   try {
+    if (!rawAddress || typeof rawAddress !== 'string') {
+      console.warn("toFriendlyAddress received an invalid address:", rawAddress);
+      return ""; // Return empty string for invalid input
+    }
     if (rawAddress.startsWith('UQ') || rawAddress.startsWith('EQ')) {
       return rawAddress; // Already in friendly format
     }
