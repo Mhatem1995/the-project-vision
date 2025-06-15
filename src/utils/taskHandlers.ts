@@ -36,7 +36,8 @@ export const handlePaymentTask = async (
   task: Task,
   dailyTaskAvailable: boolean,
   toast: any,
-  onDailyTaskComplete?: () => void
+  onDailyTaskComplete?: () => void,
+  tonConnectUI?: any // New param (should be passed in from the component, just like in the boost flow)
 ) => {
   debugLog("[PAYMENT TASK] Button click fired", { task, dailyTaskAvailable });
 
@@ -74,6 +75,22 @@ export const handlePaymentTask = async (
   const walletAddress = provider === "telegram-wallet"
     ? localStorage.getItem("tonWalletAddress")
     : null;
+
+  // If no tonConnectUI provided (should never happen), get from window for compatibility
+  const _tonConnectUI = tonConnectUI || (window as any)._tonConnectUI;
+  if (!_tonConnectUI) {
+    debugLog("❌ _tonConnectUI not found! Cannot open TON Wallet modal.");
+    toast({
+      title: "TonConnect Not Available",
+      description: "TonConnect UI not loaded. Please refresh and try again after connecting your wallet.",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  // Always open modal (forces Telegram Wallet modal to appear just like boost flow)
+  debugLog("[PAYMENT TASK] Opening TonConnect modal for Telegram Wallet...");
+  _tonConnectUI.openModal();
 
   if (!walletAddress) {
     debugLog("❌ No real telegram-wallet address found in localStorage.", { provider, walletAddress });
@@ -133,27 +150,14 @@ export const handlePaymentTask = async (
       }
     });
 
-    // Ensure TonConnectUI is available globally
-    let tonConnectUI = (window as any)._tonConnectUI;
-    if (!tonConnectUI) {
-      debugLog("❌ _tonConnectUI not found on window!", { windowKeys: Object.keys(window) });
-      toast({
-        title: "TonConnect Not Available",
-        description: "TonConnect UI not loaded. Please refresh and try again after connecting your wallet.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Send payment via TonConnect (identical to boosts)
+    // REUSE boost payment logic: trigger modal & send
     const comment = task.isDaily ? "daily_ton_payment" : `task${task.id}`;
-    debugLog("[PAYMENT TASK] Calling openTonPayment", { tonConnectUIExists: !!tonConnectUI, amount: task.tonAmount, taskId: task.id, comment });
-
-    openTonPayment(tonConnectUI, task.tonAmount, task.id, comment);
+    debugLog("[PAYMENT TASK] Calling openTonPayment", { tonConnectUIExists: !!_tonConnectUI, amount: task.tonAmount, taskId: task.id, comment });
+    openTonPayment(_tonConnectUI, task.tonAmount, task.id, comment);
 
     debugLog("[PAYMENT TASK] ✅ TonConnect transaction initiated via openTonPayment.");
 
-    // Wait for 3 seconds, then start polling for verification EXACTLY like boost
+    // Wait for 3 seconds, then start polling for verification (same as boost)
     setTimeout(async () => {
       // For daily we pass taskType; otherwise leave undefined to mimic boost flow
       const taskType = task.isDaily ? "daily_ton_payment" : undefined;
@@ -174,7 +178,6 @@ export const handlePaymentTask = async (
       );
 
       if (successful) {
-        // Notify user, match boost toast style
         if (task.id === "6") {
           toast({
             title: "Fortune Cookies Added!",
@@ -186,7 +189,6 @@ export const handlePaymentTask = async (
             description: `You earned ${task.reward} KFC coins!`,
           });
         }
-
         if (task.isDaily && onDailyTaskComplete) {
           onDailyTaskComplete();
         }
