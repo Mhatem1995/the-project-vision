@@ -50,112 +50,115 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
   const { toast } = useToast();
 
-  // NUCLEAR OPTION: Clear all possible fake wallet data
-  const nukeAllFakeWalletData = () => {
-    console.log("[TON-NUKE] === NUKING ALL FAKE WALLET DATA ===");
+  // Clear all fake wallet data
+  const clearAllWalletData = () => {
+    console.log("[TON-CLEAR] Clearing all wallet data");
     
-    // Clear from state
     setIsConnected(false);
     setWalletAddress(null);
     
-    // Clear ALL possible localStorage keys that could contain fake addresses
-    const keysToNuke = [
+    // Clear localStorage
+    const keysToRemove = [
       "tonWalletAddress",
       "walletAddress", 
       "ton_wallet_address",
       "wallet_address",
-      "kfcWalletAddress",
       "connectedWallet",
       "ton_connect_wallet",
       "userWallet"
     ];
     
-    keysToNuke.forEach(key => {
+    keysToRemove.forEach(key => {
       if (localStorage.getItem(key)) {
-        console.log(`[TON-NUKE] Removing fake data from localStorage key: ${key}`);
+        console.log(`[TON-CLEAR] Removing localStorage key: ${key}`);
         localStorage.removeItem(key);
       }
     });
-    
-    console.log("[TON-NUKE] All fake wallet data nuked!");
   };
 
-  // ONLY set wallet data if we have a REAL connection
-  const setRealWalletData = async (connector: TonConnectUI) => {
-    console.log("[TON-REAL] === CHECKING FOR REAL WALLET ===");
-    console.log("[TON-REAL] Connector connected:", connector.connected);
-    console.log("[TON-REAL] Connector wallet:", connector.wallet);
+  // Extract and save REAL wallet address from TonConnect
+  const saveRealWalletAddress = async (connector: TonConnectUI) => {
+    console.log("[TON-SAVE] === SAVING REAL WALLET ADDRESS ===");
+    console.log("[TON-SAVE] Connector state:", {
+      connected: connector.connected,
+      wallet: connector.wallet,
+      account: connector.wallet?.account,
+      address: connector.wallet?.account?.address
+    });
     
     // STRICT CHECK: Only proceed if we have a real, connected wallet
-    if (connector.connected && connector.wallet?.account?.address) {
-      const realAddress = connector.wallet.account.address;
-      
-      console.log("[TON-REAL] ✅ REAL WALLET FOUND!");
-      console.log("[TON-REAL] Real address:", realAddress);
-      console.log("[TON-REAL] Address type:", typeof realAddress);
-      
-      // Validate the real address
-      if (!isValidTonAddress(realAddress)) {
-        console.error("[TON-REAL] ❌ Real address failed validation:", realAddress);
-        nukeAllFakeWalletData();
-        return;
-      }
-      
-      // First nuke all fake data, then set real data
-      nukeAllFakeWalletData();
-      
-      // Set REAL wallet data
-      setIsConnected(true);
-      setWalletAddress(realAddress);
-      localStorage.setItem("tonWalletAddress", realAddress);
-      
-      console.log("[TON-REAL] ✅ REAL WALLET SET:", realAddress);
-      
-      // Save to database
-      const userId = localStorage.getItem("telegramUserId");
-      if (userId) {
-        try {
-          const { data, error } = await supabase.functions.invoke('database-helper', {
-            body: {
-              action: 'save_wallet_connection',
-              params: {
-                telegram_id: userId,
-                wallet_address: realAddress
-              }
-            }
-          });
-          
-          if (error) {
-            console.error("[TON-REAL] Database save error:", error);
-          } else {
-            console.log("[TON-REAL] Real wallet saved to database");
-          }
-        } catch (saveError) {
-          console.error("[TON-REAL] Database save exception:", saveError);
-        }
-      }
-      
-      toast({
-        title: "Real TON Wallet Connected!",
-        description: `Address: ${realAddress.substring(0, 16)}...`,
-      });
-    } else {
-      console.log("[TON-REAL] ❌ NO REAL WALLET CONNECTION");
-      console.log("[TON-REAL] Connected:", connector.connected);
-      console.log("[TON-REAL] Has wallet:", !!connector.wallet);
-      console.log("[TON-REAL] Has account:", !!connector.wallet?.account);
-      console.log("[TON-REAL] Has address:", !!connector.wallet?.account?.address);
-      
-      // No real wallet, nuke everything
-      nukeAllFakeWalletData();
+    if (!connector.connected || !connector.wallet?.account?.address) {
+      console.log("[TON-SAVE] ❌ No real wallet connection found");
+      clearAllWalletData();
+      return;
     }
+    
+    // Get the REAL address directly from TonConnect
+    const realAddress = connector.wallet.account.address;
+    console.log("[TON-SAVE] 🎯 REAL ADDRESS FROM TONCONNECT:", realAddress);
+    console.log("[TON-SAVE] Address type:", typeof realAddress);
+    console.log("[TON-SAVE] Address length:", realAddress.length);
+    
+    // Validate the real address
+    if (!isValidTonAddress(realAddress)) {
+      console.error("[TON-SAVE] ❌ Real address failed validation:", realAddress);
+      clearAllWalletData();
+      toast({
+        title: "Invalid Wallet Address",
+        description: "The wallet address format is invalid. Please try reconnecting.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Clear any fake data first
+    clearAllWalletData();
+    
+    // Set the REAL wallet data
+    console.log("[TON-SAVE] ✅ Setting REAL wallet data:", realAddress);
+    setIsConnected(true);
+    setWalletAddress(realAddress);
+    localStorage.setItem("tonWalletAddress", realAddress);
+    
+    // Save to database with the REAL address
+    const userId = localStorage.getItem("telegramUserId");
+    if (userId) {
+      try {
+        console.log("[TON-SAVE] Saving REAL address to database:", { userId, realAddress });
+        
+        const { data, error } = await supabase.functions.invoke('database-helper', {
+          body: {
+            action: 'save_wallet_connection',
+            params: {
+              telegram_id: userId,
+              wallet_address: realAddress  // Use the REAL address
+            }
+          }
+        });
+        
+        if (error) {
+          console.error("[TON-SAVE] Database save error:", error);
+        } else {
+          console.log("[TON-SAVE] ✅ REAL wallet saved to database successfully");
+        }
+      } catch (saveError) {
+        console.error("[TON-SAVE] Database save exception:", saveError);
+      }
+    }
+    
+    toast({
+      title: "Real TON Wallet Connected!",
+      description: `Address: ${realAddress.substring(0, 16)}...`,
+    });
+    
+    console.log("[TON-SAVE] ✅ REAL WALLET SAVE COMPLETE");
   };
 
   useEffect(() => {
     console.log("[TON-INIT] === PROVIDER INITIALIZATION ===");
     
-    // ALWAYS start by nuking fake data
-    nukeAllFakeWalletData();
+    // Start clean
+    clearAllWalletData();
     
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
@@ -165,7 +168,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       console.log("[TON-INIT] Using existing TonConnect UI");
       const existingUI = window._tonConnectUI;
       setTonConnectUI(existingUI);
-      setRealWalletData(existingUI);
+      saveRealWalletAddress(existingUI);
       return;
     }
 
@@ -182,17 +185,17 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       window._tonConnectUI = connector;
       setTonConnectUI(connector);
 
-      // Listen for wallet status changes - ONLY accept real connections
+      // Listen for wallet status changes
       const unsubscribe = connector.onStatusChange((wallet) => {
         console.log("[TON-STATUS] === WALLET STATUS CHANGED ===");
-        console.log("[TON-STATUS] New wallet:", wallet);
+        console.log("[TON-STATUS] New wallet state:", wallet);
         
         if (wallet?.account?.address) {
-          console.log("[TON-STATUS] ✅ Real wallet connected");
-          setRealWalletData(connector);
+          console.log("[TON-STATUS] ✅ Real wallet connected, saving address");
+          saveRealWalletAddress(connector);
         } else {
-          console.log("[TON-STATUS] ❌ Wallet disconnected or fake");
-          nukeAllFakeWalletData();
+          console.log("[TON-STATUS] ❌ Wallet disconnected");
+          clearAllWalletData();
           toast({
             title: "Wallet Disconnected",
             description: "Your wallet has been disconnected.",
@@ -201,10 +204,10 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         }
       });
 
-      // Check initial state after delay
+      // Check initial state
       setTimeout(() => {
         console.log("[TON-INIT] Checking initial wallet state...");
-        setRealWalletData(connector);
+        saveRealWalletAddress(connector);
       }, 1000);
 
       return () => {
@@ -212,15 +215,14 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       };
     } catch (error) {
       console.error("[TON-INIT] ❌ TonConnect initialization error:", error);
-      nukeAllFakeWalletData();
+      clearAllWalletData();
     }
   }, [toast]);
 
   const connect = () => {
     if (tonConnectUI) {
       console.log("[TON-CONNECT] Opening wallet connection modal");
-      // Nuke fake data before attempting real connection
-      nukeAllFakeWalletData();
+      clearAllWalletData();
       tonConnectUI.openModal();
     } else {
       console.error("[TON-CONNECT] ❌ TonConnect UI not available");
@@ -237,7 +239,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     if (tonConnectUI) {
       tonConnectUI.disconnect();
     }
-    nukeAllFakeWalletData();
+    clearAllWalletData();
     toast({
       title: "Wallet Disconnected",
       description: "Your wallet has been disconnected.",

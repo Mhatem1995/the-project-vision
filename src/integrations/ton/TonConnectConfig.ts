@@ -28,7 +28,7 @@ export const getTonNetwork = async () => {
   }
 };
 
-// Get ONLY real connected wallet address - NO FAKES ALLOWED
+// Get ONLY real connected wallet address from TonConnect - NO FAKES!
 export const getConnectedWalletAddress = (): string | null => {
   console.log("[TON-CONFIG] === GETTING REAL WALLET ADDRESS ONLY ===");
   
@@ -36,9 +36,11 @@ export const getConnectedWalletAddress = (): string | null => {
   if (window._tonConnectUI?.connected && window._tonConnectUI?.wallet?.account?.address) {
     const realAddress = window._tonConnectUI.wallet.account.address;
     console.log("[TON-CONFIG] ✅ Got REAL address from TonConnect:", realAddress);
+    console.log("[TON-CONFIG] Address validation check...");
     
     // Double-check it's valid
     if (isValidTonAddress(realAddress)) {
+      console.log("[TON-CONFIG] ✅ Address validation passed");
       return realAddress;
     } else {
       console.log("[TON-CONFIG] ❌ Address from TonConnect failed validation");
