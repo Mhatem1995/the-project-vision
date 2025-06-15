@@ -2,35 +2,18 @@ import { useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { useEffect } from "react";
 
 /**
- * Convert any address to UQ... base64 user-friendly.
- * Returns UQ... if input is 0:..., UQ..., EQ..., else null.
+ * Always pass through or extract the canonical UQ-address (44 base64url, no +/=) as given by Telegram Wallet/TonConnect.
+ * No conversion, no string replace or homebrew encoding.
+ * If supplied address is not a valid UQ-address, return null.
  */
-function toUQFormat(address: string | null | undefined): string | null {
+function getCanonicalUQAddress(address: string | null | undefined): string | null {
   if (!address || typeof address !== "string") return null;
   const base = address.trim();
-  if (base.startsWith("UQ")) return base;
-  if (base.startsWith("EQ")) return base.replace("EQ", "UQ");
-  if (base.startsWith("0:")) {
-    // hard minimal conversion: no CRC, just "0:" -> UQ, hex to base64 for 32 bytes
-    try {
-      const hex = base.split(":")[1];
-      if (!hex || hex.length !== 64) return null;
-      // Convert hex to Uint8Array
-      const bytes = new Uint8Array(33); // 1 tag, 32 address bytes
-      // Work for bounceable (base tag is 0x11 for mainnet)
-      bytes[0] = 0x11; // bounceable mainnet (UQ...)
-      for (let i = 0; i < 32; i++) {
-        bytes[i + 1] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
-      }
-      // Encode to base64
-      const base64 = typeof window !== "undefined"
-        ? btoa(String.fromCharCode.apply(null, Array.from(bytes)))
-        : Buffer.from(bytes).toString("base64");
-      return "UQ" + base64.replace(/=*$/, ""); // remove any trailing '='
-    } catch {
-      return null;
-    }
-  }
+  // Match canonical Telegram/Ton Space format: UQ, 44 base64-url characters ("-_"), no + or =. (UQ + 44 chars = 46 total)
+  if (/^UQ[a-zA-Z0-9\-_]{44}$/.test(base)) return base;
+  // Accept 39, 40, or 46 char variants for backwards compat
+  if (/^UQ[a-zA-Z0-9\-_]{40,}$/.test(base)) return base;
+  // Otherwise, not a user-friendly wallet address that is copy-pasteable. Reject.
   return null;
 }
 
@@ -44,39 +27,38 @@ type UseTonConnectReturn = {
 };
 
 /**
- * Always use user-friendly UQ... address as source of truth.
- * Only accept Telegram Wallet.
+ * Always use ONLY user-friendly canonical UQ-address as shown by Telegram Wallet/Ton Space.
+ * Do NOT try to convert or accept raw/hex/other encodings.
  */
 export const useTonConnect = (): UseTonConnectReturn => {
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
 
-  // Use always UQ format if available
-  const rawAddr = wallet?.account?.address;
-  const walletAddress = toUQFormat(rawAddr);
+  // The *true* address as TonConnect gives it—do not mutate
+  const rawAccountAddress = wallet?.account?.address;
+  const walletAddress = getCanonicalUQAddress(rawAccountAddress);
 
-  // Only connected if address in UQ format present
+  // Only connected if address is real, canonical Telegram Wallet address
   const isConnected = !!walletAddress;
 
-  // Only force disconnect if non-UQ address found in storage and walletAddress is NOT valid
+  // If localStorage has something invalid, clean it. Only accept canonical UQ-addresses in localStorage.
   useEffect(() => {
     const localStorageAddress = localStorage.getItem("tonWalletAddress");
-    const isLocalStorageValid = localStorageAddress && /^UQ[A-Za-z0-9_-]{40,}$/.test(localStorageAddress);
+    const isCanonicalFormat = !!getCanonicalUQAddress(localStorageAddress);
 
-    // Only check/force disconnect if localStorage address exists, is NOT UQ, and walletAddress missing
-    if (localStorageAddress && !isLocalStorageValid && !walletAddress) {
+    if (localStorageAddress && !isCanonicalFormat && !walletAddress) {
       localStorage.removeItem("tonWalletAddress");
       localStorage.removeItem("tonWalletProvider");
       if (tonConnectUI?.disconnect) {
         tonConnectUI.disconnect();
       }
     }
-    // If everything already valid (wallet connected, correct format), do nothing.
+    // If all is valid, do nothing.
   }, [tonConnectUI, walletAddress]);
 
   useEffect(() => {
     if (walletAddress) {
-      // Save only real TonConnect session as UQ address and mark as Telegram wallet
+      // Save only canonical UQ-address and mark as Telegram wallet
       localStorage.setItem("tonWalletAddress", walletAddress);
       localStorage.setItem("tonWalletProvider", "telegram-wallet");
     } else {
