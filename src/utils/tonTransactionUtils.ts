@@ -184,13 +184,20 @@ export const openTonPayment = (
   const comment = customComment ?? (taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '');
   const receivingWallet = RECEIVING_WALLET_ADDRESS; // Always your Tonkeeper wallet
 
-  debugLog("Sending transaction from Telegram Wallet to receiving wallet", {
-    fromAddress: realWalletAddress,
-    toAddress: receivingWallet,
-    amount: amountInNano,
-    comment,
-    tonConnectUIExists: !!tonConnectUI,
-    sendTransactionExists: typeof tonConnectUI.sendTransaction
+  // New: show comment to user via toast
+  toast({
+    title: "TON Payment Details",
+    description: (
+      <div>
+        <div>Amount: <span className="font-mono">{amount} TON</span></div>
+        <div>Comment: <span className="font-mono">{comment || "(none)"}</span></div>
+        <div>To: <span className="font-mono">{receivingWallet}</span></div>
+      </div>
+    ),
+    duration: 7000,
+  });
+  debugLog("[TON PAYMENT] Will send transaction:", { 
+    from: realWalletAddress, to: receivingWallet, amountInNano, comment 
   });
 
   tonConnectUI.sendTransaction({
