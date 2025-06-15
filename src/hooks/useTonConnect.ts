@@ -11,27 +11,28 @@ type UseTonConnectReturn = {
   disconnect: () => void;
 };
 
-const TELEGRAM_WALLET_ID = "telegram-wallet";
-
+/**
+ * The only secure way to verify a connected user is the session itself as provided by TonConnect.
+ * Do not depend on walletInfo, localStorage provider hacks, or any string matching.
+ * This follows the official guidelines: https://docs.ton.org/v3/guidelines/ton-connect/guidelines/verifying-signed-in-users
+ */
 export const useTonConnect = (): UseTonConnectReturn => {
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
 
-  // Only consider the wallet connected if we have an address AND we stored "telegram-wallet" as provider.
-  const walletProvider = localStorage.getItem("tonWalletProvider");
-  const isTelegramWallet = walletProvider === TELEGRAM_WALLET_ID;
-  const isConnected = !!wallet?.account?.address && isTelegramWallet;
+  /**
+   * The authoritative source of the user is wallet?.account?.address.
+   * Do not check any walletInfo, localStorage, ids, etc.
+   */
+  const isConnected = !!wallet?.account?.address;
+  const walletAddress = isConnected ? wallet.account.address : null;
 
-  const walletAddress = isConnected && wallet?.account?.address ? wallet.account.address : null;
-
-  // Save the address and provider in localStorage ONLY when a wallet connects, otherwise clear it
+  // Set the connected address in localStorage, but always treat TonConnect session as source of truth
   useEffect(() => {
     if (wallet?.account?.address) {
       localStorage.setItem("tonWalletAddress", wallet.account.address);
-      localStorage.setItem("tonWalletProvider", TELEGRAM_WALLET_ID);
     } else {
       localStorage.removeItem("tonWalletAddress");
-      localStorage.removeItem("tonWalletProvider");
     }
   }, [wallet?.account?.address]);
 
@@ -47,4 +48,3 @@ export const useTonConnect = (): UseTonConnectReturn => {
     disconnect,
   };
 };
-

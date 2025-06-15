@@ -15,7 +15,7 @@ const Mining = () => {
   const [boostDialogOpen, setBoostDialogOpen] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   
-  // TON Connect integration using our hook - this will now have the REAL address
+  // Use wallet session only, per official TON Connect guidelines
   const { isConnected, walletAddress, connect, disconnect } = useTonConnect();
   
   const {
@@ -28,27 +28,25 @@ const Mining = () => {
   } = useMining();
 
   useEffect(() => {
-    console.log("Mining page: REAL wallet connection status:", {
+    console.log("Mining page: Wallet connection status:", {
       isConnected,
       walletAddress,
       addressLength: walletAddress?.length,
-      isValidFormat: walletAddress ? /^(UQ|EQ)[A-Za-z0-9_-]{46}$/.test(walletAddress) : false
+      isValidFormat: walletAddress
+        ? /^(UQ|EQ|kq|0:|-/i.test(walletAddress)
+        : false
     });
   }, [isConnected, walletAddress]);
 
   const handleConnectWallet = async () => {
-    console.log("Connect real TON wallet clicked");
-    
     setIsConnecting(true);
-
     try {
       connect();
-      // Success toast is handled in the TonConnectProvider after successful connection
     } catch (error) {
-      console.error("Real wallet connection error:", error);
+      console.error("Wallet connection error:", error);
       toast({
         title: "Connection Failed",
-        description: "There was an error connecting to your real TON wallet. Please try again.",
+        description: "There was an error connecting your TON wallet. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -56,7 +54,7 @@ const Mining = () => {
     }
   };
 
-  // Function to check if user can mine (real wallet must be connected)
+  // User can mine only if wallet is connected *and* has valid address in session (per docs)
   const canMine = !!walletAddress && isConnected;
 
   return (
@@ -96,26 +94,21 @@ const Mining = () => {
                   className="w-full"
                 >
                   <Wallet className="mr-2 h-4 w-4" />
-                  {isConnecting ? 'Connecting...' : 'Connect Real TON Wallet'}
+                  {isConnecting ? 'Connecting...' : 'Connect TON Wallet'}
                 </Button>
               ) : (
                 <div className="space-y-3">
                   <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                     <div className="flex items-center mb-2">
                       <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                      <p className="text-sm font-medium text-green-800">Real TON Wallet Connected</p>
+                      <p className="text-sm font-medium text-green-800">TON Wallet Connected</p>
                     </div>
-                    <p className="text-xs text-green-700 mb-1">Real Wallet Address:</p>
-                    {/* Only display if provider is telegram-wallet */}
-                    {localStorage.getItem("tonWalletProvider") === "telegram-wallet" ? (
-                      <p className="text-xs font-mono break-all text-green-800 bg-green-100 p-2 rounded">
-                        {walletAddress}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-red-700 font-semibold">No REAL Telegram Wallet connected!</p>
-                    )}
+                    <p className="text-xs text-green-700 mb-1">Wallet Address:</p>
+                    <p className="text-xs font-mono break-all text-green-800 bg-green-100 p-2 rounded">
+                      {walletAddress}
+                    </p>
                     <p className="text-xs text-green-600 mt-1">
-                      ✅ This is your REAL connected TON wallet address
+                      ✅ This is your connected TON wallet address (from TonConnect session)
                     </p>
                   </div>
                   
@@ -126,7 +119,7 @@ const Mining = () => {
                     className="w-full"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
-                    Disconnect Real Wallet
+                    Disconnect Wallet
                   </Button>
                 </div>
               )}
@@ -138,7 +131,7 @@ const Mining = () => {
                 onClick={handleCollect}
               >
                 {!canMine 
-                  ? 'Connect real TON wallet to mine' 
+                  ? 'Connect TON wallet to mine' 
                   : (timeRemaining !== null && timeRemaining > 0) 
                     ? 'Mining in progress...' 
                     : 'Collect Knife Coin'}
