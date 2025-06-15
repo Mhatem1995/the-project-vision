@@ -7,8 +7,8 @@ const debugLog = (message: string, data?: any) => {
   console.log(`🔍 [TON DEBUG] ${message}`, data || "");
 };
 
-// Use your Tonkeeper receiving wallet for all payments
-export const RECEIVING_WALLET_ADDRESS = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C"; // <-- YOUR TONKEEPER WALLET
+// Now: ALWAYS use UQ... format for RECEIVING_WALLET_ADDRESS users! (Note: this doesn't affect your set wallet, but for consistency.)
+export const RECEIVING_WALLET_ADDRESS = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
 
 // Verify transaction directly via Supabase function
 export const verifyTonTransaction = async (
@@ -134,13 +134,16 @@ export const pollForTransactionVerification = async (
 
 // Helper to format wallet address for display
 export const formatWalletAddress = (address: string): string => {
-  if (!address || address.length < 10) return address;
-  return `${address.slice(0, 6)}...${address.slice(-6)}`;
+  // Always show UQ... only if possible
+  if (!address) return "";
+  const uq = address.startsWith("UQ") ? address : "";
+  if (uq.length < 10) return uq;
+  return `${uq.slice(0, 6)}...${uq.slice(-6)}`;
 };
 
-// Enhanced TON payment function - use REAL wallet address and allow custom comment
+// Only supports sending from UQ address!
 export const openTonPayment = (
-  tonConnectUI: any, // Pass the TonConnectUI object as argument
+  tonConnectUI: any,
   amount: number,
   taskId?: string,
   customComment?: string
@@ -168,7 +171,11 @@ export const openTonPayment = (
   }
 
   // ALWAYS get the Telegram Wallet address only from localStorage
-  const realWalletAddress = localStorage.getItem("tonWalletAddress");
+  const realWalletAddressRaw = localStorage.getItem("tonWalletAddress");
+  // Convert to UQ
+  const realWalletAddress = realWalletAddressRaw && realWalletAddressRaw.startsWith("UQ")
+    ? realWalletAddressRaw
+    : null;
   const walletProvider = localStorage.getItem("tonWalletProvider");
   if (!realWalletAddress || walletProvider !== "telegram-wallet") {
     debugLog("❌ Only Telegram Wallet allowed!");
@@ -199,7 +206,7 @@ export const openTonPayment = (
     validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
     messages: [
       {
-        address: receivingWallet, // Always send to Tonkeeper wallet
+        address: RECEIVING_WALLET_ADDRESS, // Always send to Tonkeeper wallet
         amount: amountInNano.toString(),
         payload: comment,
       }

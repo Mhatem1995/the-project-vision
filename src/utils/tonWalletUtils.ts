@@ -1,6 +1,34 @@
-
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
+
+/**
+ * Convert any TON address to UQ... base64 user-friendly format.
+ * Used across all project: only UQ... accepted and saved.
+ */
+export const toUQFormat = (address: string | null | undefined): string | null => {
+  if (!address || typeof address !== "string") return null;
+  const base = address.trim();
+  if (base.startsWith("UQ")) return base;
+  if (base.startsWith("EQ")) return base.replace("EQ", "UQ");
+  if (base.startsWith("0:")) {
+    try {
+      const hex = base.split(":")[1];
+      if (!hex || hex.length !== 64) return null;
+      const bytes = new Uint8Array(33);
+      bytes[0] = 0x11;
+      for (let i = 0; i < 32; i++) {
+        bytes[i + 1] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+      }
+      const base64 = typeof window !== "undefined"
+        ? btoa(String.fromCharCode.apply(null, Array.from(bytes)))
+        : Buffer.from(bytes).toString("base64");
+      return "UQ" + base64.replace(/=*$/, "");
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
 
 export const detectTelegramWebApp = () => {
   if (typeof window !== "undefined") {
@@ -14,90 +42,59 @@ export const detectTelegramWebApp = () => {
   return false;
 };
 
-// Simple address validation - accept any reasonable looking TON address
+// Accept ONLY valid UQ... address, never 0: or EQ...
 export const isValidTonAddress = (address: string): boolean => {
-  if (!address || typeof address !== 'string') {
-    return false;
-  }
-  
-  const cleanAddress = address.trim();
-  console.log("[TON-VALIDATION] Validating address:", cleanAddress);
-  
-  // Basic length and format check - be more permissive
-  if (cleanAddress.length < 40) {
-    console.log("[TON-VALIDATION] Address too short");
-    return false;
-  }
-  
-  // Accept UQ/EQ format or raw 0: format
-  const userFriendlyPattern = /^(UQ|EQ)[A-Za-z0-9_-]{40,}$/;
-  const rawPattern = /^0:[a-fA-F0-9]{60,}$/;
-  
-  const isValid = userFriendlyPattern.test(cleanAddress) || rawPattern.test(cleanAddress);
-  console.log("[TON-VALIDATION] Address valid:", isValid);
-  
-  return isValid;
+  const uq = toUQFormat(address);
+  // Must be 44 chars after "UQ" = 46 total or similar
+  return !!uq && /^UQ[A-Za-z0-9_-]{40,}$/.test(uq);
 };
 
 // Extract REAL address from TonConnect
 export const extractRealTonConnectAddress = (connector: TonConnectUI): string | null => {
-  console.log("[TON-EXTRACT] Extracting REAL address from connector");
-  
-  if (!connector?.wallet?.account?.address) {
-    console.log("[TON-EXTRACT] No address found in connector");
+  const addr = connector?.wallet?.account?.address;
+  const uq = toUQFormat(addr);
+  if (!uq) {
+    console.log("[TON-EXTRACT] ❌ Could not convert address to UQ format");
     return null;
   }
-
-  // Get the REAL address directly from TonConnect
-  const realAddress = connector.wallet.account.address;
-  console.log("[TON-EXTRACT] Found REAL address:", realAddress);
-  
-  if (isValidTonAddress(realAddress)) {
-    console.log("[TON-EXTRACT] ✅ REAL address is valid");
-    return realAddress;
+  if (isValidTonAddress(uq)) {
+    return uq;
   } else {
-    console.log("[TON-EXTRACT] ❌ REAL address failed validation");
+    console.log("[TON-EXTRACT] ❌ UQ-format address failed validation");
     return null;
   }
 };
 
-// Save REAL wallet address
-export const saveRealWalletAddress = async (realAddress: string, toast: any) => {
-  console.log("[TON-SAVE] Saving REAL wallet address:", realAddress);
-  
-  // Set localStorage with REAL address
-  localStorage.setItem("tonWalletAddress", realAddress);
-  
-  // Save REAL address to database
+// Save ONLY UQ-format wallet address
+export const saveRealWalletAddress = async (address: string, toast: any) => {
+  const uq = toUQFormat(address);
+  if (!uq) {
+    toast({
+      title: "Invalid Address",
+      description: "Failed to convert your address to the correct format.",
+      variant: "destructive"
+    });
+    return;
+  }
+  localStorage.setItem("tonWalletAddress", uq);
   const userId = localStorage.getItem("telegramUserId");
   if (userId) {
     try {
-      console.log("[TON-SAVE] Saving REAL address to database for user:", userId);
-      
-      const { data, error } = await supabase.functions.invoke('database-helper', {
+      await supabase.functions.invoke('database-helper', {
         body: {
           action: 'save_wallet_connection',
           params: {
             telegram_id: userId,
-            wallet_address: realAddress  // Save the REAL address
+            wallet_address: uq
           }
         }
       });
-      
-      if (error) {
-        console.error("[TON-SAVE] Database error:", error);
-      } else {
-        console.log("[TON-SAVE] ✅ REAL address saved to database successfully");
-      }
     } catch (err) {
       console.error("[TON-SAVE] Database exception:", err);
     }
   }
-  
   toast({
     title: "✅ TON Wallet Connected!",
-    description: `REAL Address: ${realAddress.substring(0, 15)}...`,
+    description: `Address: ${uq.substring(0, 15)}...`,
   });
-  
-  console.log("[TON-SAVE] ✅ REAL wallet save complete");
 };
