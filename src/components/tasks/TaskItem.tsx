@@ -71,7 +71,7 @@ export const TaskItem = ({
               </Button>
               {/* Disconnect button for wallet */}
               {isConnected && (
-                <Button size="xs" variant="destructive" className="mt-1" onClick={disconnect}>
+                <Button size="sm" variant="destructive" className="mt-1" onClick={disconnect}>
                   Disconnect Wallet
                 </Button>
               )}
