@@ -43,3 +43,22 @@ export const TRANSACTION_VERIFICATION = {
   MAX_ATTEMPTS: 12, // Try for up to 1 minute (12 * 5000ms)
   EXPIRATION_TIME_MS: 30 * 60 * 1000, // 30 minutes in milliseconds
 };
+
+// Validate TON wallet address format
+export const isValidTonAddress = (address: string): boolean => {
+  // TON addresses should be 48 characters long and start with UQ or EQ
+  const tonAddressRegex = /^(UQ|EQ)[A-Za-z0-9_-]{46}$/;
+  return tonAddressRegex.test(address);
+};
+
+// Get preferred wallets for TON Space
+export const getPreferredWallets = () => {
+  return [
+    'tonkeeper', 
+    'telegram-wallet',
+    'tonhub',
+    'dewallet',
+    'xtonwallet',
+    'ton-wallet'
+  ];
+};

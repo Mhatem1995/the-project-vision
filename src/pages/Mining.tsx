@@ -30,36 +30,28 @@ const Mining = () => {
   } = useMining();
 
   useEffect(() => {
-    console.log("Mining page: Checking if in Telegram:", isTelegramWebApp);
-    
-    // Debug information for troubleshooting
-    if (window.Telegram?.WebApp?.platform) {
-      console.log("Telegram platform:", window.Telegram.WebApp.platform);
-    }
-    
-    // Additional debugging for boost button issue
-    console.log("Mining page debug info:", {
-      isTelegramWebApp,
+    console.log("Mining page: Real Telegram WebApp status:", isTelegramWebApp);
+    console.log("Mining page: Real wallet connection status:", {
       isConnected,
       walletAddress,
-      userAgent: navigator.userAgent,
-      storedTelegramFlag: localStorage.getItem("inTelegramWebApp")
+      addressLength: walletAddress?.length,
+      isValidFormat: walletAddress ? /^(UQ|EQ)[A-Za-z0-9_-]{46}$/.test(walletAddress) : false
     });
   }, [isTelegramWebApp, isConnected, walletAddress]);
 
   const handleConnectWallet = async () => {
-    console.log("Connect wallet clicked, inTelegram:", isTelegramWebApp);
+    console.log("Connect real TON wallet clicked");
     
     setIsConnecting(true);
 
     try {
       connect();
-      // Note: Success toast is handled in the TonConnectProvider after successful connection
+      // Success toast is handled in the TonConnectProvider after successful connection
     } catch (error) {
-      console.error("Wallet connection error:", error);
+      console.error("Real wallet connection error:", error);
       toast({
         title: "Connection Failed",
-        description: "There was an error connecting to your wallet. Please try again.",
+        description: "There was an error connecting to your real TON wallet. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -67,15 +59,15 @@ const Mining = () => {
     }
   };
 
-  // Function to check if user can mine (wallet must be connected)
-  const canMine = !!walletAddress;
+  // Function to check if user can mine (real wallet must be connected)
+  const canMine = !!walletAddress && isConnected;
 
   return (
     <div className="min-h-screen pb-24">
       <div className="flex flex-col items-center justify-start space-y-6 px-4 py-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-2">Knife Coin Mining</h1>
-          <p className="text-muted-foreground">Mine Knife Coin tokens every 8 hours</p>
+          <p className="text-muted-foreground">Mine Knife Coin tokens every 8 hours with your real TON wallet</p>
         </div>
         
         {isLoading ? (
@@ -97,7 +89,7 @@ const Mining = () => {
               timeRemaining={timeRemaining}
             />
 
-            {/* Wallet connection section and mining button - positioned right after mining progress */}
+            {/* Real wallet connection section */}
             <div className="w-full max-w-md space-y-4">
               {!isConnected ? (
                 <Button 
@@ -107,13 +99,22 @@ const Mining = () => {
                   className="w-full"
                 >
                   <Wallet className="mr-2 h-4 w-4" />
-                  {isConnecting ? 'Connecting...' : 'Connect TON Wallet'}
+                  {isConnecting ? 'Connecting...' : 'Connect Real TON Wallet'}
                 </Button>
               ) : (
                 <div className="space-y-3">
-                  <div className="bg-card p-4 rounded-lg border border-border">
-                    <p className="text-sm text-muted-foreground mb-1">Connected Wallet:</p>
-                    <p className="text-xs font-mono break-all">{formatWalletAddress(walletAddress || "")}</p>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="flex items-center mb-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                      <p className="text-sm font-medium text-green-800">Real TON Wallet Connected</p>
+                    </div>
+                    <p className="text-xs text-green-700 mb-1">Wallet Address:</p>
+                    <p className="text-xs font-mono break-all text-green-800 bg-green-100 p-2 rounded">
+                      {walletAddress}
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ Verified real TON address format
+                    </p>
                   </div>
                   
                   <Button 
@@ -123,7 +124,7 @@ const Mining = () => {
                     className="w-full"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
-                    Disconnect Wallet
+                    Disconnect Real Wallet
                   </Button>
                 </div>
               )}
@@ -135,7 +136,7 @@ const Mining = () => {
                 onClick={handleCollect}
               >
                 {!canMine 
-                  ? 'Connect wallet to mine Knife Coin' 
+                  ? 'Connect real TON wallet to mine' 
                   : (timeRemaining !== null && timeRemaining > 0) 
                     ? 'Mining in progress...' 
                     : 'Collect Knife Coin'}
