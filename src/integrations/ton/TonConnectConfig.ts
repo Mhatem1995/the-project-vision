@@ -28,26 +28,26 @@ export const getTonNetwork = async () => {
   }
 };
 
-// Get the real connected wallet address from TonConnect UI - SIMPLIFIED VERSION
+// Get the real connected wallet address from TonConnect UI - SUPER SIMPLIFIED
 export const getConnectedWalletAddress = (): string | null => {
-  console.log("[TON-CONFIG] Getting connected wallet address...");
+  console.log("[TON-CONFIG] === GETTING WALLET ADDRESS ===");
   
-  // Get from TonConnect UI directly
+  // First try TonConnect UI directly
   if (window._tonConnectUI && window._tonConnectUI.connected && window._tonConnectUI.wallet?.account?.address) {
-    const address = window._tonConnectUI.wallet.account.address;
-    console.log("[TON-CONFIG] ✅ Raw address from TonConnect:", address);
-    console.log("[TON-CONFIG] Address type:", typeof address);
-    
-    // Don't convert - just use the address as-is
-    const addressString = String(address);
-    console.log("[TON-CONFIG] ✅ Using address as string:", addressString);
-    return addressString;
+    const realAddress = window._tonConnectUI.wallet.account.address;
+    console.log("[TON-CONFIG] ✅ Got REAL address from TonConnect:", realAddress);
+    return realAddress;
   }
   
-  // Fallback to localStorage
+  // Fallback to localStorage (but only if it's a valid address)
   const storedAddress = localStorage.getItem("tonWalletAddress");
-  console.log("[TON-CONFIG] Fallback: Getting wallet address from localStorage:", storedAddress);
-  return storedAddress;
+  if (storedAddress && isValidTonAddress(storedAddress)) {
+    console.log("[TON-CONFIG] ✅ Got valid stored address:", storedAddress);
+    return storedAddress;
+  }
+  
+  console.log("[TON-CONFIG] ❌ No valid wallet address found");
+  return null;
 };
 
 // Constants for API access
@@ -66,6 +66,7 @@ export const TRANSACTION_VERIFICATION = {
 // Updated TON wallet address validation - accepts both raw and user-friendly formats
 export const isValidTonAddress = (address: string): boolean => {
   if (!address || typeof address !== 'string') {
+    console.log("[TON-VALIDATION] ❌ Invalid input - not a string or empty");
     return false;
   }
   
