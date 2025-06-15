@@ -60,58 +60,36 @@ serve(async (req: Request) => {
 
     debugLog(`Looking for wallet for user: ${userId}`);
     
-    // Get user's wallet address with multiple fallbacks
-    let userWalletAddress: string | null = null;
-    
-    // Try wallets table first
+    // Get user's wallet address ONLY from the wallets table for security and consistency
     const { data: walletData, error: walletError } = await supabaseAdmin
       .from("wallets")
       .select("wallet_address")
       .eq("telegram_id", userId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false }) // Get the most recent connected wallet
       .limit(1)
       .maybeSingle();
       
     debugLog("Wallets table query result", { walletData, walletError });
       
-    if (walletData?.wallet_address) {
-      userWalletAddress = walletData.wallet_address;
-      debugLog(`✅ Found wallet in wallets table: ${userWalletAddress}`);
-    } else {
-      debugLog("⚠️ No wallet in wallets table, checking users table...");
-      
-      // Fallback to users table
-      const { data: userData, error: userError } = await supabaseAdmin
-        .from("users")
-        .select("links")
-        .eq("id", userId)
-        .maybeSingle();
-
-      debugLog("Users table query result", { userData, userError });
-
-      if (userData?.links) {
-        userWalletAddress = userData.links;
-        debugLog(`✅ Found wallet in users table: ${userWalletAddress}`);
-      }
-    }
-
-    if (!userWalletAddress) {
-      debugLog("❌ No wallet found for user!");
+    if (!walletData?.wallet_address) {
+      debugLog("❌ No wallet found for user in 'wallets' table!");
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "User wallet not found. Please reconnect your wallet.",
+          message: "User wallet not found. Please connect your wallet in the app first.",
           error: "WALLET_NOT_FOUND",
           debug: { 
             userId, 
-            walletTableResult: walletData, 
+            walletTableChecked: true,
             walletTableError: walletError?.message,
-            usersTableChecked: true
           }
         }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const userWalletAddress = walletData.wallet_address;
+    debugLog(`✅ Found wallet in wallets table: ${userWalletAddress}`);
 
     // Transaction search parameters
     const expectedAmountNano = Math.floor(amount * 1000000000);

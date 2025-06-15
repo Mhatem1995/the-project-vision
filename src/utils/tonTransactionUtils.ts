@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { getConnectedWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
 import { toast } from "@/hooks/use-toast";
@@ -136,9 +135,9 @@ export const formatWalletAddress = (address: string): string => {
   return `${address.slice(0, 6)}...${address.slice(-6)}`;
 };
 
-// Enhanced TON payment function - use REAL wallet address
-export const openTonPayment = (amount: number, taskId?: string): void => {
-  debugLog("Opening TON payment", { amount, taskId });
+// Enhanced TON payment function - use REAL wallet address and allow custom comment
+export const openTonPayment = (amount: number, taskId?: string, customComment?: string): void => {
+  debugLog("Opening TON payment", { amount, taskId, customComment });
 
   const tonConnectUI = window._tonConnectUI;
   
@@ -175,7 +174,8 @@ export const openTonPayment = (amount: number, taskId?: string): void => {
   }
   
   const amountInNano = Math.floor(amount * 1000000000);
-  const comment = taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '';
+  // Use customComment if provided, otherwise generate from taskId
+  const comment = customComment ?? (taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '');
   
   // Use our hardcoded receiving wallet for transactions
   const receivingWallet = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";

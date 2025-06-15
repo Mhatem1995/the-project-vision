@@ -1,7 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
-import { pollForTransactionVerification } from "@/utils/tonTransactionUtils";
+import { pollForTransactionVerification, openTonPayment } from "@/utils/tonTransactionUtils";
 import { getConnectedWalletAddress } from "@/integrations/ton/TonConnectConfig";
 
 const debugLog = (message: string, data?: any) => {
@@ -45,7 +44,7 @@ export const handlePaymentTask = async (
   }
 
   const userId = localStorage.getItem("telegramUserId");
-  if (!userId || !userId.startsWith("@")) {
+  if (!userId) {
     debugLog("❌ No valid Telegram user ID found", { userId });
     toast({
       title: "Error",
@@ -63,7 +62,7 @@ export const handlePaymentTask = async (
     dailyTaskAvailable 
   });
   
-  // Get the real connected wallet address
+  // Get the real connected wallet address using the improved getter
   const walletAddress = getConnectedWalletAddress();
   if (!walletAddress) {
     debugLog("❌ No real wallet address found");
@@ -88,45 +87,26 @@ export const handlePaymentTask = async (
   }
 
   try {
-    debugLog("Ensuring user exists in database", { userId, walletAddress });
+    debugLog("Ensuring user exists and recording payment attempt in database", { userId, walletAddress });
     
     // Ensure user exists
-    const { data: userData, error: userError } = await supabase.functions.invoke('database-helper', {
+    await supabase.functions.invoke('database-helper', {
       body: {
         action: 'ensure_user_exists',
-        params: {
-          user_id: userId,
-          username: localStorage.getItem("telegramUserName") || ""
-        }
+        params: { user_id: userId, username: localStorage.getItem("telegramUserName") || "" }
       }
     });
-    
-    if (userError) {
-      debugLog("❌ Error ensuring user exists", userError);
-      throw new Error(`Failed to ensure user exists: ${userError.message}`);
-    }
-    
-    debugLog("✅ User ensured in database", userData);
     
     // Save wallet connection with REAL wallet address
-    const { data: walletData, error: walletError } = await supabase.functions.invoke('database-helper', {
+    await supabase.functions.invoke('database-helper', {
       body: {
         action: 'save_wallet_connection',
-        params: {
-          telegram_id: userId,
-          wallet_address: walletAddress
-        }
+        params: { telegram_id: userId, wallet_address: walletAddress }
       }
     });
     
-    if (walletError) {
-      debugLog("❌ Error saving wallet connection", walletError);
-    } else {
-      debugLog("✅ Real wallet connection saved", walletData);
-    }
-    
     // Record the payment attempt with REAL wallet address
-    const { data: paymentData, error: paymentError } = await supabase.functions.invoke('database-helper', {
+    await supabase.functions.invoke('database-helper', {
       body: {
         action: 'insert_payment',
         params: {
@@ -138,70 +118,12 @@ export const handlePaymentTask = async (
         }
       }
     });
+
+    // REFACTORED: Use the centralized openTonPayment function for correctness
+    const comment = task.isDaily ? 'daily_ton_payment' : `task${task.id}`;
+    openTonPayment(task.tonAmount, task.id, comment);
     
-    if (paymentError) {
-      debugLog("❌ Error recording payment", paymentError);
-    } else {
-      debugLog("✅ Payment record created with REAL wallet", paymentData);
-    }
-
-    // Get TonConnect instance
-    const tonConnectUI = window._tonConnectUI;
-
-    if (!tonConnectUI || typeof tonConnectUI.sendTransaction !== 'function') {
-      debugLog("❌ TonConnect UI not available", {
-        tonConnectUIExists: !!tonConnectUI,
-        sendTransactionExists: tonConnectUI ? typeof tonConnectUI.sendTransaction : 'n/a'
-      });
-      toast({
-        title: "Wallet Connection Error",
-        description: "Unable to connect to wallet. Please reconnect your wallet and try again.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Send transaction using TonConnect to REAL wallet address
-    try {
-      debugLog(`Sending TON payment for ${task.tonAmount} TON to REAL wallet using TonConnect`);
-      
-      const amountInNano = Math.floor(task.tonAmount * 1000000000);
-      const comment = task.isDaily ? 'daily_ton_payment' : `task${task.id}`;
-      
-      debugLog("Transaction details", {
-        address: walletAddress, // Using REAL wallet address
-        amountInNano,
-        comment,
-        originalAmount: task.tonAmount
-      });
-      
-      await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 600,
-        messages: [
-          {
-            address: walletAddress, // Send to REAL connected wallet
-            amount: amountInNano.toString(),
-            payload: comment,
-          }
-        ]
-      });
-      
-      debugLog("✅ TonConnect transaction initiated successfully to REAL wallet");
-      
-      toast({
-        title: "Payment Initiated",
-        description: "Transaction sent to your real wallet! We're verifying your payment...",
-      });
-      
-    } catch (txError) {
-      debugLog("❌ Error initiating TonConnect transaction", txError);
-      toast({
-        title: "Transaction Error", 
-        description: "Failed to send transaction. Please try again.",
-        variant: "destructive"
-      });
-      return;
-    }
+    debugLog("✅ TonConnect transaction initiated via openTonPayment.");
 
     // Start transaction verification
     setTimeout(async () => {
