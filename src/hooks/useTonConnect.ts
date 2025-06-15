@@ -12,35 +12,28 @@ type UseTonConnectReturn = {
 };
 
 const TELEGRAM_WALLET_ID = "telegram-wallet";
-const TELEGRAM_WALLET_NAME = "Telegram Wallet"; // Adjust if needed
 
 export const useTonConnect = (): UseTonConnectReturn => {
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
 
-  const isConnected =
-    !!wallet?.account?.address &&
-    (wallet?.walletInfo?.name === TELEGRAM_WALLET_NAME ||
-      wallet?.walletInfo?.aboutUrl?.includes("t.me") ||
-      wallet?.walletInfo?.appName === TELEGRAM_WALLET_NAME ||
-      wallet?.walletInfo?.id === TELEGRAM_WALLET_ID);
+  // Only consider the wallet connected if we have an address AND we stored "telegram-wallet" as provider.
+  const walletProvider = localStorage.getItem("tonWalletProvider");
+  const isTelegramWallet = walletProvider === TELEGRAM_WALLET_ID;
+  const isConnected = !!wallet?.account?.address && isTelegramWallet;
 
-  const walletAddress =
-    isConnected && wallet?.account?.address ? wallet.account.address : null;
+  const walletAddress = isConnected && wallet?.account?.address ? wallet.account.address : null;
 
-  // Save the address and provider in localStorage ONLY if it is Telegram Wallet
+  // Save the address and provider in localStorage ONLY when a wallet connects, otherwise clear it
   useEffect(() => {
-    if (isConnected && walletAddress) {
-      localStorage.setItem("tonWalletAddress", walletAddress);
+    if (wallet?.account?.address) {
+      localStorage.setItem("tonWalletAddress", wallet.account.address);
       localStorage.setItem("tonWalletProvider", TELEGRAM_WALLET_ID);
-      // Optionally save to DB if needed.
-      console.log("[TON-CONNECT] Telegram Wallet connected and saved.");
     } else {
-      // Clean up any fake/old value if disconnected
       localStorage.removeItem("tonWalletAddress");
       localStorage.removeItem("tonWalletProvider");
     }
-  }, [isConnected, walletAddress]);
+  }, [wallet?.account?.address]);
 
   const connect = () => tonConnectUI?.openModal();
   const disconnect = () => tonConnectUI?.disconnect();
@@ -54,3 +47,4 @@ export const useTonConnect = (): UseTonConnectReturn => {
     disconnect,
   };
 };
+
