@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
@@ -14,6 +15,16 @@ export const useTonConnectSetup = (toast: any) => {
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
+
+  // This effect will sync state with localStorage on initial component mount.
+  useEffect(() => {
+    const savedAddress = localStorage.getItem("tonWalletAddress");
+    if (savedAddress) {
+      setWalletAddress(savedAddress);
+      setIsConnected(true);
+      console.log("[TON-INIT-RESTORE] Restored wallet from localStorage:", savedAddress);
+    }
+  }, []); // The empty dependency array ensures this runs only once on mount.
 
   // Memoized handler for wallet status changes to ensure consistency
   const handleWalletStatusChange = useCallback(async (wallet: any) => {
