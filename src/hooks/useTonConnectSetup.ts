@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { tonConnectOptions, getPreferredWallets } from "@/integrations/ton/TonConnectConfig";
-import { detectTelegramWebApp, extractRealTonConnectAddress, saveRealWalletAddress } from "@/utils/tonWalletUtils";
+import { detectTelegramWebApp, saveRealWalletAddress } from "@/utils/tonWalletUtils";
 
 declare global {
   interface Window {
@@ -16,24 +16,26 @@ export const useTonConnectSetup = (toast: any) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
 
-  // Simplified wallet status handler
+  // Handle wallet status changes - get REAL address from TonConnect
   const handleWalletStatusChange = async (wallet: any) => {
     console.log("[TON-STATUS] 🔄 Wallet status changed:", wallet);
     
     if (wallet && wallet.account && wallet.account.address) {
-      const address = wallet.account.address;
-      console.log("[TON-STATUS] ✅ Wallet connected with address:", address);
+      // Get the REAL wallet address from TonConnect
+      const realAddress = wallet.account.address;
+      console.log("[TON-STATUS] ✅ REAL wallet connected:", realAddress);
       
       setIsConnected(true);
-      setWalletAddress(address);
-      await saveRealWalletAddress(address, toast);
+      setWalletAddress(realAddress);
+      
+      // Save the REAL address
+      await saveRealWalletAddress(realAddress, toast);
     } else if (wallet === null) {
       console.log("[TON-STATUS] ❌ Wallet disconnected");
       setIsConnected(false);
       setWalletAddress(null);
       localStorage.removeItem("tonWalletAddress");
     }
-    // Don't change state for partial updates
   };
 
   useEffect(() => {
@@ -48,12 +50,12 @@ export const useTonConnectSetup = (toast: any) => {
       const existingUI = window._tonConnectUI;
       setTonConnectUI(existingUI);
       
-      // Check if already connected
+      // Check if already connected and get REAL address
       if (existingUI.connected && existingUI.wallet?.account?.address) {
-        const address = existingUI.wallet.account.address;
-        console.log("[TON-INIT] Found existing connection:", address);
+        const realAddress = existingUI.wallet.account.address;
+        console.log("[TON-INIT] Found existing connection with REAL address:", realAddress);
         setIsConnected(true);
-        setWalletAddress(address);
+        setWalletAddress(realAddress);
       }
       
       existingUI.onStatusChange(handleWalletStatusChange);
@@ -75,13 +77,13 @@ export const useTonConnectSetup = (toast: any) => {
 
       connector.onStatusChange(handleWalletStatusChange);
 
-      // Check initial connection after setup
+      // Check initial connection after setup and get REAL address
       setTimeout(() => {
         if (connector.connected && connector.wallet?.account?.address) {
-          const address = connector.wallet.account.address;
-          console.log("[TON-INIT] Initial connection found:", address);
+          const realAddress = connector.wallet.account.address;
+          console.log("[TON-INIT] Initial connection found with REAL address:", realAddress);
           setIsConnected(true);
-          setWalletAddress(address);
+          setWalletAddress(realAddress);
         }
       }, 1000);
 

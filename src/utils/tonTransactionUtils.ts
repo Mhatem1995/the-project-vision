@@ -136,7 +136,7 @@ export const formatWalletAddress = (address: string): string => {
   return `${address.slice(0, 6)}...${address.slice(-6)}`;
 };
 
-// Enhanced TON payment function with extensive debugging
+// Enhanced TON payment function - use REAL wallet address
 export const openTonPayment = (amount: number, taskId?: string): void => {
   debugLog("Opening TON payment", { amount, taskId });
 
@@ -162,13 +162,13 @@ export const openTonPayment = (amount: number, taskId?: string): void => {
     return;
   }
   
-  // Get the real connected wallet address
-  const walletAddress = getConnectedWalletAddress();
-  if (!walletAddress) {
-    debugLog("❌ No real wallet address available");
+  // Get the REAL connected wallet address from TonConnect
+  const realWalletAddress = getConnectedWalletAddress();
+  if (!realWalletAddress) {
+    debugLog("❌ No REAL wallet address available");
     toast({
       title: "❌ Wallet not connected",
-      description: "Please connect your real TON wallet first.",
+      description: "Please connect your TON wallet first.",
       variant: "destructive"
     });
     return;
@@ -177,8 +177,12 @@ export const openTonPayment = (amount: number, taskId?: string): void => {
   const amountInNano = Math.floor(amount * 1000000000);
   const comment = taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '';
   
-  debugLog("Sending transaction to REAL wallet", {
-    address: walletAddress,
+  // Use our hardcoded receiving wallet for transactions
+  const receivingWallet = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
+  
+  debugLog("Sending transaction from REAL wallet to receiving wallet", {
+    fromAddress: realWalletAddress,
+    toAddress: receivingWallet,
     amount: amountInNano,
     comment,
     tonConnectUIExists: !!tonConnectUI,
@@ -189,13 +193,13 @@ export const openTonPayment = (amount: number, taskId?: string): void => {
     validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
     messages: [
       {
-        address: walletAddress, // Send to REAL connected wallet
+        address: receivingWallet, // Send to our receiving wallet
         amount: amountInNano.toString(),
         payload: comment,
       }
     ]
   }).then(() => {
-    debugLog("✅ Transaction sent successfully to REAL wallet");
+    debugLog("✅ Transaction sent successfully from REAL wallet");
     toast({
       title: "📤 Transaction sent",
       description: "Please confirm the transaction in your wallet app.",

@@ -1,4 +1,3 @@
-
 import { getHttpEndpoint } from '@orbs-network/ton-access';
 
 // App details for TON Connect
@@ -26,7 +25,7 @@ export const getTonNetwork = async () => {
   }
 };
 
-// Get connected wallet address - simplified approach
+// Get connected wallet address - get REAL address from TonConnect
 export const getConnectedWalletAddress = (): string | null => {
   console.log("[TON-CONFIG] Getting connected wallet address");
   
@@ -36,11 +35,11 @@ export const getConnectedWalletAddress = (): string | null => {
     return null;
   }
 
-  // Check if connected and has address
+  // Check if connected and get REAL address
   if (window._tonConnectUI.connected && window._tonConnectUI.wallet?.account?.address) {
-    const address = window._tonConnectUI.wallet.account.address;
-    console.log("[TON-CONFIG] Found connected address:", address);
-    return address;
+    const realAddress = window._tonConnectUI.wallet.account.address;
+    console.log("[TON-CONFIG] Found REAL connected address:", realAddress);
+    return realAddress;
   }
 
   console.log("[TON-CONFIG] No connected wallet found");
