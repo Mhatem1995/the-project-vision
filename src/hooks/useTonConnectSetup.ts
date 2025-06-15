@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { tonConnectOptions, getPreferredWallets } from "@/integrations/ton/TonConnectConfig";
 import { detectTelegramWebApp, saveRealWalletAddress } from "@/utils/tonWalletUtils";
@@ -16,81 +15,68 @@ export const useTonConnectSetup = (toast: any) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
 
-  // Handle wallet status changes - get REAL address from TonConnect
-  const handleWalletStatusChange = async (wallet: any) => {
+  // Memoized handler for wallet status changes to ensure consistency
+  const handleWalletStatusChange = useCallback(async (wallet: any) => {
     console.log("[TON-STATUS] 🔄 Wallet status changed:", wallet);
     
     if (wallet && wallet.account && wallet.account.address) {
-      // Get the REAL wallet address from TonConnect
       const realAddress = wallet.account.address;
-      console.log("[TON-STATUS] ✅ REAL wallet connected:", realAddress);
+      console.log("[TON-STATUS] ✅ REAL wallet connected, SAVING:", realAddress);
       
       setIsConnected(true);
       setWalletAddress(realAddress);
       
-      // Save the REAL address
+      // Save the REAL address to localStorage and Supabase
       await saveRealWalletAddress(realAddress, toast);
     } else if (wallet === null) {
-      console.log("[TON-STATUS] ❌ Wallet disconnected");
+      console.log("[TON-STATUS] ❌ Wallet disconnected, clearing storage.");
       setIsConnected(false);
       setWalletAddress(null);
       localStorage.removeItem("tonWalletAddress");
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
-    console.log("[TON-INIT] 🚀 Initializing TonConnect");
+    console.log("[TON-INIT] 🚀 Initializing TonConnect setup");
     
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
 
-    // Check for existing instance
-    if (window._tonConnectUI) {
-      console.log("[TON-INIT] Using existing TonConnect UI");
-      const existingUI = window._tonConnectUI;
-      setTonConnectUI(existingUI);
-      
-      // Check if already connected and get REAL address
-      if (existingUI.connected && existingUI.wallet?.account?.address) {
-        const realAddress = existingUI.wallet.account.address;
-        console.log("[TON-INIT] Found existing connection with REAL address:", realAddress);
-        setIsConnected(true);
-        setWalletAddress(realAddress);
-      }
-      
-      existingUI.onStatusChange(handleWalletStatusChange);
-      return;
-    }
+    // Use existing instance or create a new one to avoid re-initialization
+    const connector = window._tonConnectUI ?? new TonConnectUI({
+      manifestUrl: tonConnectOptions.manifestUrl,
+      preferredWallets: getPreferredWallets()
+    });
 
-    // Create new instance
-    try {
-      const options = {
-        manifestUrl: tonConnectOptions.manifestUrl,
-        preferredWallets: getPreferredWallets()
-      };
-
-      console.log("[TON-INIT] Creating new TonConnect instance");
-      const connector = new TonConnectUI(options);
-      
+    if (!window._tonConnectUI) {
       window._tonConnectUI = connector;
-      setTonConnectUI(connector);
-
-      connector.onStatusChange(handleWalletStatusChange);
-
-      // Check initial connection after setup and get REAL address
-      setTimeout(() => {
-        if (connector.connected && connector.wallet?.account?.address) {
-          const realAddress = connector.wallet.account.address;
-          console.log("[TON-INIT] Initial connection found with REAL address:", realAddress);
-          setIsConnected(true);
-          setWalletAddress(realAddress);
-        }
-      }, 1000);
-
-    } catch (error) {
-      console.error("[TON-INIT] ❌ Failed to create TonConnect:", error);
+      console.log("[TON-INIT] New TonConnect instance created and assigned to window.");
     }
-  }, [toast]);
+
+    setTonConnectUI(connector);
+
+    // Subscribe to status changes. This handles new connections, disconnections, etc.
+    const unsubscribe = connector.onStatusChange(handleWalletStatusChange);
+
+    // CRITICAL FIX: Check initial state, as onStatusChange may not fire for a restored session.
+    // Give TonConnect a moment to restore the connection from its own storage.
+    const timer = setTimeout(() => {
+      if (connector.connected && connector.wallet) {
+        console.log("[TON-INIT] Restored connection found. Manually triggering status handler to sync state.");
+        handleWalletStatusChange(connector.wallet);
+      } else {
+        console.log("[TON-INIT] No restored connection found after timeout.");
+      }
+    }, 500);
+
+    // Cleanup on component unmount
+    return () => {
+      console.log("[TON-CLEANUP] Clearing timer and unsubscribing from status changes.");
+      clearTimeout(timer);
+      unsubscribe();
+    };
+    
+  }, [toast, handleWalletStatusChange]);
 
   const connect = () => {
     if (tonConnectUI) {
