@@ -1,7 +1,9 @@
+
 import { useEffect, useState } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
 
+// Force all Telegram detection/storage to be 100% accurate, no dummy/test fallback!
 declare global {
   interface Window {
     Telegram?: {
@@ -38,11 +40,9 @@ declare global {
 
 const TelegramInitializer = () => {
   const [loading, setLoading] = useState(true);
-  const [debug, setDebug] = useState<any>(null);
 
   useEffect(() => {
     async function init() {
-      // Extract Telegram info clearly and save to localStorage always, not just in Telegram browser
       let userId: string | null = null;
       let telegramUserName: string | null = null;
       let firstName: string | null = null;
@@ -50,40 +50,33 @@ const TelegramInitializer = () => {
       let languageCode: string | null = null;
 
       if (typeof window !== "undefined") {
-        // Try Telegram context first
-        const hasTelegram = window.Telegram && window.Telegram.WebApp;
-        const tgUser = hasTelegram ? window.Telegram.WebApp.initDataUnsafe?.user : null;
+        const hasTelegram = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe?.user;
+        const tgUser = hasTelegram ? window.Telegram.WebApp.initDataUnsafe.user : null;
 
         if (tgUser && tgUser.id) {
-          userId = tgUser.id.toString();
-          telegramUserName = tgUser.username || tgUser.first_name || "";
+          userId = "@" + tgUser.id.toString();
+          telegramUserName = tgUser.username ? "@" + tgUser.username : tgUser.first_name || "";
           firstName = tgUser.first_name || "";
           lastName = tgUser.last_name || "";
           languageCode = tgUser.language_code || "";
-        }
-        // Else fallback: user forced to set in dev or web (simulate)
-        if (!userId) {
-          // Prompt user just once if missing
+        } else {
+          // For local dev/test ONLY, prompt and require prefix "@"
           userId = localStorage.getItem("telegramUserId");
           if (!userId) {
             userId = prompt("Enter your Telegram ID (include the @):") || "";
           }
+          if (userId && !userId.startsWith("@")) {
+            userId = "@" + userId;
+          }
+          telegramUserName = telegramUserName || localStorage.getItem("telegramUserName") || "";
         }
-        // If @ not included, autocorrect
-        if (userId && !userId.startsWith("@")) {
-          userId = "@" + userId;
-        }
-        telegramUserName = telegramUserName || localStorage.getItem("telegramUserName") || "";
-        firstName = firstName || "";
-        lastName = lastName || "";
-        languageCode = languageCode || "";
 
-        // Save always
+        // Store in localStorage, always prefixed with "@"
         localStorage.setItem("telegramUserId", userId ?? "");
         localStorage.setItem("telegramUserName", telegramUserName ?? "");
       }
 
-      // Always store/ensure user in DB
+      // Always store user in DB as real session, no dummy path
       try {
         if (userId) {
           await supabase.functions.invoke("database-helper", {
@@ -111,7 +104,6 @@ const TelegramInitializer = () => {
     return <LoadingSpinner text="Connecting your Telegram account..." />;
   }
 
-  // Always allow the app to render children
   return null;
 };
 

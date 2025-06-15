@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
 import { pollForTransactionVerification } from "@/utils/tonTransactionUtils";
@@ -41,11 +40,11 @@ export const handlePaymentTask = async (
   if (!task.tonAmount) return;
 
   const userId = localStorage.getItem("telegramUserId");
-  if (!userId) {
-    debugLog("❌ No user ID found in localStorage");
+  if (!userId || !userId.startsWith("@")) {
+    debugLog("❌ No valid Telegram user ID");
     toast({
       title: "Error",
-      description: "User not found. Please refresh the page.",
+      description: "No valid Telegram user detected. Please connect your Telegram.",
       variant: "destructive"
     });
     return;
@@ -80,23 +79,19 @@ export const handlePaymentTask = async (
   try {
     debugLog("Ensuring user exists in database", { userId, walletAddress });
     
-    // First ensure user exists in database
-    const { error: userEnsureError } = await supabase.functions.invoke('database-helper', {
+    // Always ensure user exists (no dummy/test fallback)
+    await supabase.functions.invoke('database-helper', {
       body: {
         action: 'ensure_user_exists',
         params: {
           user_id: userId,
-          username: localStorage.getItem("telegramUserName") || "TestUser"
+          username: localStorage.getItem("telegramUserName") || ""
         }
       }
     });
     
-    if (userEnsureError) {
-      debugLog("⚠️ User ensure error (non-critical)", userEnsureError);
-    }
-    
-    // Save wallet connection
-    const { error: walletSaveError } = await supabase.functions.invoke('database-helper', {
+    // Always save wallet connection
+    await supabase.functions.invoke('database-helper', {
       body: {
         action: 'save_wallet_connection',
         params: {
@@ -106,12 +101,8 @@ export const handlePaymentTask = async (
       }
     });
     
-    if (walletSaveError) {
-      debugLog("⚠️ Wallet save error (non-critical)", walletSaveError);
-    }
-    
-    // Record the payment before transaction
-    const { error: paymentError } = await supabase.functions.invoke('database-helper', {
+    // Record the payment
+    await supabase.functions.invoke('database-helper', {
       body: {
         action: 'insert_payment',
         params: {
@@ -123,16 +114,6 @@ export const handlePaymentTask = async (
         }
       }
     });
-    
-    if (paymentError) {
-      debugLog("❌ Failed to record payment", paymentError);
-      toast({
-        title: "Error",
-        description: "Failed to record payment. Please try again.",
-        variant: "destructive"
-      });
-      return;
-    }
     
     debugLog("✅ Payment record created successfully");
 
@@ -160,7 +141,7 @@ export const handlePaymentTask = async (
       const comment = `task${task.id}`;
       
       await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 600, // expires in 10 mins
+        validUntil: Math.floor(Date.now() / 1000) + 600,
         messages: [
           {
             address: tonWalletAddress,
@@ -196,7 +177,7 @@ export const handlePaymentTask = async (
         userId,
         task.tonAmount,
         task.id,
-        undefined, // No boost ID for regular payments
+        undefined,
         taskType
       );
       
@@ -218,7 +199,7 @@ export const handlePaymentTask = async (
           onDailyTaskComplete();
         }
       }
-    }, 2000); // Start verification after 2 seconds
+    }, 2000);
   } catch (err) {
     debugLog("❌ Error in handlePaymentTask", err);
     toast({

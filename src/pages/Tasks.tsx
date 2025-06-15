@@ -90,6 +90,9 @@ const Tasks = () => {
     setDailyTaskAvailable(!!data);
   };
 
+  // Payment tasks only available if wallet connected
+  const paymentDisabled = !isConnected || !walletAddress;
+
   return (
     <div className="flex flex-col space-y-6">
       <div className="text-center">
@@ -97,7 +100,7 @@ const Tasks = () => {
         <p className="text-muted-foreground">Complete tasks to earn KFC</p>
       </div>
       
-      {!isConnected && (
+      {paymentDisabled && (
         <div className="bg-amber-100 border-amber-300 border p-4 rounded-md flex flex-col items-center w-full text-amber-800 mb-4 gap-3">
           <div className="flex items-center">
             <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
@@ -145,7 +148,11 @@ const Tasks = () => {
                 task={task}
                 dailyTaskAvailable={dailyTaskAvailable}
                 onCollabComplete={(taskId) => handleCollabTask(taskId, tasks, setTasks, toast)}
-                onPaymentSubmit={(task) => handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus)}
+                onPaymentSubmit={
+                  paymentDisabled
+                    ? undefined
+                    : (task) => handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus)
+                }
                 walletConnected={isConnected}
               />
             ))

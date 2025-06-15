@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,8 +31,8 @@ const TonConnectContext = createContext<TonConnectContextType>({
 
 export const useTonConnect = () => useContext(TonConnectContext);
 
+// ---- NO test/dummy fallback, always use real session ----
 const detectTelegramWebApp = () => {
-  // Only enable Telegram WebApp detection if we're truly inside Telegram
   const storedValue = localStorage.getItem("inTelegramWebApp");
   if (storedValue === "true") {
     return true;
@@ -61,11 +62,9 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   };
 
   useEffect(() => {
-    // No more dev/test fallback - only real connection logic
     if (window._tonConnectUI) {
       setTonConnectUI(window._tonConnectUI);
 
-      // Only set connection if REAL wallet is connected
       if (window._tonConnectUI.connected && window._tonConnectUI.wallet) {
         const address = window._tonConnectUI.wallet.account.address;
         setIsConnected(true);
@@ -98,7 +97,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
           setWalletAddress(address);
           localStorage.setItem("tonWalletAddress", address);
 
-          // Persist wallet to DB for this real user's Telegram ID (as TEXT)
+          // --- On connect, save Telegram ID + Wallet in DB ALWAYS ---
           const userId = localStorage.getItem("telegramUserId");
           if (userId) {
             try {
@@ -114,7 +113,6 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
               if (walletError) {
                 console.error("Error saving wallet connection:", walletError);
               }
-              // Only show wallet connected toast if newly connected
               toast({
                 title: "Wallet Connected",
                 description: "Your TON wallet has been connected successfully.",
@@ -133,7 +131,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         }
       });
 
-      // Restore session only if valid
+      // Restore session if valid
       if (connector.connected && connector.wallet) {
         const address = connector.wallet.account.address;
         setIsConnected(true);
