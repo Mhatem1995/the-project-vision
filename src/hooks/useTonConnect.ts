@@ -1,16 +1,17 @@
+
 import { useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { useEffect } from "react";
 
 /**
- * Accept any 'UQ' address of 40+ base64url chars as "real enough for TON Space" for persistence.
- * (No conversion! Trust TonConnect's output, but basic sanity check.)
+ * Relaxed: Accept any 'UQ' address with 36+ characters after UQ and allow any base64/base64url symbols (including +, /, =, -, _, .)
+ * Trust TonConnect's output, but check only for UQ prefix and likely address length.
  */
 function isLikelyTonspaceUQ(addr: string | null | undefined): boolean {
   return (
     typeof addr === "string" &&
     addr.startsWith("UQ") &&
-    addr.length >= 40 && 
-    /^[a-zA-Z0-9\-\._]+$/.test(addr.slice(2)) // base64 url or legacy
+    addr.length >= 38 && // UQ + at least 36 chars (was 40+)
+    /^[a-zA-Z0-9\-\._\+=\/]+$/.test(addr.slice(2)) // Accept all base64/base64url-safe symbols, +, /, -, _, ., = allowed
   );
 }
 
@@ -43,10 +44,6 @@ export const useTonConnect = (): UseTonConnectReturn => {
     if (walletAddress) {
       localStorage.setItem("tonWalletAddress", walletAddress);
       localStorage.setItem("tonWalletProvider", "telegram-wallet");
-    } else {
-      // Only clear on explicit disconnect, not formatting mismatch
-      // (Otherwise, user will get disconnected after page reload for trivial format changes!)
-      // Don't wipe localStorage if a wallet used to be there
     }
   }, [walletAddress]);
 
