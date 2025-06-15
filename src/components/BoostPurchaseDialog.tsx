@@ -14,7 +14,7 @@ import BoostPaymentVerificationDialog from "./BoostPaymentVerificationDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useTonConnect } from "@/hooks/useTonConnect";
 import { getConnectedWalletAddress } from "@/integrations/ton/TonConnectConfig";
-import { openTonPayment } from "@/utils/tonTransactionUtils";
+import { openTonPayment, RECEIVING_WALLET_ADDRESS } from "@/utils/tonTransactionUtils";
 
 const boostOptions = [
   { multiplier: 2, price: 2, duration: 24 },
@@ -147,7 +147,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
     }
   };
 
-  // Get the real connected wallet address for display
+  // Get the real connected wallet address to check if wallet is connected
   const connectedWalletAddress = getConnectedWalletAddress();
 
   return (
@@ -181,7 +181,7 @@ export default function BoostPurchaseDialog({ open, onOpenChange }: BoostPurchas
           </div>
           {connectedWalletAddress && (
             <div className="text-xs text-muted-foreground mt-2 text-center">
-              <>Send payment to: <span className="font-mono break-all">{connectedWalletAddress}</span></>
+              <>Send payment to: <span className="font-mono break-all">{RECEIVING_WALLET_ADDRESS}</span></>
             </div>
           )}
         </DialogContent>

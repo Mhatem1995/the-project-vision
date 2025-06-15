@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { getConnectedWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
 import { toast } from "@/hooks/use-toast";
@@ -6,6 +7,9 @@ import { toast } from "@/hooks/use-toast";
 const debugLog = (message: string, data?: any) => {
   console.log(`🔍 [TON DEBUG] ${message}`, data || "");
 };
+
+// Use our hardcoded receiving wallet for transactions and export it for use elsewhere
+export const RECEIVING_WALLET_ADDRESS = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
 
 // Verify transaction directly via Supabase function
 export const verifyTonTransaction = async (
@@ -178,7 +182,7 @@ export const openTonPayment = (amount: number, taskId?: string, customComment?: 
   const comment = customComment ?? (taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '');
   
   // Use our hardcoded receiving wallet for transactions
-  const receivingWallet = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
+  const receivingWallet = RECEIVING_WALLET_ADDRESS;
   
   debugLog("Sending transaction from REAL wallet to receiving wallet", {
     fromAddress: realWalletAddress,
