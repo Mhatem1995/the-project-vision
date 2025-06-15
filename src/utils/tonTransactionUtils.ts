@@ -1,6 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { tonWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
+import { getConnectedWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
 import { toast } from "@/hooks/use-toast";
 
 // Debug logging function
@@ -162,11 +162,23 @@ export const openTonPayment = (amount: number, taskId?: string): void => {
     return;
   }
   
+  // Get the real connected wallet address
+  const walletAddress = getConnectedWalletAddress();
+  if (!walletAddress) {
+    debugLog("❌ No real wallet address available");
+    toast({
+      title: "❌ Wallet not connected",
+      description: "Please connect your real TON wallet first.",
+      variant: "destructive"
+    });
+    return;
+  }
+  
   const amountInNano = Math.floor(amount * 1000000000);
   const comment = taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '';
   
-  debugLog("Sending transaction", {
-    address: tonWalletAddress,
+  debugLog("Sending transaction to REAL wallet", {
+    address: walletAddress,
     amount: amountInNano,
     comment,
     tonConnectUIExists: !!tonConnectUI,
@@ -177,13 +189,13 @@ export const openTonPayment = (amount: number, taskId?: string): void => {
     validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
     messages: [
       {
-        address: tonWalletAddress,
+        address: walletAddress, // Send to REAL connected wallet
         amount: amountInNano.toString(),
         payload: comment,
       }
     ]
   }).then(() => {
-    debugLog("✅ Transaction sent successfully");
+    debugLog("✅ Transaction sent successfully to REAL wallet");
     toast({
       title: "📤 Transaction sent",
       description: "Please confirm the transaction in your wallet app.",

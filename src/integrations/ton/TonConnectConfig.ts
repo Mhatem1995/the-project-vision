@@ -1,3 +1,4 @@
+
 import { getHttpEndpoint } from '@orbs-network/ton-access';
 
 // App details for TON Connect - updated with proper manifest
@@ -27,8 +28,10 @@ export const getTonNetwork = async () => {
   }
 };
 
-// TON wallet address used for payments - set to your TonKeeper wallet
-export const tonWalletAddress = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
+// Get the real connected wallet address from localStorage
+export const getConnectedWalletAddress = (): string | null => {
+  return localStorage.getItem("tonWalletAddress");
+};
 
 // Constants for API access
 export const TON_API_ENDPOINTS = {
@@ -98,8 +101,8 @@ export const isValidTonAddress = (address: string): boolean => {
   console.log("[TON-VALIDATION] Validating address:", cleanAddress);
   console.log("[TON-VALIDATION] Length:", cleanAddress.length);
   
-  // Check for user-friendly format (UQ/EQ + base64)
-  const userFriendlyPattern = /^(UQ|EQ)[A-Za-z0-9_-]{46}$/;
+  // Check for user-friendly format (UQ/EQ + base64) - more flexible length check
+  const userFriendlyPattern = /^(UQ|EQ)[A-Za-z0-9_-]{44,48}$/;
   
   // Check for raw format (0: + 64 hex characters)
   const rawPattern = /^0:[a-fA-F0-9]{64}$/;

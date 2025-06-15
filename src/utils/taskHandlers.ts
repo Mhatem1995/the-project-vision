@@ -2,7 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
 import { pollForTransactionVerification } from "@/utils/tonTransactionUtils";
-import { tonWalletAddress } from "@/integrations/ton/TonConnectConfig";
+import { getConnectedWalletAddress } from "@/integrations/ton/TonConnectConfig";
 
 const debugLog = (message: string, data?: any) => {
   console.log(`🔍 [TASK DEBUG] ${message}`, data || "");
@@ -63,18 +63,19 @@ export const handlePaymentTask = async (
     dailyTaskAvailable 
   });
   
-  const walletAddress = localStorage.getItem("tonWalletAddress");
+  // Get the real connected wallet address
+  const walletAddress = getConnectedWalletAddress();
   if (!walletAddress) {
-    debugLog("❌ No wallet address found");
+    debugLog("❌ No real wallet address found");
     toast({
       title: "Wallet Not Connected",
-      description: "Please connect your TON wallet first to complete this task.",
+      description: "Please connect your real TON wallet first to complete this task.",
       variant: "destructive"
     });
     return;
   }
 
-  debugLog("Using wallet address", walletAddress);
+  debugLog("Using REAL connected wallet address", walletAddress);
 
   if (task.isDaily && !dailyTaskAvailable) {
     debugLog("❌ Daily task not available");
@@ -107,7 +108,7 @@ export const handlePaymentTask = async (
     
     debugLog("✅ User ensured in database", userData);
     
-    // Save wallet connection
+    // Save wallet connection with REAL wallet address
     const { data: walletData, error: walletError } = await supabase.functions.invoke('database-helper', {
       body: {
         action: 'save_wallet_connection',
@@ -121,10 +122,10 @@ export const handlePaymentTask = async (
     if (walletError) {
       debugLog("❌ Error saving wallet connection", walletError);
     } else {
-      debugLog("✅ Wallet connection saved", walletData);
+      debugLog("✅ Real wallet connection saved", walletData);
     }
     
-    // Record the payment attempt
+    // Record the payment attempt with REAL wallet address
     const { data: paymentData, error: paymentError } = await supabase.functions.invoke('database-helper', {
       body: {
         action: 'insert_payment',
@@ -141,7 +142,7 @@ export const handlePaymentTask = async (
     if (paymentError) {
       debugLog("❌ Error recording payment", paymentError);
     } else {
-      debugLog("✅ Payment record created", paymentData);
+      debugLog("✅ Payment record created with REAL wallet", paymentData);
     }
 
     // Get TonConnect instance
@@ -160,15 +161,15 @@ export const handlePaymentTask = async (
       return;
     }
 
-    // Send transaction using TonConnect
+    // Send transaction using TonConnect to REAL wallet address
     try {
-      debugLog(`Sending TON payment for ${task.tonAmount} TON using TonConnect`);
+      debugLog(`Sending TON payment for ${task.tonAmount} TON to REAL wallet using TonConnect`);
       
       const amountInNano = Math.floor(task.tonAmount * 1000000000);
       const comment = task.isDaily ? 'daily_ton_payment' : `task${task.id}`;
       
       debugLog("Transaction details", {
-        address: tonWalletAddress,
+        address: walletAddress, // Using REAL wallet address
         amountInNano,
         comment,
         originalAmount: task.tonAmount
@@ -178,18 +179,18 @@ export const handlePaymentTask = async (
         validUntil: Math.floor(Date.now() / 1000) + 600,
         messages: [
           {
-            address: tonWalletAddress,
+            address: walletAddress, // Send to REAL connected wallet
             amount: amountInNano.toString(),
             payload: comment,
           }
         ]
       });
       
-      debugLog("✅ TonConnect transaction initiated successfully");
+      debugLog("✅ TonConnect transaction initiated successfully to REAL wallet");
       
       toast({
         title: "Payment Initiated",
-        description: "Transaction sent! We're verifying your payment...",
+        description: "Transaction sent to your real wallet! We're verifying your payment...",
       });
       
     } catch (txError) {
@@ -205,11 +206,12 @@ export const handlePaymentTask = async (
     // Start transaction verification
     setTimeout(async () => {
       const taskType = task.isDaily ? "daily_ton_payment" : undefined;
-      debugLog("Starting transaction verification", { 
+      debugLog("Starting transaction verification for REAL wallet", { 
         taskId: task.id, 
         taskType, 
         userId,
-        amount: task.tonAmount 
+        amount: task.tonAmount,
+        realWallet: walletAddress
       });
       
       const successful = await pollForTransactionVerification(
