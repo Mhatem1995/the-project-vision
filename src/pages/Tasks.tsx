@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertCircle, Wallet } from "lucide-react";
@@ -12,7 +11,7 @@ import type { Task } from "@/types/task";
 
 const Tasks = () => {
   const { toast } = useToast();
-  const { isConnected, walletAddress, connect } = useTonConnect();
+  const { isConnected, walletAddress, connect, tonConnectUI } = useTonConnect();
   const [tasks, setTasks] = useState<Task[]>([
     {
       id: "1",
@@ -142,7 +141,9 @@ const Tasks = () => {
                 task={task}
                 dailyTaskAvailable={dailyTaskAvailable}
                 onCollabComplete={(taskId) => handleCollabTask(taskId, tasks, setTasks, toast)}
-                onPaymentSubmit={(task) => handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus)}
+                onPaymentSubmit={(task) =>
+                  handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus, tonConnectUI)
+                }
                 walletConnected={isConnected}
               />
             ))
@@ -161,7 +162,8 @@ const Tasks = () => {
                 onPaymentSubmit={
                   !isConnected
                     ? undefined
-                    : (task) => handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus)
+                    : (task) =>
+                      handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus, tonConnectUI)
                 }
                 walletConnected={isConnected}
               />
