@@ -33,7 +33,7 @@ const Mining = () => {
       walletAddress,
       addressLength: walletAddress?.length,
       isValidFormat: walletAddress
-        ? /^(UQ|EQ|kq|0:|-/i.test(walletAddress)
+        ? /^(UQ|EQ|kq|0:|-)/i.test(walletAddress)
         : false
     });
   }, [isConnected, walletAddress]);
