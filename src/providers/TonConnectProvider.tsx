@@ -31,7 +31,6 @@ const TonConnectContext = createContext<TonConnectContextType>({
 
 export const useTonConnect = () => useContext(TonConnectContext);
 
-// ---- NO test/dummy fallback, always use real session ----
 const detectTelegramWebApp = () => {
   const storedValue = localStorage.getItem("inTelegramWebApp");
   if (storedValue === "true") {
@@ -58,7 +57,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     setIsConnected(false);
     setWalletAddress(null);
     localStorage.removeItem("tonWalletAddress");
-    console.log("Cleared wallet connection state");
+    console.log("[TON-DEBUG] Cleared wallet connection state");
   };
 
   useEffect(() => {
@@ -89,7 +88,6 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
       window._tonConnectUI = connector;
       setTonConnectUI(connector);
 
-      // Listen to wallet status changes
       const unsubscribe = connector.onStatusChange(async (wallet) => {
         if (wallet) {
           setIsConnected(true);
@@ -97,11 +95,15 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
           setWalletAddress(address);
           localStorage.setItem("tonWalletAddress", address);
 
-          // --- On connect, save Telegram ID + Wallet in DB ALWAYS ---
+          console.log("[TON-DEBUG] Wallet connected:", address);
+
+          // Save wallet connection in database
           const userId = localStorage.getItem("telegramUserId");
           if (userId) {
             try {
-              const { error: walletError } = await supabase.functions.invoke('database-helper', {
+              console.log("[TON-DEBUG] Saving wallet connection for user:", userId);
+              
+              const { data, error } = await supabase.functions.invoke('database-helper', {
                 body: {
                   action: 'save_wallet_connection',
                   params: {
@@ -110,15 +112,19 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
                   }
                 }
               });
-              if (walletError) {
-                console.error("Error saving wallet connection:", walletError);
+              
+              if (error) {
+                console.error("[TON-DEBUG] Error saving wallet connection:", error);
+              } else {
+                console.log("[TON-DEBUG] Wallet connection saved successfully:", data);
               }
+              
               toast({
                 title: "Wallet Connected",
                 description: "Your TON wallet has been connected successfully.",
               });
             } catch (err) {
-              console.error("Error in wallet connection process:", err);
+              console.error("[TON-DEBUG] Error in wallet connection process:", err);
             }
           }
         } else {
@@ -145,7 +151,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
         unsubscribe();
       };
     } catch (error) {
-      console.error("Error initializing TonConnect:", error);
+      console.error("[TON-DEBUG] Error initializing TonConnect:", error);
       clearWalletState();
     }
   }, [toast]);
@@ -156,6 +162,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
 
   const connect = () => {
     if (tonConnectUI) {
+      console.log("[TON-DEBUG] Opening wallet connection modal");
       tonConnectUI.openModal();
     } else {
       toast({
@@ -167,6 +174,7 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
   };
 
   const disconnect = () => {
+    console.log("[TON-DEBUG] Disconnecting wallet");
     if (tonConnectUI) {
       tonConnectUI.disconnect();
     }

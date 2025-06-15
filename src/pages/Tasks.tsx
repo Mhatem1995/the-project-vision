@@ -82,16 +82,26 @@ const Tasks = () => {
     const userId = localStorage.getItem("telegramUserId");
     if (!userId) return;
 
+    console.log("[TASKS-DEBUG] Checking daily task status for user:", userId);
+    
     const { data, error } = await supabase.rpc('can_do_daily_task', {
       p_user_id: userId,
       p_task_type: 'daily_ton_payment'
     });
 
+    if (error) {
+      console.error("[TASKS-DEBUG] Error checking daily task:", error);
+    } else {
+      console.log("[TASKS-DEBUG] Daily task available:", data);
+    }
+
     setDailyTaskAvailable(!!data);
   };
 
-  // Payment tasks only available if wallet connected
-  const paymentDisabled = !isConnected || !walletAddress;
+  const userId = localStorage.getItem("telegramUserId");
+  console.log("[TASKS-DEBUG] Current user ID:", userId);
+  console.log("[TASKS-DEBUG] Wallet connected:", isConnected);
+  console.log("[TASKS-DEBUG] Wallet address:", walletAddress);
 
   return (
     <div className="flex flex-col space-y-6">
@@ -100,7 +110,14 @@ const Tasks = () => {
         <p className="text-muted-foreground">Complete tasks to earn KFC</p>
       </div>
       
-      {paymentDisabled && (
+      {/* User Status Debug Info */}
+      <div className="bg-blue-50 border border-blue-200 p-3 rounded-md text-sm">
+        <p><strong>User ID:</strong> {userId || "Not connected"}</p>
+        <p><strong>Wallet:</strong> {walletAddress || "Not connected"}</p>
+        <p><strong>Status:</strong> {isConnected ? "Connected" : "Disconnected"}</p>
+      </div>
+      
+      {!isConnected && (
         <div className="bg-amber-100 border-amber-300 border p-4 rounded-md flex flex-col items-center w-full text-amber-800 mb-4 gap-3">
           <div className="flex items-center">
             <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
@@ -149,7 +166,7 @@ const Tasks = () => {
                 dailyTaskAvailable={dailyTaskAvailable}
                 onCollabComplete={(taskId) => handleCollabTask(taskId, tasks, setTasks, toast)}
                 onPaymentSubmit={
-                  paymentDisabled
+                  !isConnected
                     ? undefined
                     : (task) => handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus)
                 }

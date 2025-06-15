@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
 
-// Force all Telegram detection/storage to be 100% accurate, no dummy/test fallback!
 declare global {
   interface Window {
     Telegram?: {
@@ -60,7 +59,7 @@ const TelegramInitializer = () => {
           lastName = tgUser.last_name || "";
           languageCode = tgUser.language_code || "";
         } else {
-          // For local dev/test ONLY, prompt and require prefix "@"
+          // For development only - use real format
           userId = localStorage.getItem("telegramUserId");
           if (!userId) {
             userId = prompt("Enter your Telegram ID (include the @):") || "";
@@ -68,18 +67,20 @@ const TelegramInitializer = () => {
           if (userId && !userId.startsWith("@")) {
             userId = "@" + userId;
           }
-          telegramUserName = telegramUserName || localStorage.getItem("telegramUserName") || "";
+          telegramUserName = localStorage.getItem("telegramUserName") || userId;
         }
 
-        // Store in localStorage, always prefixed with "@"
+        // Store in localStorage with @ prefix
         localStorage.setItem("telegramUserId", userId ?? "");
         localStorage.setItem("telegramUserName", telegramUserName ?? "");
       }
 
-      // Always store user in DB as real session, no dummy path
+      // Store user in database - REAL session only
       try {
         if (userId) {
-          await supabase.functions.invoke("database-helper", {
+          console.log("[TG-DEBUG] Ensuring user exists:", userId);
+          
+          const { data, error } = await supabase.functions.invoke("database-helper", {
             body: {
               action: "ensure_user_exists",
               params: {
@@ -91,10 +92,17 @@ const TelegramInitializer = () => {
               }
             }
           });
+          
+          if (error) {
+            console.error("[TG-DEBUG] Error ensuring user exists:", error);
+          } else {
+            console.log("[TG-DEBUG] User ensured successfully:", data);
+          }
         }
       } catch (err) {
         console.error("[TG-DEBUG] Database operation error:", err);
       }
+      
       setLoading(false);
     }
     init();

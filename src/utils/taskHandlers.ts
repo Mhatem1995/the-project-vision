@@ -1,9 +1,9 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
 import { pollForTransactionVerification } from "@/utils/tonTransactionUtils";
 import { tonWalletAddress } from "@/integrations/ton/TonConnectConfig";
 
-// Debug logging function
 const debugLog = (message: string, data?: any) => {
   console.log(`🔍 [TASK DEBUG] ${message}`, data || "");
 };
@@ -14,6 +14,8 @@ export const handleCollabTask = (
   setTasks: (tasks: Task[]) => void,
   toast: any
 ) => {
+  debugLog("Handling collaboration task", { taskId });
+  
   setTasks(tasks.map(task => 
     task.id === taskId ? {...task, completed: true} : task
   ));
@@ -37,25 +39,33 @@ export const handlePaymentTask = async (
   toast: any,
   onDailyTaskComplete?: () => void
 ) => {
-  if (!task.tonAmount) return;
+  if (!task.tonAmount) {
+    debugLog("❌ No TON amount specified for task");
+    return;
+  }
 
   const userId = localStorage.getItem("telegramUserId");
   if (!userId || !userId.startsWith("@")) {
-    debugLog("❌ No valid Telegram user ID");
+    debugLog("❌ No valid Telegram user ID found", { userId });
     toast({
       title: "Error",
-      description: "No valid Telegram user detected. Please connect your Telegram.",
+      description: "No valid Telegram user detected. Please refresh and try again.",
       variant: "destructive"
     });
     return;
   }
   
-  debugLog("Processing payment task", { userId, taskId: task.id, amount: task.tonAmount });
+  debugLog("Processing payment task", { 
+    userId, 
+    taskId: task.id, 
+    amount: task.tonAmount,
+    isDaily: task.isDaily,
+    dailyTaskAvailable 
+  });
   
-  // Check if user has connected wallet
   const walletAddress = localStorage.getItem("tonWalletAddress");
   if (!walletAddress) {
-    debugLog("❌ No wallet address found in localStorage");
+    debugLog("❌ No wallet address found");
     toast({
       title: "Wallet Not Connected",
       description: "Please connect your TON wallet first to complete this task.",
@@ -79,8 +89,8 @@ export const handlePaymentTask = async (
   try {
     debugLog("Ensuring user exists in database", { userId, walletAddress });
     
-    // Always ensure user exists (no dummy/test fallback)
-    await supabase.functions.invoke('database-helper', {
+    // Ensure user exists
+    const { data: userData, error: userError } = await supabase.functions.invoke('database-helper', {
       body: {
         action: 'ensure_user_exists',
         params: {
@@ -90,8 +100,15 @@ export const handlePaymentTask = async (
       }
     });
     
-    // Always save wallet connection
-    await supabase.functions.invoke('database-helper', {
+    if (userError) {
+      debugLog("❌ Error ensuring user exists", userError);
+      throw new Error(`Failed to ensure user exists: ${userError.message}`);
+    }
+    
+    debugLog("✅ User ensured in database", userData);
+    
+    // Save wallet connection
+    const { data: walletData, error: walletError } = await supabase.functions.invoke('database-helper', {
       body: {
         action: 'save_wallet_connection',
         params: {
@@ -101,21 +118,31 @@ export const handlePaymentTask = async (
       }
     });
     
-    // Record the payment
-    await supabase.functions.invoke('database-helper', {
+    if (walletError) {
+      debugLog("❌ Error saving wallet connection", walletError);
+    } else {
+      debugLog("✅ Wallet connection saved", walletData);
+    }
+    
+    // Record the payment attempt
+    const { data: paymentData, error: paymentError } = await supabase.functions.invoke('database-helper', {
       body: {
         action: 'insert_payment',
         params: {
           telegram_id: userId,
           wallet_address: walletAddress,
           amount_paid: task.tonAmount,
-          task_type: task.id,
+          task_type: task.isDaily ? 'daily_ton_payment' : task.id,
           transaction_hash: null
         }
       }
     });
     
-    debugLog("✅ Payment record created successfully");
+    if (paymentError) {
+      debugLog("❌ Error recording payment", paymentError);
+    } else {
+      debugLog("✅ Payment record created", paymentData);
+    }
 
     // Get TonConnect instance
     const tonConnectUI = window._tonConnectUI;
@@ -138,7 +165,14 @@ export const handlePaymentTask = async (
       debugLog(`Sending TON payment for ${task.tonAmount} TON using TonConnect`);
       
       const amountInNano = Math.floor(task.tonAmount * 1000000000);
-      const comment = `task${task.id}`;
+      const comment = task.isDaily ? 'daily_ton_payment' : `task${task.id}`;
+      
+      debugLog("Transaction details", {
+        address: tonWalletAddress,
+        amountInNano,
+        comment,
+        originalAmount: task.tonAmount
+      });
       
       await tonConnectUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 600,
@@ -168,10 +202,15 @@ export const handlePaymentTask = async (
       return;
     }
 
-    // Start transaction verification immediately
+    // Start transaction verification
     setTimeout(async () => {
       const taskType = task.isDaily ? "daily_ton_payment" : undefined;
-      debugLog("Starting transaction verification", { taskId: task.id, taskType, userId });
+      debugLog("Starting transaction verification", { 
+        taskId: task.id, 
+        taskType, 
+        userId,
+        amount: task.tonAmount 
+      });
       
       const successful = await pollForTransactionVerification(
         userId,
@@ -182,7 +221,6 @@ export const handlePaymentTask = async (
       );
       
       if (successful) {
-        // Special handling for fortune cookie task
         if (task.id === "6") {
           toast({
             title: "Fortune Cookies Added!",
@@ -199,7 +237,8 @@ export const handlePaymentTask = async (
           onDailyTaskComplete();
         }
       }
-    }, 2000);
+    }, 3000);
+    
   } catch (err) {
     debugLog("❌ Error in handlePaymentTask", err);
     toast({
