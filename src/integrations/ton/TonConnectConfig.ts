@@ -44,11 +44,38 @@ export const TRANSACTION_VERIFICATION = {
   EXPIRATION_TIME_MS: 30 * 60 * 1000, // 30 minutes in milliseconds
 };
 
-// Validate TON wallet address format
+// Updated TON wallet address validation - more flexible for real addresses
 export const isValidTonAddress = (address: string): boolean => {
-  // TON addresses should be 48 characters long and start with UQ or EQ
-  const tonAddressRegex = /^(UQ|EQ)[A-Za-z0-9_-]{46}$/;
-  return tonAddressRegex.test(address);
+  if (!address || typeof address !== 'string') {
+    return false;
+  }
+  
+  // Remove any whitespace
+  const cleanAddress = address.trim();
+  
+  // TON addresses can be in different formats:
+  // 1. Raw format: 48 characters starting with UQ or EQ
+  // 2. User-friendly format: can be longer and contain different characters
+  // 3. Bounceable/non-bounceable variants
+  
+  // Check for basic TON address patterns
+  const basicTonPattern = /^(UQ|EQ|kQ)[A-Za-z0-9_-]{44,48}$/;
+  const extendedTonPattern = /^[A-Za-z0-9_-]{48,}$/;
+  
+  // Log for debugging
+  console.log("[TON-VALIDATION] Validating address:", cleanAddress);
+  console.log("[TON-VALIDATION] Length:", cleanAddress.length);
+  console.log("[TON-VALIDATION] Basic pattern match:", basicTonPattern.test(cleanAddress));
+  console.log("[TON-VALIDATION] Extended pattern match:", extendedTonPattern.test(cleanAddress));
+  
+  // Accept if it matches either pattern and has reasonable length
+  const isValid = (basicTonPattern.test(cleanAddress) || extendedTonPattern.test(cleanAddress)) && 
+                  cleanAddress.length >= 44 && 
+                  cleanAddress.length <= 55;
+  
+  console.log("[TON-VALIDATION] Final validation result:", isValid);
+  
+  return isValid;
 };
 
 // Get preferred wallets for TON Space
