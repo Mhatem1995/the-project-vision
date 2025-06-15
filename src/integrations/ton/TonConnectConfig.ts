@@ -31,13 +31,15 @@ export const getConnectedWalletAddress = (): string | null => {
   if (typeof window === 'undefined') {
     return null;
   }
-  const savedAddress = localStorage.getItem("tonWalletAddress");
-  if (savedAddress) {
-    console.log("[TON-CONFIG] Found wallet address in localStorage:", savedAddress);
-    return savedAddress;
+  const savedProvider = localStorage.getItem("tonWalletProvider");
+  if (savedProvider === "telegram-wallet") {
+    const savedAddress = localStorage.getItem("tonWalletAddress");
+    if (savedAddress) {
+      console.log("[TON-CONFIG] Found Telegram wallet address in localStorage:", savedAddress);
+      return savedAddress;
+    }
   }
-  
-  console.log("[TON-CONFIG] No connected wallet found in localStorage.");
+  console.log("[TON-CONFIG] No connected Telegram wallet found in localStorage.");
   return null;
 };
 
@@ -56,12 +58,6 @@ export const TRANSACTION_VERIFICATION = {
 
 // Get preferred wallets for TON Space
 export const getPreferredWallets = () => {
-  return [
-    'tonkeeper', 
-    'telegram-wallet',
-    'tonhub',
-    'dewallet',
-    'xtonwallet',
-    'ton-wallet'
-  ];
+  // ONLY Telegram Wallet allowed!
+  return ['telegram-wallet'];
 };

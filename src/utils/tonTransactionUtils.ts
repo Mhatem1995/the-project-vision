@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { getConnectedWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
 import { toast } from "@/hooks/use-toast";
@@ -8,8 +7,8 @@ const debugLog = (message: string, data?: any) => {
   console.log(`🔍 [TON DEBUG] ${message}`, data || "");
 };
 
-// Use our hardcoded receiving wallet for transactions and export it for use elsewhere
-export const RECEIVING_WALLET_ADDRESS = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
+// Use your Tonkeeper receiving wallet for all payments
+export const RECEIVING_WALLET_ADDRESS = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C"; // <-- YOUR TONKEEPER WALLET
 
 // Verify transaction directly via Supabase function
 export const verifyTonTransaction = async (
@@ -164,27 +163,25 @@ export const openTonPayment = (amount: number, taskId?: string, customComment?: 
     });
     return;
   }
-  
-  // Get the REAL connected wallet address from TonConnect
-  const realWalletAddress = getConnectedWalletAddress();
-  if (!realWalletAddress) {
-    debugLog("❌ No REAL wallet address available");
+
+  // ALWAYS get the Telegram Wallet address only from localStorage
+  const realWalletAddress = localStorage.getItem("tonWalletAddress");
+  const walletProvider = localStorage.getItem("tonWalletProvider");
+  if (!realWalletAddress || walletProvider !== "telegram-wallet") {
+    debugLog("❌ Only Telegram Wallet allowed!");
     toast({
-      title: "❌ Wallet not connected",
-      description: "Please connect your TON wallet first.",
+      title: "Telegram Wallet Required",
+      description: "You must connect your Telegram Wallet to make payments.",
       variant: "destructive"
     });
     return;
   }
   
   const amountInNano = Math.floor(amount * 1000000000);
-  // Use customComment if provided, otherwise generate from taskId
   const comment = customComment ?? (taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '');
+  const receivingWallet = RECEIVING_WALLET_ADDRESS; // Always your Tonkeeper wallet
   
-  // Use our hardcoded receiving wallet for transactions
-  const receivingWallet = RECEIVING_WALLET_ADDRESS;
-  
-  debugLog("Sending transaction from REAL wallet to receiving wallet", {
+  debugLog("Sending transaction from Telegram Wallet to receiving wallet", {
     fromAddress: realWalletAddress,
     toAddress: receivingWallet,
     amount: amountInNano,
@@ -197,16 +194,16 @@ export const openTonPayment = (amount: number, taskId?: string, customComment?: 
     validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
     messages: [
       {
-        address: receivingWallet, // Send to our receiving wallet
+        address: receivingWallet, // Always send to Tonkeeper wallet
         amount: amountInNano.toString(),
         payload: comment,
       }
     ]
   }).then(() => {
-    debugLog("✅ Transaction sent successfully from REAL wallet");
+    debugLog("✅ Transaction sent successfully from Telegram wallet");
     toast({
       title: "📤 Transaction sent",
-      description: "Please confirm the transaction in your wallet app.",
+      description: "Please confirm the transaction in your Telegram Wallet.",
     });
   }).catch((error) => {
     debugLog("❌ Transaction failed", error);

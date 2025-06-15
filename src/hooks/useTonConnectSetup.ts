@@ -1,19 +1,23 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
-import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
-import { detectTelegramWebApp, saveRealWalletAddress } from "@/utils/tonWalletUtils";
+import { tonConnectOptions, getPreferredWallets } from "@/integrations/ton/TonConnectConfig";
+import { detectTelegramWebApp } from "@/utils/tonWalletUtils";
 import { supabase } from "@/integrations/supabase/client";
 
-// Utility: always convert raw address to user-friendly (UQ.../EQ...) if needed
+// Only allow Telegram Wallet: wallet id for TonConnect is 'telegram-wallet'
+const TELEGRAM_WALLET_ID = 'telegram-wallet';
+
+// Utility to verify address is in user-friendly form (UQ/EQ) or raw (0:) format
+const isUserFriendly = (address: string): boolean =>
+  address && (address.startsWith("UQ") || address.startsWith("EQ"));
+
+// Utility: convert raw (0:...) to user-friendly format if needed (naive fallback)
 const toUserFriendly = (address: string): string => {
   if (!address) return "";
   if (address.startsWith("0:")) {
-    // Simple raw to user-friendly: use EQ prefix (if mainnet), base64 encode the bytes
-    // (In production, use TON libraries to handle edge cases)
-    // Here, fallback: just return as-is, but warn in log.
-    console.warn("[TON-CONVERT] Raw address shown, needs conversion:", address);
-    return address; // Could use ton-core to properly convert, but keep minimal for now.
+    // Fallback (should not happen with Telegram Wallet)
+    return address;
   }
   return address;
 };
@@ -30,103 +34,117 @@ export const useTonConnectSetup = (toast: any) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
 
+  // On mount: restore wallet if already in localStorage and if it's Telegram Wallet
   useEffect(() => {
+    const savedWalletProvider = localStorage.getItem("tonWalletProvider");
     const savedAddress = localStorage.getItem("tonWalletAddress");
-    if (savedAddress) {
-      // Always display in user-friendly format
-      setWalletAddress(toUserFriendly(savedAddress));
+
+    if (
+      savedWalletProvider === TELEGRAM_WALLET_ID &&
+      savedAddress &&
+      isUserFriendly(savedAddress)
+    ) {
+      setWalletAddress(savedAddress);
       setIsConnected(true);
-      console.log("[TON-INIT-RESTORE] Restored wallet from localStorage:", savedAddress);
-    }
-  }, []); // Only on mount
-
-  const handleWalletStatusChange = useCallback(async (wallet: any) => {
-    console.log("[TON-STATUS] 🔄 Wallet status changed:", wallet);
-
-    if (wallet && wallet.account && wallet.account.address) {
-      let realAddress = wallet.account.address;
-      // Always convert to user-friendly format (if in raw format)
-      realAddress = toUserFriendly(realAddress);
-
-      if (!realAddress || realAddress.length < 20) {
-        console.error("[TON-STATUS] 🛑 Invalid or demo wallet address:", realAddress);
-        toast?.({
-          title: "Wallet Error",
-          description: "Wallet address is invalid, please reconnect your TON wallet.",
-          variant: "destructive"
-        });
-        // Clear everything except existing state
-        setIsConnected(false);
-        setWalletAddress(null);
-        localStorage.removeItem("tonWalletAddress");
-        return;
-      }
-
-      console.log("[TON-STATUS] ✅ REAL wallet connected, SAVING:", realAddress);
-
-      setIsConnected(true);
-      setWalletAddress(realAddress);
-
-      // Save to localStorage (user-friendly)
-      localStorage.setItem("tonWalletAddress", realAddress);
-
-      // Save to Supabase wallets table (upsert)
-      const userId = localStorage.getItem("telegramUserId");
-      if (userId && realAddress) {
-        await supabase.from("wallets").upsert({
-          telegram_id: userId,
-          wallet_address: realAddress
-        });
-      }
-    } else if (wallet === null) {
-      console.log("[TON-STATUS] ❌ Wallet disconnected, clearing local storage and state.");
-      setIsConnected(false);
+      console.log("[TON-INIT-RESTORE] Telegram Wallet restored from localStorage:", savedAddress);
+    } else {
       setWalletAddress(null);
+      setIsConnected(false);
       localStorage.removeItem("tonWalletAddress");
+      localStorage.removeItem("tonWalletProvider");
     }
-  }, [toast]);
+  }, []);
 
+  // Only allow Telegram Wallet in the connect modal
   useEffect(() => {
-    console.log("[TON-INIT] 🚀 Initializing TonConnect setup");
-
     const isTgWebApp = detectTelegramWebApp();
     setIsTelegramWebApp(isTgWebApp);
 
-    const connector = window._tonConnectUI ?? new TonConnectUI({
-      manifestUrl: tonConnectOptions.manifestUrl,
-    });
+    let connector: TonConnectUI;
 
     if (!window._tonConnectUI) {
+      connector = new TonConnectUI({
+        manifestUrl: tonConnectOptions.manifestUrl,
+        // Force only Telegram Wallet in the selection list
+        uiPreferences: {
+          wallets: [TELEGRAM_WALLET_ID],
+          selectedWallet: TELEGRAM_WALLET_ID
+        }
+      });
       window._tonConnectUI = connector;
-      console.log("[TON-INIT] New TonConnect instance created and assigned to window.");
+    } else {
+      connector = window._tonConnectUI;
     }
 
     setTonConnectUI(connector);
 
-    const unsubscribe = connector.onStatusChange(handleWalletStatusChange);
+    // Listen only for Telegram Wallet
+    const unsubscribe = connector.onStatusChange(async (wallet: any) => {
+      if (
+        wallet &&
+        wallet.account &&
+        wallet.account.address &&
+        wallet.device.appName.toLowerCase().includes("telegram")
+      ) {
+        const address = wallet.account.address;
+        // Only allow user-friendly addresses
+        if (!isUserFriendly(address)) {
+          toast?.({
+            title: "Wallet Error",
+            description: "Please connect your Telegram Wallet. Only Telegram Wallet is supported.",
+            variant: "destructive"
+          });
+          setIsConnected(false);
+          setWalletAddress(null);
+          localStorage.removeItem("tonWalletAddress");
+          localStorage.removeItem("tonWalletProvider");
+          return;
+        }
 
-    const timer = setTimeout(() => {
-      if (connector.connected && connector.wallet) {
-        console.log("[TON-INIT] Restored connection found. Manually triggering status handler to sync state.");
-        handleWalletStatusChange(connector.wallet);
+        setIsConnected(true);
+        setWalletAddress(address);
+        localStorage.setItem("tonWalletAddress", address);
+        localStorage.setItem("tonWalletProvider", TELEGRAM_WALLET_ID);
+
+        // Save to Supabase wallets table
+        const userId = localStorage.getItem("telegramUserId");
+        if (userId) {
+          await supabase.from("wallets").upsert({
+            telegram_id: userId,
+            wallet_address: address
+          });
+        }
       } else {
-        console.log("[TON-INIT] No restored connection found after timeout.");
+        setIsConnected(false);
+        setWalletAddress(null);
+        localStorage.removeItem("tonWalletAddress");
+        localStorage.removeItem("tonWalletProvider");
+      }
+    });
+
+    // If wallet restored but NOT Telegram Wallet, forcibly disconnect
+    setTimeout(() => {
+      const wallet = connector.wallet;
+      if (
+        wallet &&
+        wallet.device.appName.toLowerCase() !== "telegram"
+      ) {
+        connector.disconnect();
       }
     }, 500);
 
     return () => {
-      console.log("[TON-CLEANUP] Clearing timer and unsubscribing from status changes.");
-      clearTimeout(timer);
       unsubscribe();
     };
-  }, [toast, handleWalletStatusChange]);
+  }, [toast]);
 
   const connect = () => {
     if (tonConnectUI) {
-      console.log("[TON-CONNECT] Opening wallet modal");
-      tonConnectUI.openModal();
+      // Show only Telegram Wallet option
+      tonConnectUI.openModal({
+        wallets: [TELEGRAM_WALLET_ID]
+      });
     } else {
-      console.error("[TON-CONNECT] TonConnect UI not ready");
       toast({
         title: "Connection Error",
         description: "Wallet service not ready. Please refresh and try again.",
@@ -136,13 +154,13 @@ export const useTonConnectSetup = (toast: any) => {
   };
 
   const disconnect = () => {
-    console.log("[TON-DISCONNECT] Disconnecting wallet and clearing data");
     if (tonConnectUI) {
       tonConnectUI.disconnect();
     }
     setIsConnected(false);
     setWalletAddress(null);
     localStorage.removeItem("tonWalletAddress");
+    localStorage.removeItem("tonWalletProvider");
   };
 
   return {
