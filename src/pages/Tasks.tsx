@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertCircle, Wallet } from "lucide-react";
@@ -108,13 +107,6 @@ const Tasks = () => {
       <div className="text-center">
         <h1 className="text-3xl font-bold mb-2">Tasks</h1>
         <p className="text-muted-foreground">Complete tasks to earn KFC</p>
-      </div>
-      
-      {/* User Status Debug Info */}
-      <div className="bg-blue-50 border border-blue-200 p-3 rounded-md text-sm">
-        <p><strong>User ID:</strong> {userId || "Not connected"}</p>
-        <p><strong>Wallet:</strong> {walletAddress || "Not connected"}</p>
-        <p><strong>Status:</strong> {isConnected ? "Connected" : "Disconnected"}</p>
       </div>
       
       {!isConnected && (
