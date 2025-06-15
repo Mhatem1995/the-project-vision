@@ -1,7 +1,3 @@
-
-import { Buffer } from "buffer";
-window.Buffer = Buffer;
-
 import { useEffect, useState } from "react";
 import LoadingSpinner from "./LoadingSpinner";
 import { supabase } from "@/integrations/supabase/client";
