@@ -1,17 +1,24 @@
 
-import { useToast } from "@/hooks/use-toast";
-import { TonConnectContext } from "@/contexts/TonConnectContext";
-import { useTonConnectSetup } from "@/hooks/useTonConnectSetup";
+import { TonConnectUIProvider } from "@tonconnect/ui-react";
+import { createContext, useContext } from "react";
 
-export const TonConnectProvider = ({ children }: { children: React.ReactNode }) => {
-  const { toast } = useToast();
-  const tonConnectState = useTonConnectSetup(toast);
+export const TonConnectContext = createContext(null);
 
-  return (
-    <TonConnectContext.Provider value={tonConnectState}>
-      {children}
-    </TonConnectContext.Provider>
-  );
-};
+export const TonConnectProvider = ({ children }: { children: React.ReactNode }) => (
+  <TonConnectUIProvider 
+    manifestUrl="https://wiliamdrop.netlify.app/tonconnect-manifest.json"
+    walletsListConfiguration={{
+      includeWallets: [
+        { 
+          appName: "telegram",
+          name: "Telegram Wallet",
+          bridgeUrl: "https://bridge.tonapi.io/bridge"
+        }
+      ]
+    }}
+  >
+    {children}
+  </TonConnectUIProvider>
+);
 
 export default TonConnectProvider;
