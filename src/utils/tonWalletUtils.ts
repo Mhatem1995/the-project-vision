@@ -1,6 +1,6 @@
+
 import { TonConnectUI } from "@tonconnect/ui";
 import { supabase } from "@/integrations/supabase/client";
-import { toUserFriendlyAddress } from "./tonAddressUtils";
 
 export const detectTelegramWebApp = () => {
   if (typeof window !== "undefined") {
@@ -42,48 +42,62 @@ export const isValidTonAddress = (address: string): boolean => {
 // Extract REAL address from TonConnect
 export const extractRealTonConnectAddress = (connector: TonConnectUI): string | null => {
   console.log("[TON-EXTRACT] Extracting REAL address from connector");
+  
   if (!connector?.wallet?.account?.address) {
     console.log("[TON-EXTRACT] No address found in connector");
     return null;
   }
-  // ALWAYS convert to user-friendly/base64 address before using/storing!
-  const rawAddress = connector.wallet.account.address;
-  const realAddress = toUserFriendlyAddress(rawAddress);
-  console.log("[TON-EXTRACT] Canonical user-friendly address:", realAddress);
+
+  // Get the REAL address directly from TonConnect
+  const realAddress = connector.wallet.account.address;
+  console.log("[TON-EXTRACT] Found REAL address:", realAddress);
+  
   if (isValidTonAddress(realAddress)) {
+    console.log("[TON-EXTRACT] ✅ REAL address is valid");
     return realAddress;
+  } else {
+    console.log("[TON-EXTRACT] ❌ REAL address failed validation");
+    return null;
   }
-  console.log("[TON-EXTRACT] ❌ REAL address failed validation");
-  return null;
 };
 
-// Save REAL wallet address (always user-friendly!)
+// Save REAL wallet address
 export const saveRealWalletAddress = async (realAddress: string, toast: any) => {
-  const canonicalAddress = toUserFriendlyAddress(realAddress);
-  console.log("[TON-SAVE] Saving REAL wallet address (user-friendly):", canonicalAddress);
-  localStorage.setItem("tonWalletAddress", canonicalAddress);
-
+  console.log("[TON-SAVE] Saving REAL wallet address:", realAddress);
+  
+  // Set localStorage with REAL address
+  localStorage.setItem("tonWalletAddress", realAddress);
+  
   // Save REAL address to database
   const userId = localStorage.getItem("telegramUserId");
   if (userId) {
     try {
-      await supabase.functions.invoke('database-helper', {
+      console.log("[TON-SAVE] Saving REAL address to database for user:", userId);
+      
+      const { data, error } = await supabase.functions.invoke('database-helper', {
         body: {
           action: 'save_wallet_connection',
           params: {
             telegram_id: userId,
-            wallet_address: canonicalAddress // Always store user-friendly
+            wallet_address: realAddress  // Save the REAL address
           }
         }
       });
-      console.log("[TON-SAVE] ✅ REAL address saved to database successfully");
+      
+      if (error) {
+        console.error("[TON-SAVE] Database error:", error);
+      } else {
+        console.log("[TON-SAVE] ✅ REAL address saved to database successfully");
+      }
     } catch (err) {
       console.error("[TON-SAVE] Database exception:", err);
     }
   }
+  
   toast({
     title: "✅ TON Wallet Connected!",
-    description: `Wallet: ${canonicalAddress.substring(0, 15)}...`,
+    description: `REAL Address: ${realAddress.substring(0, 15)}...`,
   });
+  
   console.log("[TON-SAVE] ✅ REAL wallet save complete");
 };

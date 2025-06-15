@@ -221,46 +221,18 @@ serve(async (req: Request) => {
     }
     
     if (!matchingTx) {
-      // Extra: Gather meta info for debugging/hints
-      let tonapiDebugData: any[] = [];
-      try {
-        // Re-fetch transactions for debug (last wallet we checked)
-        const tonapiUrl = `https://tonapi.io/v2/accounts/${walletFormats[0]}/transactions?limit=20`;
-        const tonapiResponse = await fetch(tonapiUrl, {
-          headers: { 'Authorization': `Bearer ${tonApiKey}` }
-        });
-        const data = await tonapiResponse.json();
-        if (Array.isArray(data.transactions)) {
-          tonapiDebugData = data.transactions.map((tx: any) => ({
-            hash: tx.hash,
-            utime: tx.utime,
-            out_msgs_count: tx.out_msgs?.length || 0,
-            in_msgs_count: tx.in_msgs?.length || 0,
-            outgoing: !!tx.out_msgs?.length,
-            incoming: !!tx.in_msgs?.length,
-            value: tx.out_msgs && tx.out_msgs[0] ? tx.out_msgs[0].value : undefined,
-            // Only brief (omit message bodies)
-          }));
-        }
-      } catch (e) {
-        debugLog("Failed fetching debug tx data", e);
-      }
-
       debugLog("❌ NO MATCHING TRANSACTION FOUND after checking all variants. Provide this info to the user.");
       return new Response(
         JSON.stringify({
           success: false,
-          message: "No matching transaction found. Please ensure you SENT from the correct wallet and included the required comment. " +
-                   "If you're using TON Space in Telegram Wallet, make sure the payment was sent from your main wallet, not from within the 'Add-on'. " +
-                   "See https://wallet.helpscoutdocs.com/article/4-ton-space#I-am-not-able-to-withdraw-from-TON-Space-I-receive-an-error-Unable-t-FTO1P for hints.",
+          message: "No matching transaction found. Please ensure you sent the correct amount to the correct address WITH the required comment. If the problem persists, contact support.",
           debug: {
             userWallet: userWalletAddress,
             searchedWallets,
             ourWallet: tonWalletAddress,
             expectedAmountNano,
             expectedComment: expectedComment || "(any)",
-            searchTimeframe: "Last 2 hours",
-            txPreview: tonapiDebugData.slice(0, 5) // first 5 txs meta only
+            searchTimeframe: "Last 2 hours"
           }
         }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }

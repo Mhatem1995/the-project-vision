@@ -1,7 +1,6 @@
 
 import { useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { useEffect } from "react";
-import { toUserFriendlyAddress } from "@/utils/tonAddressUtils";
 
 type UseTonConnectReturn = {
   tonConnectUI: any;
@@ -22,15 +21,12 @@ export const useTonConnect = (): UseTonConnectReturn => {
 
   // Only connected if true session with address present
   const isConnected = !!wallet?.account?.address;
-  // Always convert to user-friendly! (base64/UQ/EQ)
-  const walletAddress = isConnected
-    ? toUserFriendlyAddress(wallet.account.address)
-    : null;
+  const walletAddress = isConnected ? wallet.account.address : null;
 
   useEffect(() => {
     if (wallet?.account?.address) {
-      const userFriendly = toUserFriendlyAddress(wallet.account.address);
-      localStorage.setItem("tonWalletAddress", userFriendly);
+      // Save only real TonConnect session address and mark as Telegram wallet
+      localStorage.setItem("tonWalletAddress", wallet.account.address);
       localStorage.setItem("tonWalletProvider", "telegram-wallet");
     } else {
       localStorage.removeItem("tonWalletAddress");
