@@ -28,20 +28,20 @@ export const getTonNetwork = async () => {
   }
 };
 
-// Get the real connected wallet address from TonConnect UI
+// Get the real connected wallet address from TonConnect UI - FIXED VERSION
 export const getConnectedWalletAddress = (): string | null => {
   console.log("[TON-CONFIG] Getting connected wallet address...");
   
-  // Get from TonConnect UI directly (most reliable)
-  if (window._tonConnectUI && window._tonConnectUI.connected && window._tonConnectUI.wallet?.account) {
-    const realAddress = window._tonConnectUI.wallet.account.address;
+  // Get from TonConnect UI directly (most reliable) - this is the PRIMARY source
+  if (window._tonConnectUI && window._tonConnectUI.connected && window._tonConnectUI.wallet?.account?.address) {
+    const realAddress = window._tonConnectUI.wallet.account.address.toString();
     console.log("[TON-CONFIG] ✅ Getting REAL wallet address from TonConnect UI:", realAddress);
     return realAddress;
   }
   
-  // Fallback to localStorage 
+  // Secondary fallback to localStorage (only if TonConnect UI is not available)
   const storedAddress = localStorage.getItem("tonWalletAddress");
-  console.log("[TON-CONFIG] Getting wallet address from localStorage:", storedAddress);
+  console.log("[TON-CONFIG] Fallback: Getting wallet address from localStorage:", storedAddress);
   return storedAddress;
 };
 

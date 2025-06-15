@@ -10,14 +10,13 @@ import FortuneWheel from "@/components/FortuneWheel";
 import { useMining } from "@/hooks/useMining";
 import { useToast } from "@/hooks/use-toast";
 import { useTonConnect } from "@/providers/TonConnectProvider";
-import { formatWalletAddress } from "@/utils/tonTransactionUtils";
 
 const Mining = () => {
   const { toast } = useToast();
   const [boostDialogOpen, setBoostDialogOpen] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   
-  // TON Connect integration using our hook
+  // TON Connect integration using our hook - this will now have the REAL address
   const { isConnected, walletAddress, connect, disconnect, isTelegramWebApp } = useTonConnect();
   
   const {
@@ -31,7 +30,7 @@ const Mining = () => {
 
   useEffect(() => {
     console.log("Mining page: Real Telegram WebApp status:", isTelegramWebApp);
-    console.log("Mining page: Real wallet connection status:", {
+    console.log("Mining page: REAL wallet connection status:", {
       isConnected,
       walletAddress,
       addressLength: walletAddress?.length,
@@ -89,7 +88,7 @@ const Mining = () => {
               timeRemaining={timeRemaining}
             />
 
-            {/* Real wallet connection section */}
+            {/* Real wallet connection section - NOW DISPLAYS THE REAL ADDRESS */}
             <div className="w-full max-w-md space-y-4">
               {!isConnected ? (
                 <Button 
@@ -108,12 +107,12 @@ const Mining = () => {
                       <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
                       <p className="text-sm font-medium text-green-800">Real TON Wallet Connected</p>
                     </div>
-                    <p className="text-xs text-green-700 mb-1">Wallet Address:</p>
+                    <p className="text-xs text-green-700 mb-1">Real Wallet Address:</p>
                     <p className="text-xs font-mono break-all text-green-800 bg-green-100 p-2 rounded">
                       {walletAddress}
                     </p>
                     <p className="text-xs text-green-600 mt-1">
-                      ✓ Verified real TON address format
+                      ✅ This is your REAL connected TON wallet address
                     </p>
                   </div>
                   
