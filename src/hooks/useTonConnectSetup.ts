@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { TonConnectUI } from "@tonconnect/ui";
 import { tonConnectOptions } from "@/integrations/ton/TonConnectConfig";
-import { detectTelegramWebApp, saveRealWalletAddress, toFriendlyAddress } from "@/utils/tonWalletUtils";
+import { detectTelegramWebApp, saveRealWalletAddress } from "@/utils/tonWalletUtils";
 
 declare global {
   interface Window {
@@ -31,15 +31,14 @@ export const useTonConnectSetup = (toast: any) => {
     console.log("[TON-STATUS] 🔄 Wallet status changed:", wallet);
     
     if (wallet && wallet.account && wallet.account.address) {
-      const rawAddress = wallet.account.address;
-      const friendlyAddress = toFriendlyAddress(rawAddress); // CONVERT to user-friendly
-      console.log(`[TON-STATUS] ✅ Wallet connected. Raw: ${rawAddress}, Friendly: ${friendlyAddress}. SAVING friendly address.`);
+      const realAddress = wallet.account.address;
+      console.log("[TON-STATUS] ✅ REAL wallet connected, SAVING:", realAddress);
       
       setIsConnected(true);
-      setWalletAddress(friendlyAddress); // Set state with FRIENDLY address
+      setWalletAddress(realAddress);
       
-      // Save the FRIENDLY address to localStorage and Supabase
-      await saveRealWalletAddress(friendlyAddress, toast);
+      // Save the REAL address to localStorage and Supabase (which now performs an upsert)
+      await saveRealWalletAddress(realAddress, toast);
     } else if (wallet === null) {
       console.log("[TON-STATUS] ❌ Wallet disconnected, clearing local storage and state.");
       setIsConnected(false);
