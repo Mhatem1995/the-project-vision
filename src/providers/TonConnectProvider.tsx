@@ -62,20 +62,23 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
     console.log("[TON-DEBUG] TonConnect connected:", connector.connected);
     console.log("[TON-DEBUG] TonConnect wallet object:", connector.wallet);
     
-    if (connector.connected && connector.wallet?.account) {
-      // Get the REAL wallet address directly from TonConnect - SIMPLIFIED APPROACH
+    if (connector.connected && connector.wallet?.account?.address) {
+      // Get the REAL wallet address directly from TonConnect - FIXED TYPE HANDLING
       const rawAddress = connector.wallet.account.address;
       console.log("[TON-DEBUG] ✅ RAW wallet address from TonConnect:", rawAddress);
       console.log("[TON-DEBUG] Address type:", typeof rawAddress);
       
-      // Convert to string without any complex transformation
+      // Convert to string with proper type checking
       let addressString: string;
+      
+      // Handle different possible types the address might be
       if (typeof rawAddress === 'string') {
         addressString = rawAddress;
-      } else if (rawAddress && typeof rawAddress.toString === 'function') {
-        addressString = rawAddress.toString();
+      } else if (rawAddress !== null && rawAddress !== undefined) {
+        // Use String() constructor instead of .toString() to avoid type errors
+        addressString = String(rawAddress);
       } else {
-        console.error("[TON-DEBUG] ❌ Cannot convert address to string:", rawAddress);
+        console.error("[TON-DEBUG] ❌ Address is null or undefined:", rawAddress);
         clearWalletState();
         return;
       }
