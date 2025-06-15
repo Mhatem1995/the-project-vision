@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/types/task";
 import { pollForTransactionVerification, openTonPayment } from "@/utils/tonTransactionUtils";
@@ -39,9 +38,15 @@ export const handlePaymentTask = async (
   toast: any,
   onDailyTaskComplete?: () => void
 ) => {
-  // --- BEGIN: Refactored to match boost payment flow exactly! ---
+  debugLog("[PAYMENT TASK] Button click fired", { task, dailyTaskAvailable });
+
   if (!task.tonAmount) {
     debugLog("❌ No TON amount specified for task");
+    toast({
+      title: "Error",
+      description: "No TON amount specified for this task.",
+      variant: "destructive"
+    });
     return;
   }
 
@@ -55,8 +60,8 @@ export const handlePaymentTask = async (
     });
     return;
   }
-  
-  debugLog("[PAYMENT TASK] Processing TON payment task", { 
+
+  debugLog("[PAYMENT TASK] Processing TON payment task", {
     userId, 
     taskId: task.id, 
     amount: task.tonAmount,
@@ -71,7 +76,7 @@ export const handlePaymentTask = async (
     : null;
 
   if (!walletAddress) {
-    debugLog("❌ No real telegram-wallet address found");
+    debugLog("❌ No real telegram-wallet address found in localStorage.", { provider, walletAddress });
     toast({
       title: "Wallet Not Connected",
       description: "Please connect your Telegram Wallet via TonConnect to complete this task.",
@@ -92,11 +97,13 @@ export const handlePaymentTask = async (
     return;
   }
 
-  // Ensure user exists and record attempt in Supabase, as in boost
   try {
-    debugLog("[PAYMENT TASK] Ensuring user exists and recording payment attempt", { userId, walletAddress });
+    debugLog("[PAYMENT TASK] Ensuring user exists and recording payment attempt", {
+      userId,
+      walletAddress
+    });
 
-    // Ensure user exists
+    // Ensure user exists in database
     await supabase.functions.invoke('database-helper', {
       body: {
         action: 'ensure_user_exists',
@@ -104,7 +111,7 @@ export const handlePaymentTask = async (
       }
     });
 
-    // Save wallet connection as per new flow (just in case)
+    // Save wallet connection as per new flow
     await supabase.functions.invoke('database-helper', {
       body: {
         action: 'save_wallet_connection',
@@ -112,7 +119,7 @@ export const handlePaymentTask = async (
       }
     });
 
-    // Record the payment attempt (same as boost)
+    // Record the payment attempt
     await supabase.functions.invoke('database-helper', {
       body: {
         action: 'insert_payment',
@@ -126,26 +133,38 @@ export const handlePaymentTask = async (
       }
     });
 
-    // Find the global TonConnect UI from window for compatibility (same method as boost)
+    // Ensure TonConnectUI is available globally
     let tonConnectUI = (window as any)._tonConnectUI;
+    if (!tonConnectUI) {
+      debugLog("❌ _tonConnectUI not found on window!", { windowKeys: Object.keys(window) });
+      toast({
+        title: "TonConnect Not Available",
+        description: "TonConnect UI not loaded. Please refresh and try again after connecting your wallet.",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    // Send payment with openTonPayment — exactly matches boost now!
-    const comment = task.isDaily ? 'daily_ton_payment' : `task${task.id}`;
+    // Send payment via TonConnect (identical to boosts)
+    const comment = task.isDaily ? "daily_ton_payment" : `task${task.id}`;
+    debugLog("[PAYMENT TASK] Calling openTonPayment", { tonConnectUIExists: !!tonConnectUI, amount: task.tonAmount, taskId: task.id, comment });
+
     openTonPayment(tonConnectUI, task.tonAmount, task.id, comment);
 
     debugLog("[PAYMENT TASK] ✅ TonConnect transaction initiated via openTonPayment.");
 
-    // Wait 3s, then poll for verification (identical to boost)
+    // Wait for 3 seconds, then start polling for verification EXACTLY like boost
     setTimeout(async () => {
+      // For daily we pass taskType; otherwise leave undefined to mimic boost flow
       const taskType = task.isDaily ? "daily_ton_payment" : undefined;
-      debugLog("[PAYMENT TASK] Starting transaction verification", { 
-        taskId: task.id, 
-        taskType, 
+      debugLog("[PAYMENT TASK] Starting transaction verification poll", {
+        taskId: task.id,
         userId,
         amount: task.tonAmount,
-        wallet: walletAddress
+        wallet: walletAddress,
+        taskType
       });
-      
+
       const successful = await pollForTransactionVerification(
         userId,
         task.tonAmount,
@@ -153,8 +172,9 @@ export const handlePaymentTask = async (
         undefined,
         taskType
       );
-      
+
       if (successful) {
+        // Notify user, match boost toast style
         if (task.id === "6") {
           toast({
             title: "Fortune Cookies Added!",
@@ -166,10 +186,17 @@ export const handlePaymentTask = async (
             description: `You earned ${task.reward} KFC coins!`,
           });
         }
-        
+
         if (task.isDaily && onDailyTaskComplete) {
           onDailyTaskComplete();
         }
+      } else {
+        debugLog("[PAYMENT TASK] ❌ Transaction verification failed after polling.", { userId, task });
+        toast({
+          title: "Payment Not Found",
+          description: "We couldn't verify your payment. Please double-check and contact support if the issue persists.",
+          variant: "destructive"
+        });
       }
     }, 3000);
 
@@ -181,5 +208,4 @@ export const handlePaymentTask = async (
       variant: "destructive"
     });
   }
-  // --- END: Matched boost logic! ---
 };
