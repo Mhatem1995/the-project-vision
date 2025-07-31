@@ -46,3 +46,5 @@ client_id = "env(TELEGRAM_CLIENT_ID)"
 verify_jwt = false
 [functions.database-helper]
 verify_jwt = false
+[functions.save-wallet-connection]
+verify_jwt = false
