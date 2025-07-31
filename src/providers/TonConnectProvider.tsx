@@ -20,13 +20,13 @@ export const TonConnectProvider = ({ children }: { children: React.ReactNode }) 
           platforms: ["ios", "android", "chrome", "firefox"]
         },
         {
-          name: "TON Space",
-          appName: "tonspace",
-          imageUrl: "https://wallet.tg/images/logo.png", 
+          name: "Telegram Wallet",
+          appName: "telegram-wallet",
+          imageUrl: "https://wallet.tg/images/logo-288.png", 
           aboutUrl: "https://wallet.tg/",
-          universalLink: "https://t.me/wallet/start",
-          bridgeUrl: "https://bridge.tonapi.io/bridge", 
-          platforms: ["ios", "android", "chrome", "firefox"]
+          universalLink: "https://t.me/wallet?attach=wallet",
+          bridgeUrl: "https://walletbot.me/tonconnect-bridge/bridge", 
+          platforms: ["ios", "android", "macos", "windows", "linux"]
         }
       ]
     }}

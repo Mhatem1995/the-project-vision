@@ -66,6 +66,7 @@ export const useTonConnect = (): UseTonConnectReturn => {
   console.log("🔍 [WALLET DEBUG] Full wallet object:", wallet);
   console.log("🔍 [WALLET DEBUG] Wallet provider:", wallet?.provider);
   console.log("🔍 [WALLET DEBUG] Wallet device:", wallet?.device);
+  console.log("🔍 [WALLET DEBUG] TonConnect UI instance:", tonConnectUI);
   
   // Convert to user-friendly format if needed
   const walletAddress = rawAccountAddress ? convertToUserFriendly(rawAccountAddress) : null;
@@ -73,8 +74,12 @@ export const useTonConnect = (): UseTonConnectReturn => {
   
   // Additional debugging for wallet verification
   if (walletAddress) {
+    console.log("🔍 [WALLET DEBUG] ✅ CONNECTED WALLET ADDRESS:", walletAddress);
     console.log("🔍 [WALLET DEBUG] Please verify this address matches your Telegram TON Space wallet address");
     console.log("🔍 [WALLET DEBUG] Check: Telegram → Wallet → Settings → Address");
+    console.log("🔍 [WALLET DEBUG] If this doesn't match, the wallet connection is incorrect!");
+  } else {
+    console.log("🔍 [WALLET DEBUG] ❌ No wallet address detected - connection failed");
   }
 
   // Connected only if we have a valid UQ/EQ address
