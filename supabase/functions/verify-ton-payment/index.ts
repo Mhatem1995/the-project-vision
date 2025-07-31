@@ -15,10 +15,64 @@ interface TransactionVerifyRequest {
   comment?: string;
 }
 
-// Debug logging function for edge function
 const debugLog = (message: string, data?: any) => {
-  console.log(`🔍 [EDGE DEBUG] ${message}`, data || "");
+  console.log(`🔍 [VERIFY] ${message}`, data || "");
 };
+
+/**
+ * Generate all possible address formats for searching
+ */
+function generateAddressVariants(address: string): string[] {
+  const variants = new Set<string>();
+  
+  // Add original
+  variants.add(address);
+  
+  // If UQ/EQ format, convert to raw
+  if (address.startsWith("UQ") || address.startsWith("EQ")) {
+    try {
+      const base64 = address.substring(2);
+      // Convert base64url back to base64
+      const base64Standard = base64.replace(/-/g, '+').replace(/_/g, '/');
+      // Pad if needed
+      const padded = base64Standard + '='.repeat((4 - base64Standard.length % 4) % 4);
+      
+      const bytes = Uint8Array.from(atob(padded), c => c.charCodeAt(0));
+      const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      variants.add(`0:${hex}`);
+      variants.add(hex);
+      variants.add(`EQ${base64}`);
+      variants.add(`UQ${base64}`);
+    } catch (e) {
+      debugLog("Failed to convert address variant:", e);
+    }
+  }
+  
+  // If raw format, convert to UQ/EQ
+  if (address.startsWith("0:")) {
+    const hex = address.substring(2);
+    try {
+      const bytes = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) {
+        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+      }
+      
+      const base64 = btoa(String.fromCharCode(...bytes))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+      
+      variants.add(`UQ${base64}`);
+      variants.add(`EQ${base64}`);
+      variants.add(hex);
+    } catch (e) {
+      debugLog("Failed to convert raw address:", e);
+    }
+  }
+  
+  return Array.from(variants);
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -29,19 +83,18 @@ serve(async (req: Request) => {
     debugLog("=== TRANSACTION VERIFICATION START ===");
     
     const requestBody = await req.json();
-    debugLog("Request body received", requestBody);
+    debugLog("Request body:", requestBody);
     
     const { userId, amount, taskId, boostId, taskType, comment } = requestBody as TransactionVerifyRequest;
 
-    if (!userId || !amount || ((!taskId && !boostId))) {
-      debugLog("❌ Missing required parameters", { userId: !!userId, amount: !!amount, taskId: !!taskId, boostId: !!boostId });
+    if (!userId || !amount || (!taskId && !boostId)) {
+      debugLog("❌ Missing required parameters");
       return new Response(
         JSON.stringify({ success: false, message: "Missing required parameters" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Create Supabase client
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") || "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
@@ -58,143 +111,120 @@ serve(async (req: Request) => {
       );
     }
 
-    debugLog(`Looking for wallet for user: ${userId}`);
+    debugLog(`Getting wallet for user: ${userId}`);
     
-    // --- REAL WALLET ADDRESS QUERY ---
+    // Get user's real wallet address
     const { data: walletData, error: walletError } = await supabaseAdmin
       .from("wallets")
       .select("wallet_address")
       .eq("telegram_id", userId)
-      .single(); // Use .single() as telegram_id is unique
+      .single();
       
-    debugLog("Wallets table query result", { walletData, walletError });
+    debugLog("Wallet query result:", { walletData, walletError });
       
     if (walletError || !walletData?.wallet_address) {
-      debugLog("❌ No wallet found for user in 'wallets' table!", { error: walletError });
+      debugLog("❌ No wallet found for user!");
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "User wallet not found. Please connect your wallet in the app first.",
-          error: "WALLET_NOT_FOUND",
-          debug: { 
-            userId, 
-            walletTableChecked: true,
-            walletTableError: walletError?.message,
-          }
+          message: "Wallet not found. Please connect your TON wallet first.",
+          error: "WALLET_NOT_FOUND"
         }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const userWalletAddress = walletData.wallet_address;
-    debugLog(`✅ Found wallet in wallets table: ${userWalletAddress}`);
+    debugLog(`✅ Found user wallet: ${userWalletAddress}`);
 
-    // Transaction search parameters
+    // Generate all possible address formats
+    const userAddressVariants = generateAddressVariants(userWalletAddress);
+    const ourAddressVariants = generateAddressVariants(tonWalletAddress);
+    
+    debugLog("User address variants:", userAddressVariants);
+    debugLog("Our address variants:", ourAddressVariants);
+
     const expectedAmountNano = Math.floor(amount * 1000000000);
     const expectedComment = comment || (boostId ? `boost_${boostId}` : taskId ? `task${taskId}` : "");
     
-    debugLog(`Searching for transaction:`, {
-      from: userWalletAddress,
-      to: tonWalletAddress,
-      amount: expectedAmountNano,
-      amountTON: amount,
-      comment: expectedComment || "(any)"
+    debugLog("Transaction search parameters:", {
+      userAddressVariants,
+      ourAddressVariants,
+      expectedAmountNano,
+      expectedComment
     });
     
     let matchingTx: any = null;
-    let searchedWallets: string[] = [];
     
-    // Generate different wallet address formats
-    const walletFormats = [userWalletAddress];
-    
-    if (userWalletAddress.startsWith("0:")) {
-      walletFormats.push(userWalletAddress.substring(2));
-    }
-    
-    if (!userWalletAddress.startsWith("EQ") && !userWalletAddress.startsWith("UQ")) {
-      const baseAddr = userWalletAddress.startsWith("0:") ? userWalletAddress.substring(2) : userWalletAddress;
-      walletFormats.push("EQ" + baseAddr);
-      walletFormats.push("UQ" + baseAddr);
-    }
-    
-    debugLog(`Will search with wallet formats:`, walletFormats);
-    
-    // Search transactions for each wallet format
-    for (const walletAddr of walletFormats) {
-      debugLog(`Checking transactions for: ${walletAddr}`);
-      searchedWallets.push(walletAddr);
+    // Search transactions for each user address variant
+    for (const userAddr of userAddressVariants) {
+      debugLog(`Checking transactions for user address: ${userAddr}`);
       
       try {
-        const tonapiUrl = `https://tonapi.io/v2/accounts/${walletAddr}/transactions?limit=100`;
-        debugLog(`Requesting TON API:`, tonapiUrl);
-        const tonapiResponse = await fetch(tonapiUrl, {
+        const tonapiUrl = `https://tonapi.io/v2/accounts/${userAddr}/transactions?limit=50`;
+        debugLog(`Requesting: ${tonapiUrl}`);
+        
+        const response = await fetch(tonapiUrl, {
           headers: { 'Authorization': `Bearer ${tonApiKey}` }
         });
         
-        if (!tonapiResponse.ok) {
-          debugLog(`❌ API request failed for ${walletAddr}: ${tonapiResponse.status} ${tonapiResponse.statusText}`);
+        if (!response.ok) {
+          debugLog(`❌ API request failed: ${response.status} ${response.statusText}`);
           continue;
         }
         
-        const data = await tonapiResponse.json();
+        const data = await response.json();
         const transactions = data.transactions || [];
-        debugLog(`Found ${transactions.length} transactions for ${walletAddr}`);
+        debugLog(`Found ${transactions.length} transactions for ${userAddr}`);
         
-        // Look for matching transaction
+        // Check each transaction
         for (const tx of transactions) {
-          const isOutgoing = tx.out_msgs && tx.out_msgs.length > 0;
-          if (!isOutgoing) continue;
-          
           // Check transaction age (within last 2 hours)
           const txTime = new Date(tx.utime * 1000);
           const timeDiff = Date.now() - txTime.getTime();
           const maxAge = 2 * 60 * 60 * 1000; // 2 hours
           
           if (timeDiff > maxAge) {
-            debugLog(`Skipping TX as it is older than 2 hours`, { txHash: tx.hash || tx.transaction_id, txTime: txTime.toISOString() });
-            continue;
+            continue; // Skip old transactions
           }
           
           debugLog(`Checking tx ${tx.hash || tx.transaction_id} from ${txTime.toISOString()}`);
           
-          // Check each outgoing message
-          for (const msg of tx.out_msgs) {
-            const destination = msg.destination || msg.address;
+          // Check outgoing messages
+          const outMsgs = tx.out_msgs || [];
+          for (const msg of outMsgs) {
+            const destination = msg.destination?.address || msg.destination || msg.address;
             const msgValue = parseInt(msg.value || "0");
             
-            debugLog(`Message details:`, {
-              destination,
-              msgValue,
-              expectedAmountNano,
-              ourWallet: tonWalletAddress
-            });
+            debugLog(`Message: to=${destination}, value=${msgValue}, expected=${expectedAmountNano}`);
             
-            // Check destination
-            const isToOurWallet = destination === tonWalletAddress || 
-                                destination === `0:${tonWalletAddress.substring(2)}` ||
-                                destination === `EQ${tonWalletAddress.substring(2)}` ||
-                                destination === `UQ${tonWalletAddress.substring(2)}`;
+            // Check if destination matches our wallet (any variant)
+            const isToOurWallet = ourAddressVariants.some(variant => 
+              destination === variant ||
+              destination === `0:${variant}` ||
+              destination === variant.replace(/^0:/, '')
+            );
             
             if (!isToOurWallet) {
-              debugLog(`❌ Destination mismatch: ${destination} vs ${tonWalletAddress}`);
+              debugLog(`❌ Destination mismatch`);
               continue;
             }
             
-            // Check amount (with 10% tolerance for fees)
+            // Check amount (with tolerance for fees)
             const amountDiff = Math.abs(msgValue - expectedAmountNano);
-            const tolerance = Math.max(100000000, expectedAmountNano * 0.1); // 0.1 TON or 10%
+            const tolerance = Math.max(50000000, expectedAmountNano * 0.05); // 0.05 TON or 5%
             
             if (amountDiff > tolerance) {
-              debugLog(`❌ Amount mismatch: ${msgValue} vs ${expectedAmountNano} (diff: ${amountDiff}, tolerance: ${tolerance})`);
+              debugLog(`❌ Amount mismatch: diff=${amountDiff}, tolerance=${tolerance}`);
               continue;
             }
             
             // Check comment if expected
             if (expectedComment) {
               const msgText = typeof msg.message === 'string' ? msg.message : 
-                             msg.message?.body ? msg.message.body : '';
+                             msg.message?.body || msg.comment || '';
               if (!msgText.includes(expectedComment)) {
-                debugLog(`❌ Comment mismatch: "${msgText}" doesn't contain "${expectedComment}"`);
+                debugLog(`❌ Comment mismatch: "${msgText}" vs "${expectedComment}"`);
                 continue;
               }
             }
@@ -203,7 +233,8 @@ serve(async (req: Request) => {
               hash: tx.hash || tx.transaction_id,
               amount: msgValue,
               time: txTime.toISOString(),
-              to: destination
+              to: destination,
+              from: userAddr
             });
             
             matchingTx = tx;
@@ -216,21 +247,21 @@ serve(async (req: Request) => {
         if (matchingTx) break;
         
       } catch (error) {
-        debugLog(`❌ Error fetching transactions for ${walletAddr}:`, error);
+        debugLog(`❌ Error checking ${userAddr}:`, error);
       }
     }
     
     if (!matchingTx) {
-      debugLog("❌ NO MATCHING TRANSACTION FOUND after checking all variants. Provide this info to the user.");
+      debugLog("❌ NO MATCHING TRANSACTION FOUND");
       return new Response(
         JSON.stringify({
           success: false,
-          message: "No matching transaction found. Please ensure you sent the correct amount to the correct address WITH the required comment. If the problem persists, contact support.",
+          message: "No matching transaction found. Please ensure you sent the correct amount with the required comment.",
           debug: {
             userWallet: userWalletAddress,
-            searchedWallets,
+            userAddressVariants,
             ourWallet: tonWalletAddress,
-            expectedAmountNano,
+            expectedAmount: expectedAmountNano,
             expectedComment: expectedComment || "(any)",
             searchTimeframe: "Last 2 hours"
           }
@@ -244,20 +275,22 @@ serve(async (req: Request) => {
     debugLog(`✅ Processing verified transaction: ${txHash}`);
     
     // Update payment record
-    const { error: paymentUpdateError } = await supabaseAdmin
-      .from("payments")
-      .update({ 
-        transaction_hash: txHash,
-        wallet_address: userWalletAddress
-      })
-      .eq("telegram_id", userId)
-      .eq("task_type", taskType || taskId || "boost")
-      .is("transaction_hash", null);
+    try {
+      const { error: paymentUpdateError } = await supabaseAdmin
+        .from("payments")
+        .update({ 
+          transaction_hash: txHash,
+          wallet_address: userWalletAddress
+        })
+        .eq("telegram_id", userId)
+        .eq("task_type", taskType || taskId || "boost")
+        .is("transaction_hash", null);
     
-    if (paymentUpdateError) {
-      debugLog("❌ Error updating payment record:", paymentUpdateError);
-    } else {
-      debugLog("✅ Payment record updated successfully");
+      if (paymentUpdateError) {
+        debugLog("Warning: Failed to update payment record:", paymentUpdateError);
+      }
+    } catch (e) {
+      debugLog("Warning: Payment record update failed:", e);
     }
       
     return await processVerifiedTransaction(
@@ -294,28 +327,21 @@ async function processVerifiedTransaction(
   corsHeaders: any = {},
   senderAddress?: string
 ) {
-  debugLog(`Processing verified transaction ${txHash} for user ${userId}`, {
-    taskId: taskId || "none",
-    boostId: boostId || "none", 
-    taskType: taskType || "none",
-    senderAddress: senderAddress || "unknown"
-  });
+  debugLog(`Processing verified transaction for user ${userId}`);
   
-  // Handle boost payment confirmation if boostId provided
+  // Handle boost payment
   if (boostId) {
-    debugLog(`Confirming boost ${boostId} for user ${userId}`);
+    debugLog(`Confirming boost ${boostId}`);
     
-    const { data, error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from("mining_boosts")
       .update({
         status: "confirmed",
         ton_tx: txHash,
-        user_id: userId,
         expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
       })
       .eq("id", boostId)
-      .eq("user_id", userId)
-      .select();
+      .eq("user_id", userId);
     
     if (updateError) {
       debugLog("❌ Failed to confirm boost:", updateError);
@@ -325,22 +351,19 @@ async function processVerifiedTransaction(
           message: "Failed to confirm boost",
           error: updateError.message 
         }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
     
-    debugLog("✅ Boost confirmed successfully:", data);
+    debugLog("✅ Boost confirmed successfully");
   }
   
-  // Handle task completion if taskId provided
+  // Handle task completion
   if (taskId) {
+    debugLog(`Processing task ${taskId} completion`);
+    
+    // Add task completion record
     try {
-      debugLog(`Processing task ${taskId} completion for user ${userId}`);
-      
-      // Check if task already exists in tasks_completed
       const { data: existingTask } = await supabaseAdmin
         .from("tasks_completed")
         .select("*")
@@ -348,11 +371,7 @@ async function processVerifiedTransaction(
         .eq("task_id", taskId)
         .maybeSingle();
       
-      debugLog("Existing task check result:", existingTask);
-      
-      // If not already completed, add record
       if (!existingTask) {
-        debugLog("Adding task completion record");
         const { error: taskError } = await supabaseAdmin
           .from("tasks_completed")
           .insert({
@@ -366,122 +385,74 @@ async function processVerifiedTransaction(
         if (taskError) {
           debugLog("❌ Error recording task completion:", taskError);
         } else {
-          debugLog("✅ Task completion record added successfully");
+          debugLog("✅ Task completion recorded");
         }
-      } else {
-        debugLog("Task already completed previously");
       }
     } catch (err) {
       debugLog("❌ Error handling task completion:", err);
     }
     
+    // Handle rewards
     if (taskId === "6") {
-      // Special case: fortune cookies
-      debugLog("Processing fortune cookies purchase");
-      const { data: cookieResult, error: cookieError } = await supabaseAdmin.rpc('add_fortune_cookies', { 
+      // Fortune cookies
+      const { error: cookieError } = await supabaseAdmin.rpc('add_fortune_cookies', { 
         p_user_id: userId, 
         p_cookie_count: 10 
       });
       
       if (cookieError) {
         debugLog("❌ Failed to add fortune cookies:", cookieError);
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            message: "Failed to add fortune cookies",
-            error: cookieError.message
-          }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+      } else {
+        debugLog("✅ Added fortune cookies successfully");
       }
-      
-      debugLog("✅ Added fortune cookies successfully");
     } else {
-      // Regular task - add KFC balance
-      let reward = 0;
-      switch (taskId) {
-        case "3": reward = 100; break;
-        case "4": reward = 1500; break;
-        case "5": reward = 30000; break;
-        default: reward = 0;
-      }
+      // KFC rewards
+      const rewards: { [key: string]: number } = {
+        "3": 100,
+        "4": 1500,
+        "5": 30000
+      };
+      
+      const reward = rewards[taskId] || 0;
       
       if (reward > 0) {
-        debugLog(`Processing reward of ${reward} KFC for task ${taskId}`);
-        
-        // Get current balance
-        const { data: currentUser, error: balanceError } = await supabaseAdmin
-          .from("users")
-          .select("balance")
-          .eq("id", userId)
-          .maybeSingle();
+        try {
+          const { data: currentUser } = await supabaseAdmin
+            .from("users")
+            .select("balance")
+            .eq("id", userId)
+            .single();
+            
+          const currentBalance = currentUser?.balance || 0;
+          const newBalance = currentBalance + reward;
           
-        debugLog("Current user balance query:", { currentUser, balanceError });
-          
-        if (balanceError) {
-          debugLog("❌ Failed to get user balance:", balanceError);
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              message: "Failed to get user balance",
-              error: balanceError.message 
-            }),
-            {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
+          const { error: updateError } = await supabaseAdmin
+            .from("users")
+            .update({ balance: newBalance })
+            .eq("id", userId);
+            
+          if (updateError) {
+            debugLog("❌ Failed to update balance:", updateError);
+          } else {
+            debugLog(`✅ Added ${reward} KFC to balance`);
+          }
+        } catch (e) {
+          debugLog("❌ Balance update failed:", e);
         }
-        
-        // Update balance
-        const currentBalance = currentUser?.balance || 0;
-        const newBalance = currentBalance + reward;
-        debugLog(`Updating user balance from ${currentBalance} to ${newBalance}`);
-        
-        const { error: updateError } = await supabaseAdmin
-          .from("users")
-          .update({ balance: newBalance })
-          .eq("id", userId);
-          
-        if (updateError) {
-          debugLog("❌ Failed to update balance:", updateError);
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              message: "Failed to update balance",
-              error: updateError.message 
-            }),
-            {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
-        }
-        
-        debugLog("✅ Balance updated successfully");
       }
     }
   }
   
-  // Record daily task completion if needed
+  // Record daily task if needed
   if (taskType === "daily_ton_payment") {
     try {
-      debugLog(`Recording daily task completion for ${userId}, type: ${taskType}`);
-      const { error: dailyTaskError } = await supabaseAdmin
+      await supabaseAdmin
         .from("daily_tasks")
         .insert([{
           user_id: userId,
           task_type: taskType
         }]);
-      
-      if (dailyTaskError) {
-        debugLog("❌ Failed to record daily task:", dailyTaskError);
-      } else {
-        debugLog("✅ Daily task recorded successfully");
-      }
+      debugLog("✅ Daily task recorded");
     } catch (err) {
       debugLog("❌ Failed to record daily task:", err);
     }
@@ -492,14 +463,10 @@ async function processVerifiedTransaction(
       success: true, 
       transaction: {
         hash: txHash,
-        time: new Date().toISOString(),
-        senderAddress: senderAddress,
-        telegramUserId: userId
+        senderAddress,
+        verifiedAt: new Date().toISOString()
       }
     }),
-    {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    }
+    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 }

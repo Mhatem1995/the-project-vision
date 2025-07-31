@@ -153,7 +153,7 @@ export const handlePaymentTask = async (
     // REUSE boost payment logic: trigger modal & send
     const comment = task.isDaily ? "daily_ton_payment" : `task${task.id}`;
     debugLog("[PAYMENT TASK] Calling openTonPayment", { tonConnectUIExists: !!_tonConnectUI, amount: task.tonAmount, taskId: task.id, comment });
-    openTonPayment(_tonConnectUI, task.tonAmount, task.id, comment);
+    openTonPayment(_tonConnectUI, task.tonAmount, task.id);
 
     debugLog("[PAYMENT TASK] ✅ TonConnect transaction initiated via openTonPayment.");
 

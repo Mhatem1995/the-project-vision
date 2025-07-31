@@ -1,69 +1,51 @@
 import { supabase } from "@/integrations/supabase/client";
-import { getConnectedWalletAddress, TON_API_ENDPOINTS, TRANSACTION_VERIFICATION } from "@/integrations/ton/TonConnectConfig";
-import { toast } from "@/hooks/use-toast";
 
-// Debug logging function
-const debugLog = (message: string, data?: any) => {
-  console.log(`🔍 [TON DEBUG] ${message}`, data || "");
-};
-
-// Now: ALWAYS use UQ... format for RECEIVING_WALLET_ADDRESS users! (Note: this doesn't affect your set wallet, but for consistency.)
 export const RECEIVING_WALLET_ADDRESS = "UQDc2Sa1nehhxLYDuSD80u2jJzEu_PtwAIrKVL6Y7Ss5H35C";
 
-// Verify transaction directly via Supabase function
-export const verifyTonTransaction = async (
-  userId: string,
-  expectedAmount: number,
-  taskId: string,
-  boostId?: string,
-  taskType?: string
-): Promise<{ success: boolean; transactionHash?: string; message?: string }> => {
+/**
+ * Open TON payment using TonConnect
+ */
+export const openTonPayment = async (tonConnectUI: any, amount: number, taskId: string) => {
+  if (!tonConnectUI) {
+    console.error("❌ [PAYMENT] TonConnect UI not available");
+    return;
+  }
+
   try {
-    debugLog("Starting TON payment verification", {
-      userId,
-      amount: expectedAmount,
-      taskId,
-      boostId,
-      taskType
+    console.log(`💰 [PAYMENT] Opening payment for ${amount} TON, task: ${taskId}`);
+    
+    const amountNano = Math.floor(amount * 1000000000);
+    const comment = `task${taskId}`;
+    
+    console.log(`💰 [PAYMENT] Payment details:`, {
+      to: RECEIVING_WALLET_ADDRESS,
+      amount: amountNano,
+      comment
     });
-    
-    const { data, error } = await supabase.functions.invoke('verify-ton-payment', {
-      body: { 
-        userId, 
-        amount: expectedAmount, 
-        taskId, 
-        boostId, 
-        taskType,
-        comment: taskType === "boost" ? `boost_${boostId}` : taskId ? `task${taskId}` : undefined
-      }
-    });
-    
-    debugLog("Supabase function response", { data, error });
-    
-    if (data?.success) {
-      debugLog("✅ Payment verified successfully", data);
-      return {
-        success: true,
-        transactionHash: data.transaction?.hash,
-        message: "Transaction verified successfully"
-      };
-    }
-    
-    debugLog("❌ Payment verification failed", { error, data });
-    return {
-      success: false,
-      message: data?.message || error?.message || "Could not verify transaction"
+
+    const transaction = {
+      validUntil: Math.floor(Date.now() / 1000) + 300, // 5 minutes
+      messages: [
+        {
+          address: RECEIVING_WALLET_ADDRESS,
+          amount: amountNano.toString(),
+          payload: comment
+        }
+      ]
     };
-  } catch (err) {
-    debugLog("❌ Error in verifyTonTransaction", err);
-    return {
-      success: false,
-      message: err instanceof Error ? err.message : "Unknown verification error"
-    };
+
+    await tonConnectUI.sendTransaction(transaction);
+    console.log("✅ [PAYMENT] Transaction sent successfully");
+    
+  } catch (error) {
+    console.error("❌ [PAYMENT] Transaction failed:", error);
+    throw error;
   }
 };
 
-// Enhanced polling with better feedback
+/**
+ * Poll for transaction verification
+ */
 export const pollForTransactionVerification = async (
   userId: string,
   amount: number,
@@ -71,158 +53,104 @@ export const pollForTransactionVerification = async (
   boostId?: string,
   taskType?: string
 ): Promise<boolean> => {
-  return new Promise((resolve) => {
-    let attempts = 0;
-    const maxAttempts = 30; // 30 attempts
-    const checkDelay = 8000; // 8 seconds between checks
+  console.log(`🔍 [POLL] Starting verification poll for user ${userId}`);
+  console.log(`🔍 [POLL] Parameters:`, { userId, amount, taskId, boostId, taskType });
+
+  const maxAttempts = 40; // 2 minutes of polling
+  const pollInterval = 3000; // 3 seconds
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log(`🔍 [POLL] Attempt ${attempt}/${maxAttempts}`);
     
-    debugLog("Starting transaction polling", { 
-      userId, 
-      amount, 
-      taskId, 
-      boostId, 
-      taskType,
-      maxAttempts,
-      checkDelay: checkDelay / 1000 + "s"
-    });
-    
-    // Show initial toast
-    toast({
-      title: "🔍 Checking for payment...",
-      description: "Please wait while we verify your transaction. This can take up to 4 minutes.",
-    });
-    
-    const checkInterval = setInterval(async () => {
-      attempts++;
-      debugLog(`Verification attempt ${attempts}/${maxAttempts}`);
-      
-      const result = await verifyTonTransaction(userId, amount, taskId, boostId, taskType);
-      
-      if (result.success) {
-        clearInterval(checkInterval);
-        debugLog("✅ Transaction verified successfully!");
-        
-        toast({
-          title: "✅ Payment confirmed!",
-          description: "Your transaction has been verified successfully.",
-        });
-        resolve(true);
-      } else if (attempts >= maxAttempts) {
-        clearInterval(checkInterval);
-        debugLog(`❌ Transaction verification timed out after ${attempts} attempts`);
-        
-        toast({
-          title: "⏱️ Verification timeout",
-          description: "We couldn't find your transaction. Please check the console logs and contact support.",
-          variant: "destructive"
-        });
-        resolve(false);
-      } else {
-        // Show progress updates every 3 attempts
-        if (attempts % 3 === 0) {
-          const remainingTime = Math.ceil((maxAttempts - attempts) * checkDelay / 60000);
-          debugLog(`Still checking... attempt ${attempts}/${maxAttempts}`);
-          toast({
-            title: `🔍 Still checking... (${attempts}/${maxAttempts})`,
-            description: `We'll keep checking for about ${remainingTime} more minutes.`,
-          });
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-ton-payment', {
+        body: {
+          userId,
+          amount,
+          taskId,
+          boostId,
+          taskType,
+          comment: boostId ? `boost_${boostId}` : `task${taskId}`
         }
+      });
+
+      console.log(`🔍 [POLL] Verification response:`, { data, error });
+
+      if (error) {
+        console.error(`❌ [POLL] Verification error:`, error);
+        
+        // If it's a wallet not found error, fail immediately
+        if (error.message?.includes('wallet not found') || error.message?.includes('WALLET_NOT_FOUND')) {
+          console.error(`❌ [POLL] Wallet not found - stopping verification`);
+          return false;
+        }
+        
+        // For other errors, continue polling
+        if (attempt === maxAttempts) {
+          console.error(`❌ [POLL] Max attempts reached, giving up`);
+          return false;
+        }
+      } else if (data?.success) {
+        console.log(`✅ [POLL] Transaction verified successfully!`);
+        return true;
       }
-    }, checkDelay);
-  });
+
+      // Wait before next poll
+      if (attempt < maxAttempts) {
+        console.log(`⏳ [POLL] Waiting ${pollInterval}ms before next attempt...`);
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+      
+    } catch (err) {
+      console.error(`❌ [POLL] Poll attempt ${attempt} failed:`, err);
+      
+      if (attempt === maxAttempts) {
+        console.error(`❌ [POLL] All attempts failed`);
+        return false;
+      }
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+  }
+
+  console.error(`❌ [POLL] Verification timeout after ${maxAttempts} attempts`);
+  return false;
 };
 
-// Helper to format wallet address for display
-export const formatWalletAddress = (address: string): string => {
-  // Always show UQ... only if possible
-  if (!address) return "";
-  const uq = address.startsWith("UQ") ? address : "";
-  if (uq.length < 10) return uq;
-  return `${uq.slice(0, 6)}...${uq.slice(-6)}`;
+/**
+ * Get connected wallet address from localStorage
+ */
+export const getConnectedWalletAddress = (): string | null => {
+  const address = localStorage.getItem("tonWalletAddress");
+  const provider = localStorage.getItem("tonWalletProvider");
+  
+  console.log(`🔍 [WALLET] Getting connected wallet:`, { address, provider });
+  
+  if (provider === "telegram-wallet" && address) {
+    console.log(`✅ [WALLET] Found Telegram wallet: ${address}`);
+    return address;
+  }
+  
+  console.log(`❌ [WALLET] No valid wallet connection found`);
+  return null;
 };
 
-// Only supports sending from UQ address!
-export const openTonPayment = (
-  tonConnectUI: any,
-  amount: number,
-  taskId?: string,
-  customComment?: string
-): void => {
-  debugLog("Opening TON payment", { amount, taskId, customComment });
-
-  if (!tonConnectUI) {
-    debugLog("❌ TonConnect UI instance not provided");
-    toast({
-      title: "❌ Wallet not connected",
-      description: "TonConnect UI not initialized. Please refresh and try again.",
-      variant: "destructive"
-    });
-    return;
+/**
+ * Validate wallet address format
+ */
+export const isValidTonAddress = (address: string): boolean => {
+  if (!address) return false;
+  
+  // Check user-friendly format (UQ or EQ + base64url)
+  if (address.match(/^(UQ|EQ)[A-Za-z0-9_-]{40,}$/)) {
+    return true;
   }
-
-  if (typeof tonConnectUI.sendTransaction !== 'function') {
-    debugLog("❌ sendTransaction method not available");
-    toast({
-      title: "❌ Wallet error",
-      description: "sendTransaction method not available. Please reconnect your wallet.",
-      variant: "destructive"
-    });
-    return;
+  
+  // Check raw format (0: + 64 hex chars)
+  if (address.match(/^0:[a-fA-F0-9]{64}$/)) {
+    return true;
   }
-
-  // ALWAYS get the Telegram Wallet address only from localStorage
-  const realWalletAddressRaw = localStorage.getItem("tonWalletAddress");
-  // Convert to UQ
-  const realWalletAddress = realWalletAddressRaw && realWalletAddressRaw.startsWith("UQ")
-    ? realWalletAddressRaw
-    : null;
-  const walletProvider = localStorage.getItem("tonWalletProvider");
-  if (!realWalletAddress || walletProvider !== "telegram-wallet") {
-    debugLog("❌ Only Telegram Wallet allowed!");
-    toast({
-      title: "Telegram Wallet Required",
-      description: "You must connect your Telegram Wallet to make payments.",
-      variant: "destructive"
-    });
-    return;
-  }
-
-  const amountInNano = Math.floor(amount * 1000000000);
-  const comment = customComment ?? (taskId ? (taskId.includes('-') ? `boost_${taskId}` : `task${taskId}`) : '');
-  const receivingWallet = RECEIVING_WALLET_ADDRESS; // Always your Tonkeeper wallet
-
-  // Show payment details as plain text (to prevent TS/JSX error)
-  toast({
-    title: "TON Payment Details",
-    description: `Amount: ${amount} TON\nComment: ${comment || "(none)"}\nTo: ${receivingWallet}`,
-    duration: 7000,
-  });
-
-  debugLog("[TON PAYMENT] Will send transaction:", { 
-    from: realWalletAddress, to: receivingWallet, amountInNano, comment 
-  });
-
-  tonConnectUI.sendTransaction({
-    validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
-    messages: [
-      {
-        address: RECEIVING_WALLET_ADDRESS, // Always send to Tonkeeper wallet
-        amount: amountInNano.toString(),
-        payload: comment,
-      }
-    ]
-  }).then(() => {
-    debugLog("✅ Transaction sent successfully from Telegram wallet");
-    toast({
-      title: "📤 Transaction sent",
-      description: "Please confirm the transaction in your Telegram Wallet.",
-    });
-  }).catch((error) => {
-    debugLog("❌ Transaction failed", error);
-    toast({
-      title: "❌ Transaction failed",
-      description: `Failed to send transaction: ${error?.message || "Unknown error"}`,
-      variant: "destructive"
-    });
-  });
+  
+  return false;
 };
