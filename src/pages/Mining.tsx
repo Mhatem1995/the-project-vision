@@ -2,11 +2,11 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, LogOut } from "lucide-react";
 import BoostPurchaseDialog from "@/components/BoostPurchaseDialog";
 import BalanceCard from "@/components/mining/BalanceCard";
 import MiningProgress from "@/components/mining/MiningProgress";
 import FortuneWheel from "@/components/FortuneWheel";
+import { WalletDebugComponent } from "@/components/WalletDebugComponent";
 import { useMining } from "@/hooks/useMining";
 import { useToast } from "@/hooks/use-toast";
 import { useTonConnect } from "@/hooks/useTonConnect";
@@ -110,71 +110,21 @@ const Mining = () => {
               timeRemaining={timeRemaining}
             />
 
-            {/* Real wallet connection section - NOW DISPLAYS THE REAL ADDRESS */}
-            <div className="w-full max-w-md space-y-4">
-              {!isConnected ? (
-                <Button 
-                  variant="default" 
-                  onClick={handleConnectWallet}
-                  disabled={isConnecting}
-                  className="w-full"
-                >
-                  <Wallet className="mr-2 h-4 w-4" />
-                  {isConnecting ? 'Connecting...' : 'Connect TON Wallet'}
-                </Button>
-              ) : (
-                <div className="space-y-3">
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <div className="flex items-center mb-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                      <p className="text-sm font-medium text-green-800">TON Wallet Connected</p>
-                    </div>
-                    <p className="text-xs text-green-700 mb-1">Wallet Address:</p>
-                    <p className="text-xs font-mono break-all text-green-800 bg-green-100 p-2 rounded">
-                      {walletAddress}
-                    </p>
-                    <p className="text-xs text-green-600 mt-1">
-                      ✅ This is your connected TON wallet address (from TonConnect session)
-                    </p>
-                    {/* Debug info for troubleshooting wallet mismatch */}
-                    <div className="mt-4">
-                      <details className="text-xs text-gray-700 bg-gray-50 p-2 rounded border">
-                        <summary className="cursor-pointer font-bold mb-1">Wallet Debug Info</summary>
-                        <div><b>Provider</b>: {tonWalletProvider}</div>
-                        <div><b>App Name</b>: {tonWalletAppName}</div>
-                        <div><b>Raw Address</b>: {tonWalletRawAddr ?? "n/a"}</div>
-                        <div><b>Raw Address Type</b>: {getWalletAddressType(tonWalletRawAddr)}</div>
-                        <div><b>Formatted Address</b>: {walletAddress ?? "n/a"}</div>
-                        <div><b>Formatted Address Type</b>: {getWalletAddressType(walletAddress)}</div>
-                      </details>
-                    </div>
-                  </div>
+            {/* Enhanced wallet connection with debug component */}
+            <WalletDebugComponent />
 
-                  <Button 
-                    variant="destructive" 
-                    size="sm"
-                    onClick={disconnect}
-                    className="w-full"
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Disconnect Wallet
-                  </Button>
-                </div>
-              )}
-
-              <Button 
-                className="w-full" 
-                size="lg"
-                disabled={(timeRemaining !== null && timeRemaining > 0) || !canMine}
-                onClick={handleCollect}
-              >
-                {!canMine 
-                  ? 'Connect TON wallet to mine' 
-                  : (timeRemaining !== null && timeRemaining > 0) 
-                    ? 'Mining in progress...' 
-                    : 'Collect Knife Coin'}
-              </Button>
-            </div>
+            <Button 
+              className="w-full" 
+              size="lg"
+              disabled={(timeRemaining !== null && timeRemaining > 0) || !canMine}
+              onClick={handleCollect}
+            >
+              {!canMine 
+                ? 'Connect TON wallet to mine' 
+                : (timeRemaining !== null && timeRemaining > 0) 
+                  ? 'Mining in progress...' 
+                  : 'Collect Knife Coin'}
+            </Button>
 
             {/* Fortune Wheel with proper spacing */}
             <div className="w-full max-w-md mx-auto mt-8">
