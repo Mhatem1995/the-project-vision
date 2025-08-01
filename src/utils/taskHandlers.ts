@@ -37,9 +37,23 @@ export const handlePaymentTask = async (
   dailyTaskAvailable: boolean,
   toast: any,
   onDailyTaskComplete?: () => void,
-  tonConnectUI?: any // New param (should be passed in from the component, just like in the boost flow)
+  tonConnectUI?: any
 ) => {
   debugLog("[PAYMENT TASK] Button click fired", { task, dailyTaskAvailable });
+
+  // Check if running in Telegram first
+  const isInTelegram = !!(window as any)?.Telegram?.WebApp?.initDataUnsafe?.user;
+  debugLog("[PAYMENT TASK] Telegram environment check", { isInTelegram });
+
+  if (!isInTelegram) {
+    debugLog("❌ App not running in Telegram - TON Space wallet unavailable");
+    toast({
+      title: "Telegram Required",
+      description: "TON Space payments only work inside Telegram. Please open this bot in Telegram.",
+      variant: "destructive"
+    });
+    return;
+  }
 
   if (!task.tonAmount) {
     debugLog("❌ No TON amount specified for task");
@@ -51,18 +65,20 @@ export const handlePaymentTask = async (
     return;
   }
 
-  const userId = localStorage.getItem("telegramUserId");
-  if (!userId) {
-    debugLog("❌ No valid Telegram user ID found", { userId });
+  const telegramUser = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user;
+  const userId = `@${telegramUser?.id?.toString()}`;
+  
+  if (!telegramUser?.id) {
+    debugLog("❌ No valid Telegram user ID found", { telegramUser });
     toast({
       title: "Error",
-      description: "No valid Telegram user detected. Please refresh and try again.",
+      description: "No valid Telegram user detected. Please open this bot in Telegram.",
       variant: "destructive"
     });
     return;
   }
 
-  debugLog("[PAYMENT TASK] Processing TON payment task", {
+  debugLog("[PAYMENT TASK] Processing TON Space payment task", {
     userId, 
     taskId: task.id, 
     amount: task.tonAmount,
@@ -70,35 +86,50 @@ export const handlePaymentTask = async (
     dailyTaskAvailable 
   });
 
-  // Detect & use strictly telegram-wallet via localStorage (same as boost)
+  // Check for real TON Space wallet connection
   const provider = localStorage.getItem("tonWalletProvider");
-  const walletAddress = provider === "telegram-wallet"
-    ? localStorage.getItem("tonWalletAddress")
-    : null;
+  const walletAddress = localStorage.getItem("tonWalletAddress");
 
-  // If no tonConnectUI provided (should never happen), get from window for compatibility
-  const _tonConnectUI = tonConnectUI || (window as any)._tonConnectUI;
-  if (!_tonConnectUI) {
-    debugLog("❌ _tonConnectUI not found! Cannot open TON Wallet modal.");
+  debugLog("[PAYMENT TASK] Wallet status check", { provider, walletAddress, hasAddress: !!walletAddress });
+
+  if (provider !== "telegram-wallet" || !walletAddress || !walletAddress.startsWith("UQ")) {
+    debugLog("❌ No real TON Space wallet connected", { provider, walletAddress });
     toast({
-      title: "TonConnect Not Available",
-      description: "TonConnect UI not loaded. Please refresh and try again after connecting your wallet.",
+      title: "TON Space Wallet Required",
+      description: "Please connect your Telegram TON Space wallet first. The wallet address must start with 'UQ' (v4R2).",
       variant: "destructive"
     });
     return;
   }
 
-  // Always open modal (forces Telegram Wallet modal to appear just like boost flow)
-  debugLog("[PAYMENT TASK] Opening TonConnect modal for Telegram Wallet...");
-  _tonConnectUI.openModal();
-
-  if (!walletAddress) {
-    debugLog("❌ No real telegram-wallet address found in localStorage.", { provider, walletAddress });
+  // Get TonConnect UI
+  const _tonConnectUI = tonConnectUI || (window as any)._tonConnectUI;
+  if (!_tonConnectUI) {
+    debugLog("❌ TonConnect UI not available");
     toast({
-      title: "Wallet Not Connected",
-      description: "Please connect your Telegram Wallet via TonConnect to complete this task.",
+      title: "TonConnect Not Available",
+      description: "TonConnect UI not loaded. Please refresh and try again.",
       variant: "destructive"
     });
+    return;
+  }
+
+  // Check if wallet is actually connected to TonConnect
+  const isWalletConnected = _tonConnectUI.connected || _tonConnectUI.wallet;
+  debugLog("[PAYMENT TASK] TonConnect connection status", { 
+    isConnected: isWalletConnected,
+    wallet: _tonConnectUI.wallet,
+    connected: _tonConnectUI.connected 
+  });
+
+  if (!isWalletConnected) {
+    debugLog("❌ TonConnect wallet not connected, opening modal");
+    toast({
+      title: "Connect TON Space Wallet",
+      description: "Please connect your Telegram TON Space wallet to continue.",
+      variant: "destructive"
+    });
+    _tonConnectUI.openModal();
     return;
   }
 

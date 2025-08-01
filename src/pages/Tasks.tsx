@@ -1,17 +1,22 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { AlertCircle, Wallet } from "lucide-react";
+import { AlertCircle, Wallet, AlertTriangle, Smartphone } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TaskItem } from "@/components/tasks/TaskItem";
 import { handleCollabTask, handlePaymentTask } from "@/utils/taskHandlers";
 import { supabase } from "@/integrations/supabase/client";
 import { useTonConnect } from "@/hooks/useTonConnect";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Task } from "@/types/task";
 
 const Tasks = () => {
   const { toast } = useToast();
   const { isConnected, walletAddress, connect, tonConnectUI } = useTonConnect();
+  
+  // Check if running in Telegram
+  const isInTelegram = !!(window as any)?.Telegram?.WebApp?.initDataUnsafe?.user;
+  
   const [tasks, setTasks] = useState<Task[]>([
     {
       id: "1",
@@ -109,21 +114,49 @@ const Tasks = () => {
         <p className="text-muted-foreground">Complete tasks to earn KFC</p>
       </div>
       
-      {!isConnected && (
-        <div className="bg-amber-100 border-amber-300 border p-4 rounded-md flex flex-col items-center w-full text-amber-800 mb-4 gap-3">
-          <div className="flex items-center">
-            <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
-            <p className="text-sm">Connect your TON wallet to complete payment tasks.</p>
-          </div>
-          <Button 
-            onClick={connect} 
-            size="sm" 
-            variant="outline" 
-            className="bg-amber-50 border-amber-300 hover:bg-amber-200"
-          >
-            <Wallet className="mr-2 h-4 w-4" /> Connect Wallet
-          </Button>
-        </div>
+      {/* Telegram Environment Check */}
+      {!isInTelegram && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-700">
+            <strong>Telegram Required!</strong> TON Space payments only work inside Telegram. 
+            Please open this bot in Telegram to access payment tasks.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {/* Wallet Connection Alert */}
+      {isInTelegram && !isConnected && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <Smartphone className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-700 space-y-3">
+            <div>
+              <strong>Connect TON Space Wallet</strong><br/>
+              Connect your Telegram TON Space wallet to complete payment tasks.
+              Your wallet address must start with "UQ" (v4R2 format).
+            </div>
+            <Button 
+              onClick={connect} 
+              size="sm" 
+              variant="outline" 
+              className="bg-amber-100 border-amber-300 hover:bg-amber-200"
+            >
+              <Wallet className="mr-2 h-4 w-4" /> Connect TON Space Wallet
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {/* Wallet Connected Status */}
+      {isInTelegram && isConnected && walletAddress && (
+        <Alert className="border-green-200 bg-green-50">
+          <Wallet className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-700">
+            <strong>TON Space Connected!</strong><br/>
+            <span className="text-xs font-mono">{walletAddress}</span>
+            {walletAddress.startsWith('UQ') ? ' ✅ v4R2' : ' ⚠️ Check format'}
+          </AlertDescription>
+        </Alert>
       )}
       
       <Tabs defaultValue="collab" className="w-full">
@@ -160,12 +193,12 @@ const Tasks = () => {
                 dailyTaskAvailable={dailyTaskAvailable}
                 onCollabComplete={(taskId) => handleCollabTask(taskId, tasks, setTasks, toast)}
                 onPaymentSubmit={
-                  !isConnected
+                  !isInTelegram || !isConnected
                     ? undefined
                     : (task) =>
                       handlePaymentTask(task, dailyTaskAvailable, toast, checkDailyTaskStatus, tonConnectUI)
                 }
-                walletConnected={isConnected}
+                walletConnected={isInTelegram && isConnected}
               />
             ))
           }
