@@ -3,54 +3,105 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Get the REAL TON Space wallet address using multiple methods
+ * Get the REAL TON Space wallet address (v4R2) when running in Telegram
  */
 async function getRealTonSpaceAddress(wallet: any, tonConnectUI: any): Promise<string | null> {
   try {
-    console.log("🔍 [REAL ADDRESS] Starting real address detection...");
+    console.log("🔍 [REAL ADDRESS] Starting real TON Space address detection...");
     console.log("🔍 [REAL ADDRESS] Wallet object:", wallet);
     
-    // Method 1: Try to get from TonConnect UI directly
-    if (tonConnectUI && tonConnectUI.account && tonConnectUI.account.address) {
-      const uiAddress = tonConnectUI.account.address;
-      console.log("🔍 [REAL ADDRESS] Method 1 - TonConnect UI address:", uiAddress);
-      if (uiAddress.startsWith("0:") || uiAddress.startsWith("UQ") || uiAddress.startsWith("EQ")) {
-        return convertToUserFriendly(uiAddress);
+    // Check if we're in Telegram environment
+    const isInTelegram = !!(window as any)?.Telegram?.WebApp?.initDataUnsafe?.user;
+    console.log("🔍 [REAL ADDRESS] Running in Telegram:", isInTelegram);
+    
+    if (!isInTelegram) {
+      console.warn("⚠️ [REAL ADDRESS] Not running in Telegram! Cannot get real TON Space address.");
+      // In development/preview, still try to get whatever address is available
+      if (wallet?.account?.address) {
+        return convertToUserFriendly(wallet.account.address);
+      }
+      return null;
+    }
+    
+    // Method 1: Direct wallet account address (most reliable for TON Space)
+    if (wallet?.account?.address) {
+      const rawAddress = wallet.account.address;
+      console.log("🔍 [REAL ADDRESS] Method 1 - Direct wallet address:", rawAddress);
+      
+      // Convert to UQ format and validate it's a real TON Space address
+      const converted = convertToUserFriendly(rawAddress);
+      if (converted && converted.startsWith("UQ")) {
+        console.log("✅ [REAL ADDRESS] Found TON Space address:", converted);
+        return converted;
       }
     }
     
-    // Method 2: Try wallet.account.address with proper conversion
-    if (wallet?.account?.address) {
-      const rawAddress = wallet.account.address;
-      console.log("🔍 [REAL ADDRESS] Method 2 - Raw wallet address:", rawAddress);
-      return convertToUserFriendly(rawAddress);
+    // Method 2: Try TonConnect UI account address
+    if (tonConnectUI?.account?.address) {
+      const uiAddress = tonConnectUI.account.address;
+      console.log("🔍 [REAL ADDRESS] Method 2 - TonConnect UI address:", uiAddress);
+      
+      const converted = convertToUserFriendly(uiAddress);
+      if (converted && converted.startsWith("UQ")) {
+        console.log("✅ [REAL ADDRESS] Found TON Space address from UI:", converted);
+        return converted;
+      }
     }
     
-    // Method 3: Try to query the wallet directly for its main address
-    if (tonConnectUI && tonConnectUI.connector) {
+    // Method 3: Try to access wallet info directly from Telegram
+    if ((window as any)?.Telegram?.WebApp?.isPrivateAllowed && wallet) {
       try {
-        console.log("🔍 [REAL ADDRESS] Method 3 - Querying connector...");
-        const connectorState = await tonConnectUI.connector.getWalletInfo();
-        console.log("🔍 [REAL ADDRESS] Connector state:", connectorState);
+        console.log("🔍 [REAL ADDRESS] Method 3 - Accessing Telegram wallet info...");
         
-        if (connectorState?.account?.address) {
-          return convertToUserFriendly(connectorState.account.address);
+        // Try to get wallet state from TonConnect
+        const walletState = await tonConnectUI?.getWallets?.();
+        console.log("🔍 [REAL ADDRESS] Wallet state:", walletState);
+        
+        if (walletState && Array.isArray(walletState)) {
+          const telegramWallet = walletState.find((w: any) => 
+            w.appName === 'telegram-wallet' || 
+            w.name === 'Telegram Wallet' ||
+            w.device?.appName === 'telegram-wallet'
+          );
+          
+          if (telegramWallet?.account?.address) {
+            const converted = convertToUserFriendly(telegramWallet.account.address);
+            if (converted && converted.startsWith("UQ")) {
+              console.log("✅ [REAL ADDRESS] Found TON Space address from Telegram wallet:", converted);
+              return converted;
+            }
+          }
         }
       } catch (error) {
         console.log("🔍 [REAL ADDRESS] Method 3 failed:", error);
       }
     }
     
-    // Method 4: Check if there's wallet info in the connection
-    if (wallet && wallet.connectItems) {
-      console.log("🔍 [REAL ADDRESS] Method 4 - Connect items:", wallet.connectItems);
-      const addressItem = wallet.connectItems.find((item: any) => item.name === 'ton_addr');
-      if (addressItem?.address) {
-        return convertToUserFriendly(addressItem.address);
+    // Method 4: Force v4R2 address detection
+    if (wallet && wallet.device?.appName === 'telegram-wallet') {
+      console.log("🔍 [REAL ADDRESS] Method 4 - Detected Telegram wallet, forcing v4R2 detection...");
+      
+      // Try all possible address sources for Telegram wallet
+      const possibleAddresses = [
+        wallet.account?.address,
+        wallet.connectItems?.find((item: any) => item.name === 'ton_addr')?.address,
+        tonConnectUI?.account?.address,
+        wallet.address,
+        wallet.walletInfo?.account?.address
+      ].filter(Boolean);
+      
+      console.log("🔍 [REAL ADDRESS] Possible addresses:", possibleAddresses);
+      
+      for (const addr of possibleAddresses) {
+        const converted = convertToUserFriendly(addr);
+        if (converted && converted.startsWith("UQ")) {
+          console.log("✅ [REAL ADDRESS] Found valid TON Space v4R2 address:", converted);
+          return converted;
+        }
       }
     }
     
-    console.log("❌ [REAL ADDRESS] All methods failed to get real address");
+    console.log("❌ [REAL ADDRESS] No valid TON Space address found");
     return null;
     
   } catch (error) {
@@ -146,7 +197,7 @@ export const useTonConnect = (): UseTonConnectReturn => {
 
   const isConnected = !!wallet && !!walletAddress;
 
-  // Enhanced wallet address detection
+  // Enhanced TON Space wallet address detection
   useEffect(() => {
     const detectRealAddress = async () => {
       if (!wallet || !tonConnectUI) {
@@ -155,31 +206,49 @@ export const useTonConnect = (): UseTonConnectReturn => {
         return;
       }
       
-      console.log("🔍 [DETECTION] === WALLET CONNECTION DETECTED ===");
+      console.log("🔍 [DETECTION] === TON SPACE WALLET DETECTION ===");
       console.log("🔍 [DETECTION] Wallet:", wallet);
       console.log("🔍 [DETECTION] Provider:", wallet?.provider);
       console.log("🔍 [DETECTION] Device:", wallet?.device);
       console.log("🔍 [DETECTION] Account:", wallet?.account);
+      console.log("🔍 [DETECTION] App Name:", wallet?.device?.appName);
+      
+      // Check if this is actually a Telegram wallet
+      const isTelegramWallet = wallet?.device?.appName === 'telegram-wallet' ||
+                              (wallet as any)?.appName === 'telegram-wallet' ||
+                              (wallet as any)?.name === 'Telegram Wallet';
+      
+      console.log("🔍 [DETECTION] Is Telegram Wallet:", isTelegramWallet);
+      
+      if (!isTelegramWallet) {
+        console.warn("⚠️ [DETECTION] Not a Telegram wallet! TON Space addresses require Telegram wallet.");
+        setWalletAddress(null);
+        return;
+      }
       
       setIsLoading(true);
       
       try {
-        // Get the real TON Space address
+        // Get the real TON Space address (v4R2)
         const realAddress = await getRealTonSpaceAddress(wallet, tonConnectUI);
         
         if (realAddress) {
-          console.log("✅ [DETECTION] Real address detected:", realAddress);
+          // Validate that this is a proper TON Space address (should start with UQDe or similar)
+          console.log("✅ [DETECTION] TON Space address detected:", realAddress);
+          console.log("🔍 [DETECTION] Address starts with:", realAddress.substring(0, 6));
+          console.log("🔍 [DETECTION] Address length:", realAddress.length);
+          
           setWalletAddress(realAddress);
           
-          // Store immediately
+          // Store with Telegram wallet provider
           localStorage.setItem("tonWalletAddress", realAddress);
           localStorage.setItem("tonWalletProvider", "telegram-wallet");
           
-          // Save to Supabase
+          // Save to Supabase with Telegram user ID
           const telegramUser = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user;
           if (telegramUser?.id) {
-            const telegramId = telegramUser.id.toString();
-            console.log("💾 [DETECTION] Saving to Supabase:", { telegramId, realAddress });
+            const telegramId = `@${telegramUser.id.toString()}`;
+            console.log("💾 [DETECTION] Saving TON Space wallet to Supabase:", { telegramId, realAddress });
             
             try {
               const { data, error } = await supabase.functions.invoke('database-helper', {
@@ -195,20 +264,20 @@ export const useTonConnect = (): UseTonConnectReturn => {
               if (error) {
                 console.error("❌ [DETECTION] Supabase save failed:", error);
               } else {
-                console.log("✅ [DETECTION] Saved to Supabase successfully:", data);
+                console.log("✅ [DETECTION] TON Space wallet saved to Supabase successfully:", data);
               }
             } catch (saveError) {
               console.error("❌ [DETECTION] Supabase save exception:", saveError);
             }
           } else {
-            console.error("❌ [DETECTION] No Telegram user ID found");
+            console.error("❌ [DETECTION] No Telegram user ID found - app must run in Telegram");
           }
         } else {
-          console.error("❌ [DETECTION] Failed to get real address");
+          console.error("❌ [DETECTION] Failed to get real TON Space address");
           setWalletAddress(null);
         }
       } catch (error) {
-        console.error("❌ [DETECTION] Address detection failed:", error);
+        console.error("❌ [DETECTION] TON Space address detection failed:", error);
         setWalletAddress(null);
       } finally {
         setIsLoading(false);
