@@ -127,12 +127,12 @@ export const getConnectedWalletAddress = (): string | null => {
   
   console.log(`🔍 [WALLET] Getting connected wallet:`, { address, provider });
   
-  if (provider === "telegram-wallet" && address) {
-    console.log(`✅ [WALLET] Found Telegram wallet: ${address}`);
+  if (address && address.startsWith("UQ")) {
+    console.log(`✅ [WALLET] Found valid UQ wallet address: ${address}`);
     return address;
   }
   
-  console.log(`❌ [WALLET] No valid wallet connection found`);
+  console.log(`❌ [WALLET] No valid UQ wallet address found`);
   return null;
 };
 

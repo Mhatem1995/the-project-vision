@@ -49,31 +49,65 @@ const TelegramInitializer = () => {
       let languageCode: string | null = null;
 
       if (typeof window !== "undefined") {
-        const hasTelegram = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe?.user;
-        const tgUser = hasTelegram ? window.Telegram.WebApp.initDataUnsafe.user : null;
+        // Comprehensive Telegram detection
+        const hasTelegramObject = !!(window.Telegram && window.Telegram.WebApp);
+        const hasInitData = !!window.Telegram?.WebApp?.initData;
+        const hasUser = !!window.Telegram?.WebApp?.initDataUnsafe?.user;
+        const isExpanded = window.Telegram?.WebApp?.isExpanded;
+        const platform = window.Telegram?.WebApp?.platform;
+        
+        console.log("[TG-DEBUG] Telegram detection details:", {
+          hasTelegramObject,
+          hasInitData,
+          hasUser,
+          isExpanded,
+          platform,
+          version: window.Telegram?.WebApp?.version
+        });
 
-        if (tgUser && tgUser.id) {
-          // Use real Telegram user ID
-          userId = tgUser.id.toString();
-          telegramUserName = tgUser.username ? tgUser.username : tgUser.first_name || "";
-          firstName = tgUser.first_name || "";
-          lastName = tgUser.last_name || "";
-          languageCode = tgUser.language_code || "";
+        if (hasTelegramObject) {
+          // Initialize Telegram WebApp
+          try {
+            window.Telegram.WebApp.ready();
+            console.log("[TG-DEBUG] Telegram WebApp ready() called");
+          } catch (e) {
+            console.warn("[TG-DEBUG] WebApp ready() failed:", e);
+          }
+
+          const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
           
-          console.log("[TG-DEBUG] Real Telegram user detected:", {
-            userId,
-            username: telegramUserName,
-            firstName,
-            lastName
-          });
+          if (tgUser && tgUser.id) {
+            // Use real Telegram user ID
+            userId = tgUser.id.toString();
+            telegramUserName = tgUser.username ? tgUser.username : tgUser.first_name || "";
+            firstName = tgUser.first_name || "";
+            lastName = tgUser.last_name || "";
+            languageCode = tgUser.language_code || "";
+            
+            console.log("[TG-DEBUG] Real Telegram user detected:", {
+              userId,
+              username: telegramUserName,
+              firstName,
+              lastName,
+              platform
+            });
+          } else {
+            console.warn("[TG-DEBUG] Telegram WebApp detected but no user data available");
+            console.warn("[TG-DEBUG] This may be normal during development or if the WebApp is not properly configured");
+            // Don't return here - continue with limited functionality
+          }
         } else {
-          console.error("[TG-DEBUG] No Telegram WebApp environment detected. This app must be run inside Telegram.");
-          return;
+          console.warn("[TG-DEBUG] No Telegram WebApp object detected");
+          console.warn("[TG-DEBUG] App should be opened through Telegram bot for full functionality");
+          // Don't return here - allow basic functionality for testing
         }
 
-        // Store in localStorage without @ prefix for real users
-        localStorage.setItem("telegramUserId", userId ?? "");
-        localStorage.setItem("telegramUserName", telegramUserName ?? "");
+        // Store in localStorage (without @ prefix for user ID)
+        if (userId) {
+          localStorage.setItem("telegramUserId", userId);
+          localStorage.setItem("telegramUserName", telegramUserName ?? "");
+          console.log("[TG-DEBUG] Stored user data in localStorage:", { userId, telegramUserName });
+        }
       }
 
       // Store user in database - REAL session only

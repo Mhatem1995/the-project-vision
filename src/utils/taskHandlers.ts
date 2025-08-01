@@ -65,14 +65,13 @@ export const handlePaymentTask = async (
     return;
   }
 
-  const telegramUser = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user;
-  const userId = `@${telegramUser?.id?.toString()}`;
+  const userId = localStorage.getItem("telegramUserId");
   
-  if (!telegramUser?.id) {
-    debugLog("❌ No valid Telegram user ID found", { telegramUser });
+  if (!userId) {
+    debugLog("❌ No user ID found in localStorage");
     toast({
-      title: "Error",
-      description: "No valid Telegram user detected. Please open this bot in Telegram.",
+      title: "Error", 
+      description: "User not found. Please refresh the page.",
       variant: "destructive"
     });
     return;

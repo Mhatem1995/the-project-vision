@@ -251,17 +251,16 @@ export const useTonConnect = (): UseTonConnectReturn => {
           localStorage.setItem("tonWalletProvider", "telegram-wallet");
           
           // Save to Supabase with Telegram user ID
-          const telegramUser = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user;
-          if (telegramUser?.id) {
-            const telegramId = `@${telegramUser.id.toString()}`;
-            console.log("💾 [DETECTION] Saving TON Space wallet to Supabase:", { telegramId, realAddress });
+          const telegramUserId = localStorage.getItem("telegramUserId");
+          if (telegramUserId) {
+            console.log("💾 [DETECTION] Saving TON Space wallet to Supabase:", { telegramUserId, realAddress });
             
             try {
               const { data, error } = await supabase.functions.invoke('database-helper', {
                 body: {
                   action: 'save_wallet_connection',
                   params: {
-                    telegram_id: telegramId,
+                    telegram_id: telegramUserId,
                     wallet_address: realAddress
                   }
                 }
@@ -276,7 +275,7 @@ export const useTonConnect = (): UseTonConnectReturn => {
               console.error("❌ [DETECTION] Supabase save exception:", saveError);
             }
           } else {
-            console.error("❌ [DETECTION] No Telegram user ID found - app must run in Telegram");
+            console.warn("⚠️ [DETECTION] No Telegram user ID found in localStorage");
           }
         } else {
           console.error("❌ [DETECTION] Failed to get real TON Space address");
