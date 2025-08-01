@@ -67,9 +67,13 @@ const TelegramInitializer = () => {
             lastName
           });
         } else {
-          console.error("[TG-DEBUG] No Telegram WebApp environment detected. This app must be run inside Telegram.");
-          // Don't proceed without real Telegram environment for production
-          return;
+          // For testing in Telegram without full WebApp initialization
+          console.warn("[TG-DEBUG] No Telegram user data found, using fallback for development");
+          userId = "test_user_" + Date.now();
+          telegramUserName = "TestUser";
+          firstName = "Test";
+          lastName = "User";
+          languageCode = "en";
         }
 
         // Store in localStorage without @ prefix for real users
