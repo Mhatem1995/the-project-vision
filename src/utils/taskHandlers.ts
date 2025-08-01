@@ -94,41 +94,29 @@ export const handlePaymentTask = async (
 
   debugLog("[PAYMENT TASK] Wallet status check", { provider, walletAddress, hasAddress: !!walletAddress });
 
-  if (provider !== "telegram-wallet" || !walletAddress || !walletAddress.startsWith("UQ")) {
-    debugLog("❌ No real TON Space wallet connected", { provider, walletAddress });
+  if (!walletAddress) {
+    debugLog("❌ No wallet address found, trying to get from TonConnect");
     
-    // Try to get wallet from TonConnect directly
+    // Get the REAL wallet address directly from TonConnect - NO CONVERSION!
     if (_tonConnectUI && _tonConnectUI.wallet && _tonConnectUI.wallet.account?.address) {
-      const directAddress = _tonConnectUI.wallet.account.address;
-      debugLog("🔍 Trying to get address directly from TonConnect:", directAddress);
+      const realAddress = _tonConnectUI.wallet.account.address;
+      debugLog("🔍 Getting REAL TON Space address directly:", realAddress);
+      debugLog("🔍 Real address type:", typeof realAddress);
+      debugLog("🔍 Real address length:", realAddress.length);
       
-      // Check if it's a valid UQ address or try to convert it
-      if (directAddress.startsWith('UQ')) {
-        localStorage.setItem("tonWalletAddress", directAddress);
-        localStorage.setItem("tonWalletProvider", "telegram-wallet");
-        debugLog("✅ Successfully captured real wallet address:", directAddress);
-      } else {
-        // Try to convert to user-friendly format
-        try {
-          // Simple conversion attempt for EQ to UQ format
-          const converted = directAddress.replace(/^EQ/, 'UQ');
-          if (converted.startsWith('UQ')) {
-            localStorage.setItem("tonWalletAddress", converted);
-            localStorage.setItem("tonWalletProvider", "telegram-wallet");
-            debugLog("✅ Successfully converted and captured wallet address:", converted);
-          }
-        } catch (error) {
-          debugLog("❌ Failed to convert wallet address:", error);
-        }
-      }
+      // Store the REAL address exactly as provided by TON Space
+      localStorage.setItem("tonWalletAddress", realAddress);
+      localStorage.setItem("tonWalletProvider", "telegram-wallet");
+      debugLog("✅ Stored REAL TON Space address:", realAddress);
     }
     
-    // Re-check after potential conversion
-    const updatedAddress = localStorage.getItem("tonWalletAddress");
-    if (!updatedAddress || !updatedAddress.startsWith("UQ")) {
+    // Check if we have a real wallet address stored
+    const storedAddress = localStorage.getItem("tonWalletAddress");
+    debugLog("📝 Final stored wallet address:", storedAddress);
+    if (!storedAddress) {
       toast({
         title: "TON Space Wallet Required",
-        description: "Please connect your Telegram TON Space wallet first. The wallet address must start with 'UQ' (v4R2).",
+        description: "Please connect your Telegram TON Space wallet first.",
         variant: "destructive"
       });
       return;
