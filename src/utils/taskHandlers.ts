@@ -86,6 +86,9 @@ export const handlePaymentTask = async (
     dailyTaskAvailable 
   });
 
+  // Get TonConnect UI first
+  const _tonConnectUI = tonConnectUI || (window as any)._tonConnectUI;
+  
   // Check for real TON Space wallet connection
   const provider = localStorage.getItem("tonWalletProvider");
   const walletAddress = localStorage.getItem("tonWalletAddress");
@@ -94,16 +97,44 @@ export const handlePaymentTask = async (
 
   if (provider !== "telegram-wallet" || !walletAddress || !walletAddress.startsWith("UQ")) {
     debugLog("❌ No real TON Space wallet connected", { provider, walletAddress });
-    toast({
-      title: "TON Space Wallet Required",
-      description: "Please connect your Telegram TON Space wallet first. The wallet address must start with 'UQ' (v4R2).",
-      variant: "destructive"
-    });
-    return;
+    
+    // Try to get wallet from TonConnect directly
+    if (_tonConnectUI && _tonConnectUI.wallet && _tonConnectUI.wallet.account?.address) {
+      const directAddress = _tonConnectUI.wallet.account.address;
+      debugLog("🔍 Trying to get address directly from TonConnect:", directAddress);
+      
+      // Check if it's a valid UQ address or try to convert it
+      if (directAddress.startsWith('UQ')) {
+        localStorage.setItem("tonWalletAddress", directAddress);
+        localStorage.setItem("tonWalletProvider", "telegram-wallet");
+        debugLog("✅ Successfully captured real wallet address:", directAddress);
+      } else {
+        // Try to convert to user-friendly format
+        try {
+          // Simple conversion attempt for EQ to UQ format
+          const converted = directAddress.replace(/^EQ/, 'UQ');
+          if (converted.startsWith('UQ')) {
+            localStorage.setItem("tonWalletAddress", converted);
+            localStorage.setItem("tonWalletProvider", "telegram-wallet");
+            debugLog("✅ Successfully converted and captured wallet address:", converted);
+          }
+        } catch (error) {
+          debugLog("❌ Failed to convert wallet address:", error);
+        }
+      }
+    }
+    
+    // Re-check after potential conversion
+    const updatedAddress = localStorage.getItem("tonWalletAddress");
+    if (!updatedAddress || !updatedAddress.startsWith("UQ")) {
+      toast({
+        title: "TON Space Wallet Required",
+        description: "Please connect your Telegram TON Space wallet first. The wallet address must start with 'UQ' (v4R2).",
+        variant: "destructive"
+      });
+      return;
+    }
   }
-
-  // Get TonConnect UI
-  const _tonConnectUI = tonConnectUI || (window as any)._tonConnectUI;
   if (!_tonConnectUI) {
     debugLog("❌ TonConnect UI not available");
     toast({

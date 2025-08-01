@@ -68,12 +68,8 @@ const TelegramInitializer = () => {
           });
         } else {
           console.error("[TG-DEBUG] No Telegram WebApp environment detected. This app must be run inside Telegram.");
-          // For development/testing, use a fallback user ID
-          userId = "@11111111-1111-1111-1111-111111111111";
-          telegramUserName = "TestUser";
-          firstName = "Test";
-          lastName = "User";
-          languageCode = "en";
+          // Don't proceed without real Telegram environment for production
+          return;
         }
 
         // Store in localStorage without @ prefix for real users
