@@ -1,34 +1,26 @@
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
-import { createContext } from "react";
 
-export const TonConnectContext = createContext(null);
-
-// Configure TonConnect to ONLY include Telegram Wallet with proper settings
-export const TonConnectProvider = ({ children }: { children: React.ReactNode }) => (
-  <TonConnectUIProvider
-    manifestUrl="https://wiliamdrop.netlify.app/tonconnect-manifest.json"
-    walletsListConfiguration={{
-      includeWallets: [
-        {
-          name: "Telegram Wallet",
-          appName: "telegram-wallet",
-          imageUrl: "https://wallet.tg/images/logo-288.png", 
-          aboutUrl: "https://wallet.tg/",
-          universalLink: "https://t.me/wallet?attach=wallet",
-          bridgeUrl: "https://bridge.tonapi.io/bridge",
-          platforms: ["ios", "android", "macos", "windows", "linux"]
-        }
-      ]
-    }}
-    actionsConfiguration={{
-      twaReturnUrl: 'https://t.me/WilliamKnifeManBot'
-    }}
-    uiPreferences={{
-      theme: 'DARK' as any
-    }}
-  >
-    {children}
-  </TonConnectUIProvider>
-);
+// Simple TonConnect configuration for Telegram environment
+export const TonConnectProvider = ({ children }: { children: React.ReactNode }) => {
+  // Get current domain for manifest
+  const currentDomain = typeof window !== 'undefined' ? window.location.origin : 'https://a3e79467-7b1e-410a-a3a4-f6b5b48946c1.lovableproject.com';
+  const manifestUrl = `${currentDomain}/tonconnect-manifest.json`;
+  
+  console.log('[TONCONNECT] Using manifest URL:', manifestUrl);
+  
+  return (
+    <TonConnectUIProvider
+      manifestUrl={manifestUrl}
+      actionsConfiguration={{
+        twaReturnUrl: 'https://t.me/WilliamKnifeManBot'
+      }}
+      uiPreferences={{
+        theme: 'DARK' as any
+      }}
+    >
+      {children}
+    </TonConnectUIProvider>
+  );
+};
 
 export default TonConnectProvider;

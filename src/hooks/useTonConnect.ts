@@ -206,9 +206,14 @@ export const useTonConnect = (): UseTonConnectReturn => {
   // Enhanced TON Space wallet address detection
   useEffect(() => {
     const detectRealAddress = async () => {
+      console.log("🔍 [DETECTION] === WALLET STATE CHECK ===");
+      console.log("🔍 [DETECTION] Wallet exists:", !!wallet);
+      console.log("🔍 [DETECTION] TonConnect UI exists:", !!tonConnectUI);
+      
       if (!wallet || !tonConnectUI) {
         console.log("🔍 [DETECTION] No wallet or UI available");
         setWalletAddress(null);
+        setIsLoading(false);
         return;
       }
       
@@ -293,11 +298,19 @@ export const useTonConnect = (): UseTonConnectReturn => {
   }, [wallet, tonConnectUI]);
 
   const connect = async () => {
-    console.log("🔌 [CONNECT] Starting connection...");
+    console.log("🔌 [CONNECT] Starting wallet connection...");
     setIsLoading(true);
     
     try {
-      await tonConnectUI?.openModal();
+      if (!tonConnectUI) {
+        console.error("❌ [CONNECT] TonConnect UI not available");
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log("🔌 [CONNECT] Opening modal...");
+      await tonConnectUI.openModal();
+      console.log("✅ [CONNECT] Modal opened successfully");
     } catch (error) {
       console.error("❌ [CONNECT] Connection failed:", error);
       setIsLoading(false);

@@ -1,11 +1,8 @@
 {
-  "url": "https://wiliamdrop.netlify.app",
+  "url": "https://a3e79467-7b1e-410a-a3a4-f6b5b48946c1.lovableproject.com",
   "name": "William Knife Man Bot",
-  "termsOfUseUrl": "https://wiliamdrop.netlify.app/terms.html",
-  "privacyPolicyUrl": "https://wiliamdrop.netlify.app/privacy.html",
-  "iconUrl": "https://wiliamdrop.netlify.app/icon.png",
-  "manifestVersion": "1",
-  "bridgeUrl": "https://bridge.tonapi.io/bridge",
-  "network": "mainnet",
-  "tmaUrl": "https://t.me/WilliamKnifeManBot"
+  "termsOfUseUrl": "https://a3e79467-7b1e-410a-a3a4-f6b5b48946c1.lovableproject.com/terms.html",
+  "privacyPolicyUrl": "https://a3e79467-7b1e-410a-a3a4-f6b5b48946c1.lovableproject.com/privacy.html",
+  "iconUrl": "https://a3e79467-7b1e-410a-a3a4-f6b5b48946c1.lovableproject.com/icon.png",
+  "manifestVersion": "1"
 }
