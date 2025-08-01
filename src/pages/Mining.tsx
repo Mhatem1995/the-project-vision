@@ -6,7 +6,6 @@ import BoostPurchaseDialog from "@/components/BoostPurchaseDialog";
 import BalanceCard from "@/components/mining/BalanceCard";
 import MiningProgress from "@/components/mining/MiningProgress";
 import FortuneWheel from "@/components/FortuneWheel";
-import { SimpleTonConnect } from "@/components/SimpleTonConnect";
 import { WalletDebugComponent } from "@/components/WalletDebugComponent";
 import { useMining } from "@/hooks/useMining";
 import { useToast } from "@/hooks/use-toast";
@@ -111,9 +110,6 @@ const Mining = () => {
               timeRemaining={timeRemaining}
             />
 
-            {/* Simple wallet connection test */}
-            <SimpleTonConnect />
-            
             {/* Enhanced wallet connection with debug component */}
             <WalletDebugComponent />
 

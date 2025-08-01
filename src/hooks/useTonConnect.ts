@@ -201,119 +201,71 @@ export const useTonConnect = (): UseTonConnectReturn => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const isConnected = !!wallet && !!walletAddress;
+  const isConnected = !!wallet;
 
-  // Enhanced TON Space wallet address detection
+  // Simplified wallet address detection - just get the address when wallet connects
   useEffect(() => {
-    const detectRealAddress = async () => {
-      console.log("🔍 [DETECTION] === WALLET STATE CHECK ===");
-      console.log("🔍 [DETECTION] Wallet exists:", !!wallet);
-      console.log("🔍 [DETECTION] TonConnect UI exists:", !!tonConnectUI);
-      
-      if (!wallet || !tonConnectUI) {
-        console.log("🔍 [DETECTION] No wallet or UI available");
-        setWalletAddress(null);
-        setIsLoading(false);
-        return;
-      }
-      
-      console.log("🔍 [DETECTION] === TON SPACE WALLET DETECTION ===");
-      console.log("🔍 [DETECTION] Wallet:", wallet);
-      console.log("🔍 [DETECTION] Provider:", wallet?.provider);
-      console.log("🔍 [DETECTION] Device:", wallet?.device);
-      console.log("🔍 [DETECTION] Account:", wallet?.account);
-      console.log("🔍 [DETECTION] App Name:", wallet?.device?.appName);
-      
-      // Check if this is actually a Telegram wallet
-      const isTelegramWallet = wallet?.device?.appName === 'telegram-wallet' ||
-                              (wallet as any)?.appName === 'telegram-wallet' ||
-                              (wallet as any)?.name === 'Telegram Wallet';
-      
-      console.log("🔍 [DETECTION] Is Telegram Wallet:", isTelegramWallet);
-      
-      if (!isTelegramWallet) {
-        console.warn("⚠️ [DETECTION] Not a Telegram wallet! TON Space addresses require Telegram wallet.");
-        setWalletAddress(null);
-        return;
-      }
-      
-      setIsLoading(true);
-      
-      try {
-        // Get the real TON Space address (v4R2)
-        const realAddress = await getRealTonSpaceAddress(wallet, tonConnectUI);
-        
-        if (realAddress) {
-          // Validate that this is a proper TON Space address (should start with UQDe or similar)
-          console.log("✅ [DETECTION] TON Space address detected:", realAddress);
-          console.log("🔍 [DETECTION] Address starts with:", realAddress.substring(0, 6));
-          console.log("🔍 [DETECTION] Address length:", realAddress.length);
-          
-          setWalletAddress(realAddress);
-          
-          // Store with Telegram wallet provider
-          localStorage.setItem("tonWalletAddress", realAddress);
-          localStorage.setItem("tonWalletProvider", "telegram-wallet");
-          
-          // Save to Supabase with Telegram user ID
-          const telegramUserId = localStorage.getItem("telegramUserId");
-          if (telegramUserId) {
-            console.log("💾 [DETECTION] Saving TON Space wallet to Supabase:", { telegramUserId, realAddress });
-            
-            try {
-              const { data, error } = await supabase.functions.invoke('database-helper', {
-                body: {
-                  action: 'save_wallet_connection',
-                  params: {
-                    telegram_id: telegramUserId,
-                    wallet_address: realAddress
-                  }
-                }
-              });
-              
-              if (error) {
-                console.error("❌ [DETECTION] Supabase save failed:", error);
-              } else {
-                console.log("✅ [DETECTION] TON Space wallet saved to Supabase successfully:", data);
-              }
-            } catch (saveError) {
-              console.error("❌ [DETECTION] Supabase save exception:", saveError);
-            }
-          } else {
-            console.warn("⚠️ [DETECTION] No Telegram user ID found in localStorage");
-          }
-        } else {
-          console.error("❌ [DETECTION] Failed to get real TON Space address");
-          setWalletAddress(null);
-        }
-      } catch (error) {
-        console.error("❌ [DETECTION] TON Space address detection failed:", error);
-        setWalletAddress(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    console.log("🔍 [WALLET] Connection state changed");
+    console.log("🔍 [WALLET] Wallet:", !!wallet);
+    console.log("🔍 [WALLET] TonConnect UI:", !!tonConnectUI);
     
-    detectRealAddress();
+    if (wallet?.account?.address) {
+      const address = wallet.account.address;
+      console.log("✅ [WALLET] Got wallet address:", address);
+      
+      // Convert to UQ format if needed
+      let finalAddress = address;
+      if (address.startsWith("0:")) {
+        finalAddress = convertToUserFriendly(address) || address;
+      }
+      
+      console.log("✅ [WALLET] Final address:", finalAddress);
+      setWalletAddress(finalAddress);
+      
+      // Store in localStorage
+      localStorage.setItem("tonWalletAddress", finalAddress);
+      localStorage.setItem("tonWalletProvider", "telegram-wallet");
+      
+      // Save to database
+      const userId = localStorage.getItem("telegramUserId");
+      if (userId) {
+        console.log("💾 [WALLET] Saving to database:", { userId, finalAddress });
+        
+        supabase.functions.invoke('database-helper', {
+          body: {
+            action: 'save_wallet_connection',
+            params: {
+              telegram_id: userId,
+              wallet_address: finalAddress
+            }
+          }
+        }).then(({ data, error }) => {
+          if (error) {
+            console.error("❌ [WALLET] Database save failed:", error);
+          } else {
+            console.log("✅ [WALLET] Saved to database:", data);
+          }
+        });
+      }
+    } else {
+      console.log("❌ [WALLET] No wallet address found");
+      setWalletAddress(null);
+    }
   }, [wallet, tonConnectUI]);
 
   const connect = async () => {
     console.log("🔌 [CONNECT] Starting wallet connection...");
-    setIsLoading(true);
+    
+    if (!tonConnectUI) {
+      console.error("❌ [CONNECT] TonConnect UI not available");
+      return;
+    }
     
     try {
-      if (!tonConnectUI) {
-        console.error("❌ [CONNECT] TonConnect UI not available");
-        setIsLoading(false);
-        return;
-      }
-      
       console.log("🔌 [CONNECT] Opening modal...");
       await tonConnectUI.openModal();
-      console.log("✅ [CONNECT] Modal opened successfully");
     } catch (error) {
       console.error("❌ [CONNECT] Connection failed:", error);
-      setIsLoading(false);
     }
   };
 
