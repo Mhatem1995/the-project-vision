@@ -203,47 +203,45 @@ export const useTonConnect = (): UseTonConnectReturn => {
 
   const isConnected = !!wallet;
 
-  // Simplified wallet address detection - just get the address when wallet connects
+  // Capture real TON Space wallet address directly - NO conversion
   useEffect(() => {
     console.log("🔍 [WALLET] Connection state changed");
-    console.log("🔍 [WALLET] Wallet:", !!wallet);
-    console.log("🔍 [WALLET] TonConnect UI:", !!tonConnectUI);
+    console.log("🔍 [WALLET] Wallet exists:", !!wallet);
+    console.log("🔍 [WALLET] TonConnect UI exists:", !!tonConnectUI);
     
     if (wallet?.account?.address) {
-      const address = wallet.account.address;
-      console.log("✅ [WALLET] Got wallet address:", address);
+      // Get the REAL wallet address exactly as provided by TON Space
+      const realAddress = wallet.account.address;
+      console.log("✅ [WALLET] REAL TON Space wallet address:", realAddress);
+      console.log("✅ [WALLET] Address type:", typeof realAddress);
+      console.log("✅ [WALLET] Address length:", realAddress.length);
+      console.log("✅ [WALLET] Full wallet object:", JSON.stringify(wallet, null, 2));
       
-      // Convert to UQ format if needed
-      let finalAddress = address;
-      if (address.startsWith("0:")) {
-        finalAddress = convertToUserFriendly(address) || address;
-      }
+      // Use the EXACT address from TON Space - no conversion!
+      setWalletAddress(realAddress);
       
-      console.log("✅ [WALLET] Final address:", finalAddress);
-      setWalletAddress(finalAddress);
-      
-      // Store in localStorage
-      localStorage.setItem("tonWalletAddress", finalAddress);
+      // Store the REAL address in localStorage
+      localStorage.setItem("tonWalletAddress", realAddress);
       localStorage.setItem("tonWalletProvider", "telegram-wallet");
       
-      // Save to database
+      // Save the REAL address to database
       const userId = localStorage.getItem("telegramUserId");
       if (userId) {
-        console.log("💾 [WALLET] Saving to database:", { userId, finalAddress });
+        console.log("💾 [WALLET] Saving REAL address to database:", { userId, realAddress });
         
         supabase.functions.invoke('database-helper', {
           body: {
             action: 'save_wallet_connection',
             params: {
               telegram_id: userId,
-              wallet_address: finalAddress
+              wallet_address: realAddress
             }
           }
         }).then(({ data, error }) => {
           if (error) {
             console.error("❌ [WALLET] Database save failed:", error);
           } else {
-            console.log("✅ [WALLET] Saved to database:", data);
+            console.log("✅ [WALLET] REAL address saved to database:", data);
           }
         });
       }
